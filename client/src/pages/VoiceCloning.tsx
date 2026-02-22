@@ -492,27 +492,35 @@ export default function VoiceCloning() {
           <div className="mb-8">
             <div className="flex items-center justify-between max-w-md mx-auto">
               {steps.map((step, index) => (
-                <div key={step.id} className="flex items-center">
-                  <div 
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all",
-                      index < currentStepIndex && "bg-primary text-primary-foreground",
-                      index === currentStepIndex && "bg-primary text-primary-foreground ring-4 ring-primary/20",
-                      index > currentStepIndex && "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {index < currentStepIndex ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      index + 1
+                <div key={step.id} className="flex flex-col items-center gap-1">
+                  <div className="flex items-center">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-sm",
+                        index < currentStepIndex && "bg-primary text-primary-foreground shadow-primary/30",
+                        index === currentStepIndex && "bg-primary text-primary-foreground ring-4 ring-primary/25 shadow-primary/30",
+                        index > currentStepIndex && "bg-muted/70 text-muted-foreground border-2 border-border"
+                      )}
+                    >
+                      {index < currentStepIndex ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    {index < steps.length - 1 && (
+                      <div className={cn(
+                        "w-8 sm:w-12 h-0.5 mx-1",
+                        index < currentStepIndex ? "bg-primary" : "bg-border"
+                      )} />
                     )}
                   </div>
-                  {index < steps.length - 1 && (
-                    <div className={cn(
-                      "w-8 sm:w-12 h-0.5 mx-1",
-                      index < currentStepIndex ? "bg-primary" : "bg-muted"
-                    )} />
-                  )}
+                  <span className={cn(
+                    "text-[10px] font-medium tracking-wide hidden sm:block",
+                    index === currentStepIndex ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {step.label}
+                  </span>
                 </div>
               ))}
             </div>
@@ -985,7 +993,10 @@ export default function VoiceCloning() {
 
           {Array.isArray(voiceProfiles) && voiceProfiles.length > 0 && (
             <div className="mt-12 space-y-4">
-              <h2 className="text-xl font-semibold">Your Voice Clones</h2>
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">Your Voice Clones</h2>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {voiceProfiles.map((profile) => (
                   <Card 
@@ -999,21 +1010,21 @@ export default function VoiceCloning() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center",
-                            profile.status === 'ready' 
-                              ? "bg-green-500/20" 
+                            "w-11 h-11 rounded-full flex items-center justify-center ring-2",
+                            profile.status === 'ready'
+                              ? "bg-green-500/25 ring-green-500/50"
                               : profile.status === 'training'
-                              ? "bg-yellow-500/20"
+                              ? "bg-amber-500/25 ring-amber-500/50"
                               : profile.status === 'failed'
-                              ? "bg-red-500/20"
-                              : "bg-muted"
+                              ? "bg-red-500/25 ring-red-500/50"
+                              : "bg-muted ring-border"
                           )}>
                             {profile.status === 'ready' ? (
-                              <Volume2 className="w-5 h-5 text-green-600" />
+                              <Volume2 className="w-5 h-5 text-green-500" />
                             ) : profile.status === 'training' ? (
-                              <Loader2 className="w-5 h-5 text-yellow-600 animate-spin" />
+                              <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
                             ) : profile.status === 'failed' ? (
-                              <AlertCircle className="w-5 h-5 text-red-600" />
+                              <AlertCircle className="w-5 h-5 text-red-500" />
                             ) : (
                               <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
                             )}
@@ -1028,10 +1039,11 @@ export default function VoiceCloning() {
                         <div className="flex items-center gap-2">
                           {profile.status === 'ready' && (
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => playVoicePreview(profile.id)}
                               disabled={isPlaying && selectedProfileId === profile.id}
+                              className="text-primary border-primary/40 hover:bg-primary/10 hover:border-primary/60"
                               aria-label={isPlaying && selectedProfileId === profile.id ? `Pause ${profile.name} preview` : `Play ${profile.name} preview`}
                             >
                               {isPlaying && selectedProfileId === profile.id ? (
@@ -1042,14 +1054,14 @@ export default function VoiceCloning() {
                             </Button>
                           )}
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => {
                               if (confirm(`Delete voice "${profile.name}"?`)) {
                                 deleteProfileMutation.mutate(profile.id);
                               }
                             }}
-                            className="text-muted-foreground hover:text-destructive"
+                            className="text-muted-foreground border-border hover:text-destructive hover:border-destructive/50 hover:bg-destructive/5"
                             aria-label={`Delete ${profile.name}`}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1070,9 +1082,12 @@ export default function VoiceCloning() {
           )}
 
           {!profilesLoading && (!voiceProfiles || voiceProfiles.length === 0) && currentStep === 'intro' && (
-            <div className="text-center py-8 mt-8 text-muted-foreground">
-              <Volume2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No voice clones yet. Create your first one above!</p>
+            <div className="text-center py-10 mt-8 rounded-xl border border-dashed border-border bg-muted/20">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-primary/20">
+                <Volume2 className="w-8 h-8 text-primary" />
+              </div>
+              <p className="font-medium text-foreground">No voice clones yet</p>
+              <p className="text-sm text-muted-foreground mt-1">Create your first one above!</p>
             </div>
           )}
         </div>
