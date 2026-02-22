@@ -656,17 +656,26 @@ export default function Stories() {
       <Navigation />
       <div className="container mx-auto px-4 pt-24 pb-10">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-foreground mb-3">Family Stories</h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4 border border-primary/20">
+            <span>📖</span>
+            Story Library
+          </div>
+          <h1 className="text-4xl font-bold text-foreground mb-3 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Family Stories
+          </h1>
+          <p className="text-muted-foreground max-w-2xl mx-auto text-base leading-relaxed">
             Discover curated stories for every member of the family. Pick a voice
             you love and generate immersive narration with a single click.
           </p>
         </div>
 
-        <Card className="bg-card border border-border">
-          <CardHeader className="md:flex md:items-start md:justify-between gap-6">
+        <Card className="bg-card border border-border shadow-sm">
+          <CardHeader className="md:flex md:items-start md:justify-between gap-6 border-b border-border/50 pb-6">
             <div className="md:flex-1">
-              <CardTitle className="text-foreground">Narration Voice</CardTitle>
+              <div className="flex items-center gap-2 mb-1">
+                <i className="fas fa-microphone text-primary text-sm" />
+                <CardTitle className="text-foreground">Narration Voice</CardTitle>
+              </div>
               <CardDescription>
                 Choose a voice profile to use when generating story narrations.
               </CardDescription>
@@ -721,36 +730,49 @@ export default function Stories() {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="bg-secondary text-secondary-foreground">
-                      {storiesResponse?.total ?? stories.length} stories
-                    </Badge>
-                    {selectedStorySummary && selectedVoiceProfile && (
-                      <Badge variant="outline" className="bg-accent/20 text-accent border border-accent/40">
-                        {selectedStorySummary.title} +{" "}
-                        {(selectedVoice?.displayName ?? selectedVoice?.name) || "Voice"}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="w-full md:w-64">
-                    <Select
-                      value={categoryFilter}
-                      onValueChange={(value) => setCategoryFilter(value)}
+                    <button
+                      type="button"
+                      onClick={() => setCategoryFilter("ALL")}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
+                        categoryFilter === "ALL"
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                      )}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Filter by category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All categories</SelectItem>
-                        {categories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      All ({storiesResponse?.total ?? stories.length})
+                    </button>
+                    {categories.map((category) => {
+                      const icon = CATEGORY_ICONS[category?.toUpperCase()] || CATEGORY_ICONS.UNCATEGORIZED;
+                      const count = stories.filter(s => (s.category || "UNCATEGORIZED").toUpperCase() === category.toUpperCase()).length;
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => setCategoryFilter(category)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5",
+                            categoryFilter === category
+                              ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                              : "bg-card text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                          )}
+                        >
+                          <span>{icon}</span>
+                          {category} ({count})
+                        </button>
+                      );
+                    })}
                   </div>
+                  {selectedStorySummary && selectedVoiceProfile && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-accent/20 text-accent border border-accent/40 text-xs">
+                        <i className="fas fa-headphones mr-1.5" />
+                        {selectedStorySummary.title} · {(selectedVoice?.displayName ?? selectedVoice?.name) || "Voice"}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-[2fr,3fr]">
@@ -766,19 +788,19 @@ export default function Stories() {
                           key={story.id}
                           onClick={() => setSelectedSlug(story.slug)}
                           className={cn(
-                            "w-full rounded-xl border bg-card p-3 text-left transition-all hover:bg-accent/5",
+                            "w-full rounded-xl border bg-card p-3 text-left transition-all group",
                             isSelected
-                              ? "border-primary ring-1 ring-primary shadow-md bg-accent/5"
-                              : "border-border hover:border-primary/50 hover:shadow-sm"
+                              ? "border-primary ring-2 ring-primary/30 shadow-md bg-primary/5"
+                              : "border-border hover:border-primary/50 hover:shadow-md hover:bg-accent/5"
                           )}
                         >
-                          <div className="flex gap-4">
-                            <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-muted border border-border/50">
+                          <div className="flex gap-3">
+                            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted border border-border/50 shadow-sm">
                               {story.coverUrl ? (
                                 <img
                                   src={story.coverUrl}
                                   alt={story.title}
-                                  className="h-full w-full object-cover transition-transform hover:scale-105"
+                                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
                                     e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -786,7 +808,14 @@ export default function Stories() {
                                 />
                               ) : null}
                               <div className={cn(
-                                "flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 text-3xl",
+                                "flex h-full w-full items-center justify-center text-3xl",
+                                story.category === "BEDTIME" && "bg-gradient-to-br from-indigo-500/20 to-purple-500/20",
+                                story.category === "CLASSIC" && "bg-gradient-to-br from-amber-500/20 to-orange-500/20",
+                                story.category === "FAIRYTALE" && "bg-gradient-to-br from-pink-500/20 to-rose-500/20",
+                                story.category === "ADVENTURE" && "bg-gradient-to-br from-sky-500/20 to-cyan-500/20",
+                                story.category === "EDUCATIONAL" && "bg-gradient-to-br from-emerald-500/20 to-teal-500/20",
+                                story.category === "CUSTOM" && "bg-gradient-to-br from-primary/20 to-accent/20",
+                                !["BEDTIME","CLASSIC","FAIRYTALE","ADVENTURE","EDUCATIONAL","CUSTOM"].includes(story.category || "") && "bg-gradient-to-br from-primary/10 to-secondary/10",
                                 story.coverUrl ? "hidden" : ""
                               )}>
                                 {icon}
@@ -795,12 +824,9 @@ export default function Stories() {
 
                             <div className="flex flex-col gap-1 min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <h3 className="text-base font-semibold text-foreground line-clamp-1">
+                                <h3 className="text-sm font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
                                   {story.title}
                                 </h3>
-                                <Badge variant="secondary" className="bg-secondary/50 text-xs px-1.5 py-0 h-5 whitespace-nowrap">
-                                  {story.category || "Story"}
-                                </Badge>
                               </div>
 
                               {story.summary && (
@@ -810,6 +836,9 @@ export default function Stories() {
                               )}
 
                               <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground font-medium">
+                                <span className="flex items-center gap-1 text-primary/80 font-semibold">
+                                  {icon} {story.category || "Story"}
+                                </span>
                                 {durationLabel && (
                                   <span className="flex items-center gap-1">
                                     <i className="far fa-clock" /> {durationLabel}
@@ -828,10 +857,12 @@ export default function Stories() {
                     })}
                   </div>
 
-                  <div className="rounded-xl border border-border bg-card p-6">
+                  <div className="rounded-xl border border-border bg-card p-6 min-h-64">
                     {!selectedStorySummary ? (
-                      <div className="text-center text-muted-foreground">
-                        Select a story to explore its sections.
+                      <div className="flex flex-col items-center justify-center text-center text-muted-foreground py-12 gap-3">
+                        <span className="text-5xl">📖</span>
+                        <p className="font-medium text-foreground">Select a story</p>
+                        <p className="text-sm">Choose a story from the list to see details and generate narration.</p>
                       </div>
                     ) : detailLoading ? (
                       <div className="space-y-6">
@@ -859,22 +890,27 @@ export default function Stories() {
                       <div className="space-y-6">
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div>
-                              <h2 className="text-2xl font-semibold text-foreground">
-                                {selectedStorySummary.title}
-                              </h2>
-                              {selectedStorySummary.author && (
-                                <p className="text-sm text-muted-foreground">
-                                  By {selectedStorySummary.author}
-                                </p>
-                              )}
+                            <div className="flex items-start gap-3">
+                              <div className="text-4xl leading-none mt-1">
+                                {CATEGORY_ICONS[selectedStorySummary.category?.toUpperCase()] || CATEGORY_ICONS.UNCATEGORIZED}
+                              </div>
+                              <div>
+                                <h2 className="text-2xl font-bold text-foreground">
+                                  {selectedStorySummary.title}
+                                </h2>
+                                {selectedStorySummary.author && (
+                                  <p className="text-sm text-muted-foreground">
+                                    By {selectedStorySummary.author}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <Badge variant="outline" className="border-border bg-secondary text-secondary-foreground">
+                              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary font-semibold">
                                 {selectedStorySummary.category}
                               </Badge>
-                              <Badge variant="outline" className="border-border bg-secondary text-secondary-foreground">
-                                Rights: {selectedStorySummary.rights}
+                              <Badge variant="outline" className="border-border bg-secondary text-secondary-foreground text-xs">
+                                {selectedStorySummary.rights}
                               </Badge>
                             </div>
                           </div>
@@ -1081,26 +1117,32 @@ export default function Stories() {
                                   return (
                                     <div
                                       key={section.id}
-                                      className="rounded-lg border border-border bg-card p-4 space-y-3"
+                                      className="rounded-lg border border-border bg-card p-4 space-y-3 hover:border-border/80 transition-colors"
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div>
+                                        <div className="flex items-center gap-2">
                                           {mergedSections.length > 1 && (
-                                            <p className="text-sm font-semibold text-foreground">
-                                              Section {index + 1}
-                                              {section.title ? ` · ${section.title}` : ""}
-                                            </p>
+                                            <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                                              {index + 1}
+                                            </div>
                                           )}
-                                          <p className="text-xs text-muted-foreground">
-                                            Words: {section.wordCount}
-                                          </p>
+                                          <div>
+                                            {mergedSections.length > 1 && (
+                                              <p className="text-sm font-semibold text-foreground">
+                                                {section.title || `Section ${index + 1}`}
+                                              </p>
+                                            )}
+                                            <p className="text-xs text-muted-foreground">
+                                              {section.wordCount} words
+                                            </p>
+                                          </div>
                                         </div>
-                                        <Badge variant="outline" className={badgeClass}>
+                                        <Badge variant="outline" className={cn(badgeClass, "text-xs font-semibold")}>
                                           {status}
                                         </Badge>
                                       </div>
                                       {section.text && (
-                                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap border-l-2 border-primary/20 pl-3">
                                           {section.text}
                                         </p>
                                       )}
@@ -1112,13 +1154,14 @@ export default function Stories() {
                                           src={section.audio.audioUrl}
                                         />
                                       ) : (
-                                        <p className="text-xs text-slate-400">
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md px-3 py-2">
+                                          <i className="fas fa-clock" />
                                           Audio will appear here once generation completes.
-                                        </p>
+                                        </div>
                                       )}
                                       {section.audio.audioUrl && (
                                         <div className="pt-1">
-                                          <Button size="sm" variant="outline" asChild>
+                                          <Button size="sm" variant="outline" asChild className="text-primary border-primary/40 hover:bg-primary/10">
                                             <a
                                               href={`/api/stories/${selectedStorySummary?.slug}/download/section/${section.id}?voiceId=${encodeURIComponent(
                                                 selectedVoiceProfile ?? ''
