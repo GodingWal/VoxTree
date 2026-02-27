@@ -341,7 +341,7 @@ export default function VoiceCloningEnhanced() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-brand-gold bg-clip-text text-transparent mb-3">
             Voice Cloning Studio
           </h1>
-          <p className="text-lg text-slate-300 max-w-2xl mx-auto mb-6">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
             Transform your voice into AI-powered clones with just a few recordings
           </p>
           
@@ -349,7 +349,7 @@ export default function VoiceCloningEnhanced() {
             onClick={() => setShowWizard(true)}
             disabled={isCreatingJob}
             size="lg"
-            className="bg-gradient-to-r from-brand-green to-primary hover:from-brand-green/90 hover:to-primary/90 text-white px-8 py-3 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+            className="bg-gradient-to-r from-brand-green to-primary hover:from-brand-green/90 hover:to-primary/90 text-foreground px-8 py-3 text-lg font-medium rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
           >
             <Mic className="h-5 w-5 mr-2" />
             Start Creating
@@ -362,32 +362,36 @@ export default function VoiceCloningEnhanced() {
             <div className="w-12 h-12 bg-blue-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
               <Clock className="h-6 w-6 text-blue-400" />
             </div>
-            <p className="text-2xl font-bold text-white">{stats.active}</p>
-            <p className="text-sm text-slate-400">Active</p>
+            <p className="text-2xl font-bold text-foreground">{stats.active}</p>
+            <p className="text-sm text-muted-foreground">Active Jobs</p>
+            {stats.active === 0 && <p className="text-xs text-muted-foreground/60 mt-1">No active jobs</p>}
           </div>
-          
+
           <div className="bg-card rounded-2xl p-6 shadow-lg border border-border text-center">
             <div className="w-12 h-12 bg-green-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle className="h-6 w-6 text-green-400" />
             </div>
-            <p className="text-2xl font-bold text-white">{stats.completed}</p>
-            <p className="text-sm text-slate-400">Completed</p>
+            <p className="text-2xl font-bold text-foreground">{stats.completed}</p>
+            <p className="text-sm text-muted-foreground">Completed</p>
+            {stats.completed === 0 && <p className="text-xs text-muted-foreground/60 mt-1">No completed jobs yet</p>}
           </div>
-          
+
           <div className="bg-card rounded-2xl p-6 shadow-lg border border-border text-center">
             <div className="w-12 h-12 bg-red-900/50 rounded-full flex items-center justify-center mx-auto mb-3">
               <AlertTriangle className="h-6 w-6 text-red-400" />
             </div>
-            <p className="text-2xl font-bold text-white">{stats.failed}</p>
-            <p className="text-sm text-slate-400">Failed</p>
+            <p className="text-2xl font-bold text-foreground">{stats.failed}</p>
+            <p className="text-sm text-muted-foreground">Failed</p>
+            {stats.failed === 0 && <p className="text-xs text-muted-foreground/60 mt-1">No failures</p>}
           </div>
-          
+
           <div className="bg-card rounded-2xl p-6 shadow-lg border border-border text-center">
             <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3">
               <Mic className="h-6 w-6 text-primary" />
             </div>
-            <p className="text-2xl font-bold text-white">{voiceProfiles.length}</p>
-            <p className="text-sm text-slate-400">Profiles</p>
+            <p className="text-2xl font-bold text-foreground">{voiceProfiles.length}</p>
+            <p className="text-sm text-muted-foreground">Voice Profiles</p>
+            {voiceProfiles.length === 0 && <p className="text-xs text-muted-foreground/60 mt-1">No profiles yet</p>}
           </div>
         </div>
 
@@ -440,7 +444,7 @@ export default function VoiceCloningEnhanced() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* How It Works */}
             <div className="bg-card rounded-3xl p-8 shadow-lg border border-border">
-              <h3 className="text-xl font-bold text-white mb-6">How It Works</h3>
+              <h3 className="text-xl font-bold text-foreground mb-6">How It Works</h3>
               <div className="space-y-4">
                 {[
                   { step: "1", title: "Record Samples", desc: "Follow our guided prompts to record 5 voice samples" },
@@ -449,12 +453,12 @@ export default function VoiceCloningEnhanced() {
                   { step: "4", title: "Ready to Use", desc: "Your voice profile is ready for videos" }
                 ].map((item) => (
                   <div key={item.step} className="flex gap-4">
-                    <div className="w-8 h-8 bg-gradient-to-r from-brand-green to-primary text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    <div className="w-8 h-8 bg-gradient-to-r from-brand-green to-primary text-foreground rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
                       {item.step}
                     </div>
                     <div>
-                      <h4 className="font-semibold text-white">{item.title}</h4>
-                      <p className="text-sm text-slate-300">{item.desc}</p>
+                      <h4 className="font-semibold text-foreground">{item.title}</h4>
+                      <p className="text-sm text-muted-foreground">{item.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -463,7 +467,7 @@ export default function VoiceCloningEnhanced() {
 
             {/* Tips */}
             <div className="bg-card rounded-3xl p-8 shadow-lg border border-border">
-              <h3 className="text-xl font-bold text-white mb-6">Tips for Best Results</h3>
+              <h3 className="text-xl font-bold text-foreground mb-6">Tips for Best Results</h3>
               <div className="space-y-3">
                 {[
                   "Record in a quiet environment",
@@ -474,7 +478,7 @@ export default function VoiceCloningEnhanced() {
                 ].map((tip, index) => (
                   <div key={index} className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-gradient-to-r from-brand-green to-primary rounded-full flex-shrink-0"></div>
-                    <span className="text-slate-300">{tip}</span>
+                    <span className="text-muted-foreground">{tip}</span>
                   </div>
                 ))}
               </div>
@@ -501,14 +505,14 @@ export default function VoiceCloningEnhanced() {
             <div className="rounded-2xl border border-border/60 bg-background/40 p-6">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-sm uppercase tracking-wide text-slate-300">
+                  <div className="flex items-center gap-2 text-sm uppercase tracking-wide text-muted-foreground">
                     <BookOpen className="h-4 w-4" />
                     20-second story preview
                   </div>
-                  <h3 className="mt-2 text-xl font-semibold text-white">
+                  <h3 className="mt-2 text-xl font-semibold text-foreground">
                     {previewVoice ? previewVoice.name : 'Choose a voice to hear a preview'}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {previewVoice
                       ? `Hear ${previewVoice.name} narrate a short kids story so you can decide what to do next.`
                       : 'Select any ready voice profile below to generate a short kids story preview using the cloned voice.'}
@@ -541,7 +545,7 @@ export default function VoiceCloningEnhanced() {
 
               <div className="mt-4 space-y-3">
                 {isPreviewLoading && (
-                  <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Crafting a 20-second kids story and generating preview audio...
                   </div>
@@ -566,7 +570,7 @@ export default function VoiceCloningEnhanced() {
                 )}
 
                 {!previewStory && !isPreviewLoading && !previewError && (
-                  <p className="text-sm text-slate-300">
+                  <p className="text-sm text-muted-foreground">
                     When you preview a voice, we create a fresh, age-appropriate story that takes about twenty seconds to read aloud.
                     You can replay it or stop playback anytime.
                   </p>
@@ -583,9 +587,9 @@ export default function VoiceCloningEnhanced() {
             <div className="mt-6 rounded-2xl border border-border/60 bg-background/40 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="h-5 w-5 text-brand-gold" />
-                <h3 className="text-lg font-semibold text-white">Test Your Voice Clone</h3>
+                <h3 className="text-lg font-semibold text-foreground">Test Your Voice Clone</h3>
               </div>
-              <p className="text-sm text-slate-400 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Type any text to hear how your cloned voice sounds. Great for testing pronunciation and quality.
               </p>
               {voiceProfiles.filter(p => p.status === 'ready').length > 0 ? (

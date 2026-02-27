@@ -19,7 +19,7 @@
   --secondary: hsl(144, 30%, 92%);
   --secondary-foreground: hsl(0, 0%, 16.5%);
   --muted: hsl(144, 20%, 95%);
-  --muted-foreground: hsl(0, 0%, 45%);
+  --muted-foreground: hsl(0, 0%, 35%);
   --accent: hsl(37.4, 91.3%, 54.9%);
   --accent-foreground: hsl(0, 0%, 16.5%);
   --destructive: hsl(10.6, 75.5%, 63.1%);
@@ -279,6 +279,18 @@
   justify-content: center;
 }
 
+/* Keyboard focus indicators */
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Remove default focus outlines for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Prevent horizontal scroll */
 body {
   overflow-x: hidden;
@@ -286,4 +298,12 @@ body {
 
 * {
   max-width: 100%;
+}
+
+/* Pricing cards stack on mobile */
+@media (max-width: 768px) {
+  .grid.md\:grid-cols-3 {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
 }
