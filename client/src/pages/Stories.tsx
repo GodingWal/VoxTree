@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigation } from "@/components/Navigation";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import {
   Card,
   CardContent,
@@ -655,6 +656,10 @@ export default function Stories() {
       />
       <Navigation />
       <div className="container mx-auto px-4 pt-24 pb-10">
+        <PageBreadcrumb
+          segments={[{ label: "Stories" }]}
+          className="mb-6"
+        />
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4 border border-primary/20">
             <span>📖</span>
@@ -725,8 +730,28 @@ export default function Stories() {
                 We couldn't load stories right now. Please try again later.
               </div>
             ) : stories.length === 0 ? (
-              <div className="text-center text-muted-foreground">
-                No stories are available yet. Check back soon!
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <i className="fas fa-book-open text-3xl text-primary/60"></i>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No stories available yet</h3>
+                <p className="text-muted-foreground max-w-md mx-auto mb-4">
+                  Stories are narrated tales your family can listen to using AI-cloned voices. New stories are being added regularly.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <a href="/voice-cloning">
+                    <Button variant="outline">
+                      <i className="fas fa-microphone mr-2"></i>
+                      Clone a Voice First
+                    </Button>
+                  </a>
+                  <a href="/create">
+                    <Button>
+                      <i className="fas fa-video mr-2"></i>
+                      Create a Video Instead
+                    </Button>
+                  </a>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">

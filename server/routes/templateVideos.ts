@@ -134,12 +134,148 @@ const mapTemplateVideoRow = (row: any) => {
   };
 };
 
+const defaultTemplates = [
+  {
+    title: "Happy Birthday Celebration",
+    description: "A joyful birthday celebration with balloons, cake, and festive music. Perfect for surprising family members on their special day!",
+    thumbnailUrl: "/templates/birthday-celebration-thumb.jpg",
+    videoUrl: "/templates/birthday-celebration.mp4",
+    duration: 45,
+    category: "birthday",
+    tags: JSON.stringify(["birthday", "celebration", "party", "cake", "balloons"]),
+    difficulty: "easy",
+  },
+  {
+    title: "Christmas Morning Magic",
+    description: "Capture the magic of Christmas morning with twinkling lights, presents, and holiday cheer. Ideal for creating cherished holiday memories.",
+    thumbnailUrl: "/templates/christmas-morning-thumb.jpg",
+    videoUrl: "/templates/christmas-morning.mp4",
+    duration: 60,
+    category: "holiday",
+    tags: JSON.stringify(["christmas", "holiday", "family", "presents", "winter"]),
+    difficulty: "medium",
+  },
+  {
+    title: "Anniversary Love Story",
+    description: "A romantic journey celebrating years of love and commitment. Features elegant transitions and heartfelt moments.",
+    thumbnailUrl: "/templates/anniversary-thumb.jpg",
+    videoUrl: "/templates/anniversary.mp4",
+    duration: 90,
+    category: "anniversary",
+    tags: JSON.stringify(["anniversary", "love", "romance", "couple", "celebration"]),
+    difficulty: "hard",
+  },
+  {
+    title: "Family Reunion Memories",
+    description: "Bring the whole family together in this warm and welcoming video. Perfect for reunions and gatherings.",
+    thumbnailUrl: "/templates/family-reunion-thumb.jpg",
+    videoUrl: "/templates/family-reunion.mp4",
+    duration: 75,
+    category: "family",
+    tags: JSON.stringify(["family", "reunion", "gathering", "togetherness", "memories"]),
+    difficulty: "medium",
+  },
+  {
+    title: "Graduation Celebration",
+    description: "Celebrate academic achievements with this inspiring graduation video. Features cap toss and proud moments.",
+    thumbnailUrl: "/templates/graduation-thumb.jpg",
+    videoUrl: "/templates/graduation.mp4",
+    duration: 50,
+    category: "celebration",
+    tags: JSON.stringify(["graduation", "achievement", "school", "college", "success"]),
+    difficulty: "easy",
+  },
+  {
+    title: "New Year's Eve Countdown",
+    description: "Ring in the new year with fireworks, champagne, and excitement. A festive way to welcome new beginnings!",
+    thumbnailUrl: "/templates/new-year-thumb.jpg",
+    videoUrl: "/templates/new-year.mp4",
+    duration: 55,
+    category: "holiday",
+    tags: JSON.stringify(["new year", "celebration", "fireworks", "party", "countdown"]),
+    difficulty: "easy",
+  },
+  {
+    title: "Mother's Day Special",
+    description: "Honor mom with this heartwarming video filled with appreciation and love. Perfect for showing gratitude.",
+    thumbnailUrl: "/templates/mothers-day-thumb.jpg",
+    videoUrl: "/templates/mothers-day.mp4",
+    duration: 40,
+    category: "celebration",
+    tags: JSON.stringify(["mother's day", "mom", "appreciation", "love", "family"]),
+    difficulty: "easy",
+  },
+  {
+    title: "Summer Vacation Adventure",
+    description: "Relive summer adventures with beach scenes, sunshine, and fun activities. Great for capturing vacation memories!",
+    thumbnailUrl: "/templates/summer-vacation-thumb.jpg",
+    videoUrl: "/templates/summer-vacation.mp4",
+    duration: 70,
+    category: "family",
+    tags: JSON.stringify(["summer", "vacation", "beach", "adventure", "travel"]),
+    difficulty: "medium",
+  },
+  {
+    title: "Thanksgiving Gratitude",
+    description: "Express gratitude and thankfulness with this warm Thanksgiving video. Features autumn colors and family gathering scenes.",
+    thumbnailUrl: "/templates/thanksgiving-thumb.jpg",
+    videoUrl: "/templates/thanksgiving.mp4",
+    duration: 65,
+    category: "holiday",
+    tags: JSON.stringify(["thanksgiving", "gratitude", "family", "autumn", "holiday"]),
+    difficulty: "medium",
+  },
+  {
+    title: "Wedding Anniversary Tribute",
+    description: "A sophisticated tribute to lasting love. Features elegant scenes and romantic music perfect for milestone anniversaries.",
+    thumbnailUrl: "/templates/wedding-anniversary-thumb.jpg",
+    videoUrl: "/templates/wedding-anniversary.mp4",
+    duration: 120,
+    category: "anniversary",
+    tags: JSON.stringify(["wedding", "anniversary", "love", "marriage", "romance"]),
+    difficulty: "hard",
+  },
+];
+
+let autoSeeded = false;
+
+async function autoSeedIfEmpty() {
+  if (autoSeeded) return;
+  autoSeeded = true;
+
+  try {
+    const countResult = await dbQueryOne(sql`SELECT COUNT(*) as cnt FROM template_videos`);
+    const count = countResult?.cnt ?? 0;
+    if (count > 0) return;
+
+    console.log('[templateVideos] No templates found — auto-seeding default templates...');
+    const nowIso = new Date().toISOString();
+    const isActiveValue = isSQLite ? 1 : true;
+    for (const t of defaultTemplates) {
+      await dbRun(sql`
+        INSERT INTO template_videos (
+          title, description, thumbnail_url, video_url, duration,
+          category, tags, difficulty, is_active, metadata, created_at, updated_at
+        ) VALUES (
+          ${t.title}, ${t.description}, ${t.thumbnailUrl}, ${t.videoUrl}, ${t.duration},
+          ${t.category}, ${t.tags}, ${t.difficulty}, ${isActiveValue},
+          ${JSON.stringify({ pipelineStatus: "queued" })}, ${nowIso}, ${nowIso}
+        )
+      `);
+    }
+    console.log(`[templateVideos] Auto-seeded ${defaultTemplates.length} default templates`);
+  } catch (error) {
+    console.error('[templateVideos] Auto-seed failed:', error);
+  }
+}
+
 router.get('/api/template-videos', async (req, res) => {
   try {
     await ensureTemplateVideosTable();
+    await autoSeedIfEmpty();
     const isActiveValue = isSQLite ? 1 : true;
     const videos = await dbQuery(sql`
-      SELECT * FROM template_videos 
+      SELECT * FROM template_videos
       WHERE is_active = ${isActiveValue}
       ORDER BY category, created_at DESC
     `);

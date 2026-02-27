@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { loadStripe } from "@stripe/stripe-js";
@@ -14,7 +14,12 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, ApiError } from "@/lib/queryClient";
@@ -100,6 +105,55 @@ export default function Pricing() {
   };
 
   const stripeConfigured = Boolean(publishableKey);
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const annualDiscount = 0.2; // 20% off
+
+  const getDisplayPrice = (monthlyPrice: number) => {
+    if (monthlyPrice === 0) return "$0";
+    if (billingCycle === "annual") {
+      const discounted = monthlyPrice * (1 - annualDiscount);
+      return formatMonthlyPrice(discounted);
+    }
+    return formatMonthlyPrice(monthlyPrice);
+  };
+
+  // Features that lower tiers are missing (shown greyed out)
+  const premiumOnlyFeatures = [
+    "HD video exports",
+    "No ads",
+    "Priority support",
+  ];
+
+  const proOnlyFeatures = [
+    "4K video exports",
+    "Unlimited videos",
+    "Unlimited stories",
+    "5 voice clones",
+    "API access",
+  ];
+
+  const faqItems = [
+    {
+      q: "Can I cancel anytime?",
+      a: "Yes! You can cancel your subscription at any time. You'll continue to have access to your paid features until the end of your current billing period.",
+    },
+    {
+      q: "What happens to my videos if I downgrade?",
+      a: "Your existing videos are always yours. If you downgrade, you'll keep access to all previously created content but new monthly limits will apply based on your new plan.",
+    },
+    {
+      q: "How does voice cloning work?",
+      a: "Record 5 short voice samples using our guided wizard. Our AI analyzes the recordings and creates a voice model that can narrate stories and videos in your voice.",
+    },
+    {
+      q: "Is my family's data safe?",
+      a: "Absolutely. We use enterprise-grade encryption for all data. Voice samples and videos are stored securely and never shared with third parties.",
+    },
+    {
+      q: "Can multiple family members use one account?",
+      a: "Yes! All plans support family collaboration. Premium and Pro plans offer more voice clone slots so each family member can have their own AI voice.",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -128,27 +182,46 @@ export default function Pricing() {
             )}
           </section>
 
-          {!stripeConfigured && (
-            <Alert variant="destructive" className="max-w-3xl mx-auto">
-              <AlertTitle>Stripe is not configured</AlertTitle>
-              <AlertDescription>
-                Billing upgrades are temporarily unavailable while Stripe credentials are missing. Please contact support to
-                complete an upgrade.
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Annual / Monthly Toggle */}
+          <div className="flex items-center justify-center gap-3">
+            <span className={`text-sm font-medium ${billingCycle === "monthly" ? "text-foreground" : "text-muted-foreground"}`}>
+              Monthly
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={billingCycle === "annual"}
+              onClick={() => setBillingCycle(billingCycle === "monthly" ? "annual" : "monthly")}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${billingCycle === "annual" ? "bg-primary" : "bg-muted"}`}
+            >
+              <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${billingCycle === "annual" ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+            <span className={`text-sm font-medium ${billingCycle === "annual" ? "text-foreground" : "text-muted-foreground"}`}>
+              Annual <Badge variant="secondary" className="ml-1 text-xs">Save 20%</Badge>
+            </span>
+          </div>
 
           <section className="grid gap-8 md:grid-cols-3">
             {pricingPlans.map((plan) => {
               const isCurrentPlan = user?.plan === plan.plan;
               const isPaidPlan = plan.plan !== "free";
-              const buttonLabel = !isAuthenticated && isPaidPlan
-                ? "Sign in to upgrade"
-                : isCurrentPlan
-                  ? "Current plan"
-                  : plan.plan === "free"
-                    ? "Included"
-                    : `Upgrade to ${plan.name}`;
+
+              const buttonLabel = !stripeConfigured && isPaidPlan
+                ? "Contact Us to Upgrade"
+                : !isAuthenticated && isPaidPlan
+                  ? "Sign in to upgrade"
+                  : isCurrentPlan
+                    ? "Current plan"
+                    : plan.plan === "free"
+                      ? "Included"
+                      : `Upgrade to ${plan.name}`;
+
+              // Determine missing features to show greyed-out
+              const missingFeatures = plan.plan === "free"
+                ? premiumOnlyFeatures
+                : plan.plan === "premium"
+                  ? proOnlyFeatures.filter(f => !plan.features.includes(f))
+                  : [];
 
               return (
                 <Card
@@ -172,9 +245,14 @@ export default function Pricing() {
                     </CardDescription>
                     <div className="text-left">
                       <p className="text-3xl font-bold">
-                        {formatMonthlyPrice(plan.priceMonthly)}
+                        {getDisplayPrice(plan.priceMonthly)}
                         <span className="text-base font-normal text-muted-foreground"> / month</span>
                       </p>
+                      {billingCycle === "annual" && plan.priceMonthly > 0 && (
+                        <p className="text-xs text-muted-foreground line-through">
+                          {formatMonthlyPrice(plan.priceMonthly)} / month
+                        </p>
+                      )}
                       <p className="text-sm text-primary font-medium">{plan.headline}</p>
                     </div>
                   </CardHeader>
@@ -186,21 +264,54 @@ export default function Pricing() {
                           <span>{feature}</span>
                         </li>
                       ))}
+                      {/* Show greyed-out features from higher tiers */}
+                      {missingFeatures.map((feature) => (
+                        <li key={feature} className="flex items-start gap-3 opacity-40">
+                          <i className="fas fa-lock text-muted-foreground mt-1" aria-hidden="true"></i>
+                          <span className="text-muted-foreground">{feature}</span>
+                        </li>
+                      ))}
                     </ul>
                   </CardContent>
                   <CardFooter className="mt-auto">
-                    <Button
-                      className="w-full"
-                      variant={plan.highlight ? "default" : "secondary"}
-                      disabled={checkoutMutation.isPending || isCurrentPlan || plan.plan === "free"}
-                      onClick={() => handleUpgrade(plan.plan)}
-                    >
-                      {checkoutMutation.isPending && isPaidPlan ? 'Connecting to Stripe…' : buttonLabel}
-                    </Button>
+                    {!stripeConfigured && isPaidPlan ? (
+                      <Button
+                        className="w-full"
+                        variant={plan.highlight ? "default" : "secondary"}
+                        onClick={() => navigate("/contact")}
+                      >
+                        <i className="fas fa-envelope mr-2" aria-hidden="true"></i>
+                        Contact Us to Upgrade
+                      </Button>
+                    ) : (
+                      <Button
+                        className="w-full"
+                        variant={plan.highlight ? "default" : "secondary"}
+                        disabled={checkoutMutation.isPending || isCurrentPlan || plan.plan === "free"}
+                        onClick={() => handleUpgrade(plan.plan)}
+                      >
+                        {checkoutMutation.isPending && isPaidPlan ? 'Connecting to Stripe…' : buttonLabel}
+                      </Button>
+                    )}
                   </CardFooter>
                 </Card>
               );
             })}
+          </section>
+
+          {/* FAQ Section */}
+          <section className="max-w-3xl mx-auto space-y-6">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center">Frequently Asked Questions</h2>
+            <Accordion type="single" collapsible className="w-full">
+              {faqItems.map((item, idx) => (
+                <AccordionItem key={idx} value={`faq-${idx}`}>
+                  <AccordionTrigger className="text-left">{item.q}</AccordionTrigger>
+                  <AccordionContent className="text-muted-foreground">
+                    {item.a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           </section>
         </div>
       </main>

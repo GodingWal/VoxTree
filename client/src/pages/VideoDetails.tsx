@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Navigation } from "@/components/Navigation";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -230,6 +231,13 @@ export default function VideoDetails() {
 
       <main className="pt-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+          <PageBreadcrumb
+            segments={[
+              { label: "Library", href: "/videos" },
+              { label: video.title },
+            ]}
+          />
+
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <h1 className="text-3xl font-bold gradient-text mb-2">{video.title}</h1>
@@ -240,15 +248,34 @@ export default function VideoDetails() {
                 {formattedDate && <span>Updated {formattedDate}</span>}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setLocation("/videos")}>Back</Button>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" onClick={() => setLocation("/videos")}>
+                <i className="fas fa-arrow-left mr-2" />
+                Back
+              </Button>
               <Button variant="default" onClick={handleEdit} data-testid="button-edit-video">
                 <i className="fas fa-edit mr-2" />
                 Edit
               </Button>
               <Button onClick={handleShare} data-testid="button-share-video">
-                <i className="fas fa-share mr-2" />
+                <i className="fas fa-share-alt mr-2" />
                 Share
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (video.videoUrl) {
+                    const a = document.createElement("a");
+                    a.href = video.videoUrl;
+                    a.download = `${video.title}.mp4`;
+                    a.click();
+                  }
+                }}
+                disabled={!video.videoUrl}
+                data-testid="button-download-video"
+              >
+                <i className="fas fa-download mr-2" />
+                Download
               </Button>
             </div>
           </div>
