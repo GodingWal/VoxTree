@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Navigation } from "@/components/Navigation";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
+import { Skeleton } from "@/components/ui/skeleton";
 import { VideoCard } from "@/components/VideoCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +107,7 @@ export default function VideoLibrary() {
       
       <main className="pt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <PageBreadcrumb segments={[{ label: "Video Library" }]} className="mb-6" />
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
             <div>
               <h1 className="text-3xl font-bold gradient-text mb-2">Video Library</h1>
@@ -269,7 +272,14 @@ export default function VideoLibrary() {
               {videosLoading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3, 4, 5, 6].map((i) => (
-                    <div key={i} className="bg-card rounded-xl h-64 animate-pulse" />
+                    <Card key={i} className="overflow-hidden">
+                      <Skeleton className="aspect-video w-full" />
+                      <CardContent className="p-4 space-y-2">
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                        <Skeleton className="h-3 w-1/3" />
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               ) : filteredVideos && filteredVideos.length > 0 ? (
@@ -301,7 +311,16 @@ export default function VideoLibrary() {
               {videosLoading ? (
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="bg-card rounded-xl h-20 animate-pulse" />
+                    <Card key={i}>
+                      <CardContent className="p-6 flex items-center gap-4">
+                        <Skeleton className="w-16 h-16 rounded-lg flex-shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-5 w-1/3" />
+                          <Skeleton className="h-4 w-2/3" />
+                          <Skeleton className="h-3 w-1/4" />
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               ) : filteredVideos && filteredVideos.length > 0 ? (

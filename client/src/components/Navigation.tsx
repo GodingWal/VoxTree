@@ -6,33 +6,41 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useUsage } from "@/hooks/useUsage";
 
 export function Navigation() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { usage } = useUsage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navigationItems = [
     { href: "/", label: "Dashboard", icon: "fas fa-home" },
     { href: "/create", label: "Create", icon: "fas fa-plus" },
     { href: "/videos", label: "Library", icon: "fas fa-video" },
-    { href: "/voice-cloning", label: "Clone", icon: "fas fa-user-friends" },
+    { href: "/voice-cloning", label: "Voices", icon: "fas fa-microphone" },
     { href: "/stories", label: "Stories", icon: "fas fa-book" },
     { href: "/pricing", label: "Pricing", icon: "fas fa-tags" },
   ];
 
   const isActive = (href: string) => {
     if (href === "/") {
-      return location === "/";
+      return location === "/" || location === "/dashboard";
     }
     return location.startsWith(href);
   };
 
   const handleLogout = () => {
     logout();
+  };
+
+  const formatRemaining = (value: number | string) => {
+    if (value === 'unlimited') return '\u221E';
+    return String(value);
   };
 
   return (
@@ -52,7 +60,7 @@ export function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`px-3 py-2 text-sm font-medium transition-colors touch-target ${isActive(item.href)
+                    className={`relative px-3 py-2 text-sm font-medium transition-colors touch-target ${isActive(item.href)
                       ? "text-foreground"
                       : "text-muted-foreground hover:text-foreground"
                       }`}
@@ -60,6 +68,9 @@ export function Navigation() {
                   >
                     <i className={`${item.icon} mr-2`}></i>
                     <span className="hidden lg:inline">{item.label}</span>
+                    {isActive(item.href) && (
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4/5 h-0.5 bg-primary rounded-full" />
+                    )}
                   </Link>
                 ))}
               </div>
@@ -68,16 +79,6 @@ export function Navigation() {
 
           {/* Right side */}
           <div className="flex items-center space-x-2 sm:space-x-4">
-            {/* Notifications */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground p-2 touch-target hidden sm:flex"
-              data-testid="button-notifications"
-            >
-              <i className="fas fa-bell text-lg"></i>
-            </Button>
-
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -104,6 +105,29 @@ export function Navigation() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                {/* Usage counters in dropdown */}
+                {usage && (
+                  <>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
+                      <span className="capitalize">{usage.plan}</span> Plan Usage
+                    </DropdownMenuLabel>
+                    <div className="px-2 pb-2 space-y-1 text-xs text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span><i className="fas fa-video mr-1.5"></i>Videos</span>
+                        <span>{formatRemaining(usage.remaining.videos)} left</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span><i className="fas fa-book mr-1.5"></i>Stories</span>
+                        <span>{formatRemaining(usage.remaining.stories)} left</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span><i className="fas fa-microphone mr-1.5"></i>Clones</span>
+                        <span>{usage.remaining.voiceClones} left</span>
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="flex items-center touch-target" data-testid="menu-profile">
                     <i className="fas fa-user mr-2"></i>
@@ -157,7 +181,7 @@ export function Navigation() {
                 key={item.href}
                 href={item.href}
                 className={`block px-4 py-3 text-base font-medium transition-colors rounded-lg touch-target ${isActive(item.href)
-                  ? "text-foreground bg-secondary/50"
+                  ? "text-foreground bg-secondary/50 border-l-2 border-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary/30"
                   }`}
                 onClick={() => setMobileMenuOpen(false)}
@@ -170,6 +194,6 @@ export function Navigation() {
           </div>
         </div>
       </div>
-    </nav >
+    </nav>
   );
 }
