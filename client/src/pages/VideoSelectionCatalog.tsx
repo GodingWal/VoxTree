@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, type ComponentType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Navigation } from "@/components/Navigation";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -198,6 +199,9 @@ export default function VideoSelectionCatalog() {
       <Navigation />
       
       <main className="pt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <PageBreadcrumb segments={[{ label: "Create Video" }]} />
+        </div>
         {/* Hero Section */}
         <div className="bg-gradient-to-br from-primary/10 via-background to-background border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
