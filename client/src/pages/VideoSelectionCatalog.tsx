@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
@@ -285,10 +286,14 @@ export default function VideoSelectionCatalog() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <Card key={i} className="overflow-hidden">
-                  <div className="aspect-video bg-muted animate-pulse" />
+                  <Skeleton className="aspect-video w-full" />
                   <CardContent className="p-4 space-y-2">
-                    <div className="h-6 bg-muted rounded animate-pulse" />
-                    <div className="h-4 bg-muted rounded animate-pulse w-3/4" />
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <div className="flex gap-2 mt-2">
+                      <Skeleton className="h-5 w-16 rounded-full" />
+                      <Skeleton className="h-5 w-12 rounded-full" />
+                    </div>
                   </CardContent>
                 </Card>
               ))}
