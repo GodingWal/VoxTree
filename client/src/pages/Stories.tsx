@@ -725,8 +725,28 @@ export default function Stories() {
                 We couldn't load stories right now. Please try again later.
               </div>
             ) : stories.length === 0 ? (
-              <div className="text-center text-muted-foreground">
-                No stories are available yet. Check back soon!
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <i className="fas fa-book-open text-3xl text-primary/60"></i>
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No stories available yet</h3>
+                <p className="text-muted-foreground max-w-md mx-auto mb-4">
+                  Stories are narrated tales your family can listen to using AI-cloned voices. New stories are being added regularly.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <a href="/voice-cloning">
+                    <Button variant="outline">
+                      <i className="fas fa-microphone mr-2"></i>
+                      Clone a Voice First
+                    </Button>
+                  </a>
+                  <a href="/create">
+                    <Button>
+                      <i className="fas fa-video mr-2"></i>
+                      Create a Video Instead
+                    </Button>
+                  </a>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">

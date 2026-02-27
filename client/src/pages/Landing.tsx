@@ -95,10 +95,10 @@ export default function Landing() {
       <section className="relative overflow-hidden bg-gradient-to-br from-background via-background to-secondary py-12 sm:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center animate-fade-in">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold gradient-text mb-4 sm:mb-6 px-2">
-              Create Magical
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6 px-2">
+              <span className="gradient-text">Create Magical</span>
               <br />
-              Family Videos
+              <span className="text-foreground">Family Videos</span>
             </h2>
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-3xl mx-auto px-4">
               Transform your family memories with AI-powered voice cloning, collaborative editing, and stunning video creation tools designed for families.
@@ -110,10 +110,12 @@ export default function Landing() {
                   Start Creating Today
                 </Button>
               </Link>
-              <Button variant="secondary" size="lg" className="w-full sm:w-auto touch-target" data-testid="hero-watch-demo">
-                <i className="fas fa-video mr-2"></i>
-                Watch Demo
-              </Button>
+              <a href="#how-it-works" className="w-full sm:w-auto">
+                <Button variant="secondary" size="lg" className="w-full sm:w-auto touch-target" data-testid="hero-watch-demo">
+                  <i className="fas fa-arrow-down mr-2"></i>
+                  See How It Works
+                </Button>
+              </a>
             </div>
           </div>
         </div>
@@ -152,45 +154,25 @@ export default function Landing() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-            <Card className="glass-effect hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-microphone text-primary text-2xl"></i>
-                </div>
-                <h4 className="text-lg sm:text-xl font-semibold mb-2">AI Voice Cloning</h4>
-                <p className="text-sm sm:text-base text-muted-foreground">Clone family voices with just a few audio samples and bring stories to life</p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-effect hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-users text-accent text-2xl"></i>
-                </div>
-                <h4 className="text-lg sm:text-xl font-semibold mb-2">Real-time Collaboration</h4>
-                <p className="text-sm sm:text-base text-muted-foreground">Work together as a family to create videos in real-time from anywhere</p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-effect hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-robot text-primary text-2xl"></i>
-                </div>
-                <h4 className="text-lg sm:text-xl font-semibold mb-2">AI Script Generation</h4>
-                <p className="text-sm sm:text-base text-muted-foreground">Generate engaging family stories and scripts using advanced AI technology</p>
-              </CardContent>
-            </Card>
-
-            <Card className="glass-effect hover:shadow-lg transition-shadow">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-video text-accent text-2xl"></i>
-                </div>
-                <h4 className="text-lg sm:text-xl font-semibold mb-2">Professional Templates</h4>
-                <p className="text-sm sm:text-base text-muted-foreground">Choose from curated video templates designed specifically for family stories</p>
-              </CardContent>
-            </Card>
+            {[
+              { icon: "fas fa-microphone", color: "text-primary", bg: "bg-primary/20", title: "AI Voice Cloning", desc: "Clone family voices with just a few audio samples and bring stories to life", href: "/login" },
+              { icon: "fas fa-users", color: "text-accent", bg: "bg-accent/20", title: "Real-time Collaboration", desc: "Work together as a family to create videos in real-time from anywhere", href: "/login" },
+              { icon: "fas fa-robot", color: "text-primary", bg: "bg-primary/20", title: "AI Script Generation", desc: "Generate engaging family stories and scripts using advanced AI technology", href: "/login" },
+              { icon: "fas fa-video", color: "text-accent", bg: "bg-accent/20", title: "Professional Templates", desc: "Choose from curated video templates designed specifically for family stories", href: "/login" },
+            ].map((card) => (
+              <Link key={card.title} href={card.href}>
+                <Card className="glass-effect hover:shadow-xl hover:-translate-y-1 transition-all duration-200 cursor-pointer group h-full">
+                  <CardContent className="p-6 text-center">
+                    <div className={`w-16 h-16 ${card.bg} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                      <i className={`${card.icon} ${card.color} text-2xl`}></i>
+                    </div>
+                    <h4 className="text-lg sm:text-xl font-semibold mb-2">{card.title}</h4>
+                    <p className="text-sm sm:text-base text-muted-foreground">{card.desc}</p>
+                    <i className="fas fa-arrow-right text-primary mt-3 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
@@ -244,7 +226,7 @@ export default function Landing() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20">
+      <section id="how-it-works" className="py-20 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h3 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h3>
