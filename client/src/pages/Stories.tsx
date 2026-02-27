@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigation } from "@/components/Navigation";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import {
   Card,
   CardContent,
@@ -655,6 +656,10 @@ export default function Stories() {
       />
       <Navigation />
       <div className="container mx-auto px-4 pt-24 pb-10">
+        <PageBreadcrumb
+          segments={[{ label: "Stories" }]}
+          className="mb-6"
+        />
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4 border border-primary/20">
             <span>📖</span>

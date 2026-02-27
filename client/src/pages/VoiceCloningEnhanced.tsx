@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigation } from '@/components/Navigation';
+import { PageBreadcrumb } from '@/components/PageBreadcrumb';
 import { VoiceRecordingWizard } from '@/components/VoiceCloning/VoiceRecordingWizard';
 import { JobStatusMonitor } from '@/components/VoiceCloning/JobStatusMonitor';
 import { VoiceLibrary } from '@/components/VoiceCloning/VoiceLibrary';
@@ -336,6 +337,10 @@ export default function VoiceCloningEnhanced() {
       <Navigation />
       
       <div className="container mx-auto px-4 pt-20 pb-6">
+        <PageBreadcrumb
+          segments={[{ label: "Voice Cloning Studio" }]}
+          className="mb-6"
+        />
         {/* Hero Section */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-brand-gold bg-clip-text text-transparent mb-3">
