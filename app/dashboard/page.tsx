@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { PLAN_LIMITS } from "@/lib/limits";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export default async function DashboardPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     redirect("/login");
@@ -32,10 +35,16 @@ export default async function DashboardPage() {
 
   const planMap: Record<string, string> = {
     free: "Free",
-    pro: "Pro",
     family: "Family",
+    premium: "Premium",
   };
-  const planLabel = planMap[profile?.plan ?? "free"];
+
+  const plan = (profile?.plan ?? "free") as keyof typeof PLAN_LIMITS;
+  const planLabel = planMap[plan];
+  const limits = PLAN_LIMITS[plan];
+  const voiceSlotsUsed: number = profile?.voice_slots_used ?? 0;
+  const atVoiceLimit =
+    limits.voice_slots !== null && voiceSlotsUsed >= limits.voice_slots;
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,17 +60,56 @@ export default async function DashboardPage() {
       </header>
 
       <main className="container py-8 space-y-8">
+        {/* Voice limit upsell banner */}
+        {atVoiceLimit && plan !== "premium" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold text-amber-900">
+                Voice profile limit reached
+              </p>
+              <p className="text-sm text-amber-700">
+                {plan === "free"
+                  ? "You've used your 1 free voice profile. Upgrade to Family for 2 profiles, or Premium for unlimited."
+                  : "You've used both Family voice profiles. Upgrade to Premium for unlimited voice profiles."}
+              </p>
+            </div>
+            <Link
+              href="/pricing"
+              className="shrink-0 inline-flex h-9 items-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700"
+            >
+              Upgrade
+            </Link>
+          </div>
+        )}
+
         {/* Family Voices */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold">Your Family Voices</h2>
-            <Link
-              href="/onboarding"
-              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Add Voice
-            </Link>
+            {atVoiceLimit && plan !== "premium" ? (
+              <Link
+                href="/pricing"
+                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Upgrade to Add More
+              </Link>
+            ) : (
+              <Link
+                href="/onboarding"
+                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Add Voice
+              </Link>
+            )}
           </div>
+
+          {limits.voice_slots !== null && (
+            <p className="text-xs text-muted-foreground">
+              {voiceSlotsUsed} / {limits.voice_slots} voice profile
+              {limits.voice_slots === 1 ? "" : "s"} used
+            </p>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {voices && voices.length > 0 ? (
               voices.map((voice) => (
@@ -107,7 +155,10 @@ export default async function DashboardPage() {
                   <div className="p-3">
                     <p className="text-sm font-medium truncate">
                       {(clip as Record<string, unknown>).content_library
-                        ? ((clip as Record<string, unknown>).content_library as Record<string, unknown>).title as string
+                        ? (
+                            (clip as Record<string, unknown>)
+                              .content_library as Record<string, unknown>
+                          ).title as string
                         : "Untitled"}
                     </p>
                   </div>
@@ -115,7 +166,8 @@ export default async function DashboardPage() {
               ))
             ) : (
               <p className="text-muted-foreground col-span-full">
-                No clips yet. Browse content to create your first personalized video.
+                No clips yet. Browse content to create your first personalized
+                video.
               </p>
             )}
           </div>
@@ -127,8 +179,8 @@ export default async function DashboardPage() {
             Discover Educational Content
           </h2>
           <p className="text-muted-foreground">
-            Browse our library of children&apos;s educational videos and hear them in
-            your family&apos;s voice.
+            Browse our library of children&apos;s educational videos and hear
+            them in your family&apos;s voice.
           </p>
           <Link
             href="/browse"
