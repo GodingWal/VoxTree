@@ -3,61 +3,71 @@
 import { useState } from "react";
 import Link from "next/link";
 
+type BillingPeriod = "monthly" | "annual";
+
 const plans = [
   {
     name: "Free",
-    price: "$0",
+    monthlyPrice: "$0",
+    annualPrice: "$0",
     period: "forever",
     features: [
-      "1 family voice",
-      "10 clips per month",
-      "Basic content library",
+      "1 voice profile",
+      "2 videos",
+      "4 stories",
+      "No time expiration",
     ],
     cta: "Get Started",
     href: "/signup",
     highlighted: false,
-  },
-  {
-    name: "Pro",
-    price: "$9.99",
-    period: "/month",
-    features: [
-      "3 family voices",
-      "100 clips per month",
-      "Full content library",
-      "Priority processing",
-    ],
-    cta: "Upgrade to Pro",
-    plan: "pro",
-    highlighted: true,
+    plan: null,
   },
   {
     name: "Family",
-    price: "$19.99",
+    monthlyPrice: "$12.99",
+    annualPrice: "$99",
+    annualMonthly: "$8.25",
     period: "/month",
     features: [
-      "8 family voices",
-      "500 clips per month",
+      "2 voice profiles",
       "Full content library",
-      "Priority processing",
-      "Family sharing",
+      "Unlimited videos & stories",
     ],
     cta: "Upgrade to Family",
-    plan: "family",
+    plan: "family" as const,
+    highlighted: true,
+  },
+  {
+    name: "Premium",
+    monthlyPrice: "$22.99",
+    annualPrice: "$179",
+    annualMonthly: "$14.92",
+    period: "/month",
+    features: [
+      "Unlimited voice profiles",
+      "Full content library",
+      "Unlimited videos & stories",
+      "Priority processing",
+      "Early access to new content",
+      "Offline downloads",
+    ],
+    cta: "Upgrade to Premium",
+    plan: "premium" as const,
     highlighted: false,
   },
 ];
 
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null);
+  const [billing, setBilling] = useState<BillingPeriod>("monthly");
 
-  async function handleCheckout(plan: string) {
+  async function handleCheckout(plan: "family" | "premium") {
     setLoading(plan);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, billing }),
       });
       const data = await res.json();
       if (data.url) {
@@ -87,6 +97,37 @@ export default function PricingPage() {
           </p>
         </div>
 
+        {/* Billing toggle */}
+        <div className="flex items-center justify-center gap-3">
+          <span
+            className={`text-sm font-medium ${billing === "monthly" ? "text-foreground" : "text-muted-foreground"}`}
+          >
+            Monthly
+          </span>
+          <button
+            onClick={() =>
+              setBilling(billing === "monthly" ? "annual" : "monthly")
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              billing === "annual" ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                billing === "annual" ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <span
+            className={`text-sm font-medium ${billing === "annual" ? "text-foreground" : "text-muted-foreground"}`}
+          >
+            Annual
+            <span className="ml-1.5 rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-semibold text-brand-green">
+              Save up to 36%
+            </span>
+          </span>
+        </div>
+
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
           {plans.map((plan) => (
             <div
@@ -105,8 +146,27 @@ export default function PricingPage() {
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold">{plan.name}</h2>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
+                  {plan.plan === null ? (
+                    <>
+                      <span className="text-3xl font-bold">{plan.monthlyPrice}</span>
+                      <span className="text-muted-foreground">{plan.period}</span>
+                    </>
+                  ) : billing === "monthly" ? (
+                    <>
+                      <span className="text-3xl font-bold">{plan.monthlyPrice}</span>
+                      <span className="text-muted-foreground">{plan.period}</span>
+                    </>
+                  ) : (
+                    <div className="space-y-0.5">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-bold">{plan.annualPrice}</span>
+                        <span className="text-muted-foreground">/year</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        ({plan.annualMonthly}/mo)
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

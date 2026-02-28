@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Step = 1 | 2 | 3;
 
@@ -14,12 +15,14 @@ export default function OnboardingPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string>("processing");
   const [error, setError] = useState<string | null>(null);
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   async function handleStep1() {
     if (!voiceName.trim()) return;
     setError(null);
+    setUpgradePrompt(null);
 
     try {
       const res = await fetch("/api/voices/create", {
@@ -29,8 +32,13 @@ export default function OnboardingPage() {
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        setError(data.error ?? "Failed to create voice");
+        if (data.upgradeRequired && data.upgradePrompt) {
+          setUpgradePrompt(data.upgradePrompt);
+        } else {
+          setError(data.error ?? "Failed to create voice");
+        }
         return;
       }
 
@@ -107,8 +115,8 @@ export default function OnboardingPage() {
                 Who will be reading to your kids?
               </h1>
               <p className="text-muted-foreground">
-                Enter the name of the family member whose voice you&apos;d like to
-                clone.
+                Enter the name of the family member whose voice you&apos;d like
+                to clone.
               </p>
             </div>
 
@@ -122,13 +130,41 @@ export default function OnboardingPage() {
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <button
-              onClick={handleStep1}
-              disabled={!voiceName.trim()}
-              className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-            >
-              Continue
-            </button>
+            {/* Voice limit upsell modal */}
+            {upgradePrompt && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 space-y-4 text-left">
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-900">
+                    Voice profile limit reached
+                  </p>
+                  <p className="text-sm text-amber-700">{upgradePrompt}</p>
+                </div>
+                <div className="flex gap-3">
+                  <Link
+                    href="/pricing"
+                    className="flex-1 inline-flex h-9 items-center justify-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700"
+                  >
+                    View Plans
+                  </Link>
+                  <button
+                    onClick={() => setUpgradePrompt(null)}
+                    className="flex-1 inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium hover:bg-accent"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!upgradePrompt && (
+              <button
+                onClick={handleStep1}
+                disabled={!voiceName.trim()}
+                className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Continue
+              </button>
+            )}
           </div>
         )}
 
@@ -136,12 +172,11 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="space-y-6 text-center">
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold">
-                Upload a voice sample
-              </h1>
+              <h1 className="text-2xl font-bold">Upload a voice sample</h1>
               <p className="text-muted-foreground">
                 Upload a 30-60 second audio recording of {voiceName} speaking
-                naturally. The clearer the recording, the better the voice clone.
+                naturally. The clearer the recording, the better the voice
+                clone.
               </p>
             </div>
 

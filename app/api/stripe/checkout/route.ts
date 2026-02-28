@@ -8,17 +8,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 const PRICE_IDS: Record<string, string> = {
-  pro: process.env.STRIPE_PRO_PRICE_ID ?? "price_pro_monthly",
-  family: process.env.STRIPE_FAMILY_PRICE_ID ?? "price_family_monthly",
+  family_monthly:
+    process.env.STRIPE_FAMILY_MONTHLY_PRICE_ID ?? "price_family_monthly",
+  family_annual:
+    process.env.STRIPE_FAMILY_ANNUAL_PRICE_ID ?? "price_family_annual",
+  premium_monthly:
+    process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID ?? "price_premium_monthly",
+  premium_annual:
+    process.env.STRIPE_PREMIUM_ANNUAL_PRICE_ID ?? "price_premium_annual",
 };
 
 const checkoutSchema = z.object({
-  plan: z.enum(["pro", "family"]),
+  plan: z.enum(["family", "premium"]),
+  billing: z.enum(["monthly", "annual"]).default("monthly"),
 });
 
 export async function POST(request: Request) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +40,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
-  const { plan } = parsed.data;
+  const { plan, billing } = parsed.data;
+  const priceKey = `${plan}_${billing}`;
 
   // Get or create Stripe customer
   const { data: profile } = await supabase
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
-    line_items: [{ price: PRICE_IDS[plan], quantity: 1 }],
+    line_items: [{ price: PRICE_IDS[priceKey], quantity: 1 }],
     success_url: `${appUrl}/dashboard?upgraded=true`,
     cancel_url: `${appUrl}/pricing`,
     metadata: { supabase_user_id: user.id, plan },
