@@ -1,14 +1,15 @@
-export type Plan = "free" | "pro" | "family";
+export type Plan = "free" | "family" | "premium";
 export type VoiceStatus = "processing" | "ready" | "failed";
 export type ClipStatus = "queued" | "processing" | "ready" | "failed";
+export type ContentType = "video" | "story";
 
 export interface User {
   id: string;
   name: string | null;
   plan: Plan;
   voice_slots_used: number;
-  clips_used_this_month: number;
-  clips_reset_at: string;
+  videos_used: number;
+  stories_used: number;
   stripe_customer_id: string | null;
   created_at: string;
   updated_at: string;
@@ -28,6 +29,7 @@ export interface FamilyVoice {
 export interface ContentItem {
   id: string;
   title: string;
+  content_type: ContentType;
   series: string | null;
   episode_number: number | null;
   original_video_url: string;
