@@ -1,25 +1,33 @@
 import { createClient } from "@supabase/supabase-js";
 
+// null means unlimited
 export const PLAN_LIMITS = {
   free: {
     voice_slots: 1,
-    clips_per_month: 10,
+    videos: 2,
+    stories: 4,
     content_access: "basic" as const,
   },
-  pro: {
-    voice_slots: 3,
-    clips_per_month: 100,
+  family: {
+    voice_slots: 2,
+    videos: null,
+    stories: null,
     content_access: "all" as const,
   },
-  family: {
-    voice_slots: 8,
-    clips_per_month: 500,
+  premium: {
+    voice_slots: null,
+    videos: null,
+    stories: null,
     content_access: "all" as const,
   },
 } as const;
 
 export type Plan = keyof typeof PLAN_LIMITS;
-export type Action = "add_voice" | "generate_clip" | "premium_content";
+export type Action =
+  | "add_voice"
+  | "add_video"
+  | "add_story"
+  | "premium_content";
 
 interface LimitCheckResult {
   allowed: boolean;
@@ -46,7 +54,7 @@ export async function checkLimit(
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("plan, voice_slots_used, clips_used_this_month")
+    .select("plan, voice_slots_used, videos_used, stories_used")
     .eq("id", userId)
     .single();
 
@@ -58,43 +66,57 @@ export async function checkLimit(
   const limits = PLAN_LIMITS[plan];
 
   switch (action) {
-    case "add_voice":
-      if (user.voice_slots_used >= limits.voice_slots) {
+    case "add_voice": {
+      if (limits.voice_slots !== null && user.voice_slots_used >= limits.voice_slots) {
         return {
           allowed: false,
-          reason: `You've used all ${limits.voice_slots} voice slot${limits.voice_slots === 1 ? "" : "s"} on your ${plan} plan.`,
+          reason: `You've used all ${limits.voice_slots} voice profile${limits.voice_slots === 1 ? "" : "s"} on your ${plan === "free" ? "Free" : "Family"} plan.`,
           upgradePrompt:
             plan === "free"
-              ? "Upgrade to Pro for up to 3 voices, or Family for 8."
-              : plan === "pro"
-                ? "Upgrade to Family for up to 8 voice slots."
+              ? "Upgrade to Family for 2 voice profiles, or Premium for unlimited."
+              : plan === "family"
+                ? "Upgrade to Premium for unlimited voice profiles."
                 : undefined,
         };
       }
       return { allowed: true };
+    }
 
-    case "generate_clip":
-      if (user.clips_used_this_month >= limits.clips_per_month) {
+    case "add_video": {
+      if (limits.videos !== null && user.videos_used >= limits.videos) {
         return {
           allowed: false,
-          reason: `You've used all ${limits.clips_per_month} clips this month.`,
+          reason: `You've reached the ${limits.videos}-video limit on the Free plan.`,
           upgradePrompt:
-            plan !== "family"
-              ? "Upgrade your plan for more monthly clips."
-              : undefined,
+            "Upgrade to Family or Premium for unlimited videos.",
         };
       }
       return { allowed: true };
+    }
 
-    case "premium_content":
+    case "add_story": {
+      if (limits.stories !== null && user.stories_used >= limits.stories) {
+        return {
+          allowed: false,
+          reason: `You've reached the ${limits.stories}-story limit on the Free plan.`,
+          upgradePrompt:
+            "Upgrade to Family or Premium for unlimited stories.",
+        };
+      }
+      return { allowed: true };
+    }
+
+    case "premium_content": {
       if (limits.content_access !== "all") {
         return {
           allowed: false,
-          reason: "Premium content is available on Pro and Family plans.",
-          upgradePrompt: "Upgrade to Pro or Family to access all content.",
+          reason: "Premium content is available on Family and Premium plans.",
+          upgradePrompt:
+            "Upgrade to Family or Premium to access the full content library.",
         };
       }
       return { allowed: true };
+    }
 
     default:
       return { allowed: false, reason: "Unknown action" };
