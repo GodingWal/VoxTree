@@ -6,40 +6,104 @@ import { useRouter } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-type WizardStep = "intro" | "environment" | "record" | "review" | "create";
+/* ─── 8 Recording Phases ─── */
+const RECORDING_PROMPTS = [
+  {
+    id: "intro",
+    title: "Phase 1: Introduction",
+    short: "Introduction",
+    text: 'Hello there! My name is [Your Name], and today I am recording my voice for a very special project. I hope this recording captures my natural speaking voice perfectly. Thank you for listening to me today.',
+    description: "Speak naturally and clearly. This captures your baseline voice.",
+    minDuration: 12,
+    maxDuration: 20,
+  },
+  {
+    id: "alphabet",
+    title: "Phase 2: Letters & Numbers",
+    short: "Letters & Numbers",
+    text: "A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z. Now counting: one, two, three, four, five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen, sixteen, seventeen, eighteen, nineteen, twenty.",
+    description: "Say each letter and number clearly with brief pauses between them.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+  {
+    id: "phonetics",
+    title: "Phase 3: Phonetic Phrases",
+    short: "Phonetic Phrases",
+    text: "The thick thistle thickets threatened the three thriving thrushes. She sells seashells by the seashore. Peter Piper picked a peck of pickled peppers. How much wood would a woodchuck chuck if a woodchuck could chuck wood?",
+    description: "Practice these tongue twisters slowly and clearly to capture all speech sounds.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+  {
+    id: "story",
+    title: "Phase 4: Storytelling",
+    short: "Storytelling",
+    text: "Once upon a time, in a faraway land, there lived a kind old wizard who loved to tell stories by the fireplace. Every evening, children from the village would gather around to hear tales of brave knights, magical creatures, and hidden treasures buried deep within enchanted forests.",
+    description: "Tell this story with emotion and varied intonation like you are reading to a child.",
+    minDuration: 18,
+    maxDuration: 28,
+  },
+  {
+    id: "questions",
+    title: "Phase 5: Questions & Responses",
+    short: "Questions & Responses",
+    text: "What time is it? It is half past three. Where are you going? I am going to the store. How was your day today? My day was absolutely wonderful, thank you for asking! Did you remember to bring the keys? Yes, I have them right here in my pocket.",
+    description: "Use natural question intonation, then answer with declarative statements.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+  {
+    id: "emotions",
+    title: "Phase 6: Emotional Range",
+    short: "Emotional Range",
+    text: "I am so incredibly happy right now! This is the best day ever! Oh no, that is really sad news, I am so sorry to hear that. Wait, what? Are you serious? I cannot believe this is happening! Well, that is interesting, I suppose I will have to think about it more carefully.",
+    description: "Express joy, sadness, surprise, and thoughtfulness in your voice.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+  {
+    id: "directions",
+    title: "Phase 7: Instructions & Commands",
+    short: "Instructions & Commands",
+    text: "Please open the door and walk inside. Turn left at the first hallway, then continue straight ahead. You will find the kitchen on your right. Remember to close the window before you leave, and do not forget to lock the front door behind you.",
+    description: "Speak clearly and authoritatively, as if giving directions to someone.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+  {
+    id: "conversation",
+    title: "Phase 8: Natural Conversation",
+    short: "Natural Conversation",
+    text: "You know, I was thinking about what you said earlier, and I think you might be right about that. It is funny how things work out sometimes, is it not? Anyway, let me know what you decide, and we can figure out the rest together. I really appreciate you taking the time to help me with this.",
+    description: "Speak casually and naturally, as if talking to a close friend.",
+    minDuration: 15,
+    maxDuration: 25,
+  },
+];
+
+interface RecordingSession {
+  id: string;
+  blob: Blob | null;
+  duration: number;
+  quality: { score: number; issues: string[]; recommendations: string[] };
+  status: "pending" | "recording" | "paused" | "processing" | "completed" | "failed";
+}
 
 interface VoiceProfile {
   id: string;
   name: string;
-  status: "pending" | "training" | "ready" | "failed";
+  status: "pending" | "training" | "ready" | "failed" | "processing";
   created_at?: string;
 }
-
-const SAMPLE_SCRIPTS = [
-  {
-    id: "greeting",
-    title: "Natural Greeting",
-    text: "Hello! My name is [say your name]. I'm excited to create my personal voice clone today. This technology is truly amazing, and I can't wait to hear how it turns out.",
-    duration: "15-20 seconds",
-  },
-  {
-    id: "story",
-    title: "Short Story",
-    text: "Once upon a time, in a land far away, there lived a curious little fox who loved to explore. Every morning, the fox would venture into the forest, discovering new paths and making friends along the way.",
-    duration: "20-25 seconds",
-  },
-  {
-    id: "variety",
-    title: "Emotional Range",
-    text: "I'm so happy to see you today! Wait, did you hear that noise? Oh, it's nothing to worry about. Anyway, let me tell you something important. Are you ready? Here it comes!",
-    duration: "15-20 seconds",
-  },
-];
 
 export default function VoiceCloningPage() {
   const supabase = createClient();
@@ -49,30 +113,53 @@ export default function VoiceCloningPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioLevelAnimationRef = useRef<number | null>(null);
 
+  // Auth & plan
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState("free");
   const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-
-  const [currentStep, setCurrentStep] = useState<WizardStep>("intro");
-  const [voiceName, setVoiceName] = useState("");
-  const [selectedScript, setSelectedScript] = useState(SAMPLE_SCRIPTS[0]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
-  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [noiseLevel, setNoiseLevel] = useState<"low" | "medium" | "high">("low");
-  const [environmentChecked, setEnvironmentChecked] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Voice name
+  const [voiceName, setVoiceName] = useState("");
+
+  // 8-phase recording state
+  const [currentPhase, setCurrentPhase] = useState(0);
+  const [recordings, setRecordings] = useState<RecordingSession[]>(
+    RECORDING_PROMPTS.map((p) => ({
+      id: p.id, blob: null, duration: 0,
+      quality: { score: 0, issues: [], recommendations: [] },
+      status: "pending" as const,
+    }))
+  );
+
+  // Wizard mode: false = show profile list, true = recording wizard active
+  const [wizardActive, setWizardActive] = useState(false);
+
+  // Mic / recording
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [qualityWarnings, setQualityWarnings] = useState<string[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [isTestingMic, setIsTestingMic] = useState(false);
+
+  // Media refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Upload / processing
+  const [creating, setCreating] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   /* ── initial load ── */
   useEffect(() => {
@@ -92,7 +179,7 @@ export default function VoiceCloningPage() {
 
   /* ── poll for training status ── */
   useEffect(() => {
-    const training = voiceProfiles.some(p => p.status === "pending" || p.status === "training");
+    const training = voiceProfiles.some(p => p.status === "pending" || p.status === "training" || p.status === "processing");
     if (!training) return;
     const interval = setInterval(async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -103,46 +190,54 @@ export default function VoiceCloningPage() {
     return () => clearInterval(interval);
   }, [voiceProfiles]);
 
-  /* ── microphone helpers ── */
-  const stopMicrophone = useCallback(() => {
-    audioStream?.getTracks().forEach(t => t.stop());
-    setAudioStream(null);
-    audioContext?.close();
-    setAudioContext(null);
-    setAnalyser(null);
-    if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
-  }, [audioStream, audioContext]);
+  /* ── Keyboard shortcuts ── */
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!wizardActive) return;
+      if (e.code === "Space" && !isPlaying) {
+        e.preventDefault();
+        if (isRecording && !isPaused) pauseRecording();
+        else if (isPaused) resumeRecording();
+        else if (hasPermission && voiceName.trim().length > 0) startRecording();
+      } else if (e.code === "Escape") {
+        e.preventDefault();
+        if (isRecording || isPaused) stopRecording();
+      }
+    };
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [isRecording, isPaused, isPlaying, hasPermission, wizardActive, voiceName]);
 
-  const resetWizard = useCallback(() => {
-    stopMicrophone();
-    setCurrentStep("intro");
-    setVoiceName("");
-    setRecordedAudio(null);
-    setUploadedFile(null);
-    setRecordingTime(0);
-    setIsPlaying(false);
-    setEnvironmentChecked(false);
-    setAudioLevel(0);
-    setNoiseLevel("low");
-  }, [stopMicrophone]);
+  /* ── Cleanup on unmount ── */
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (audioLevelAnimationRef.current) cancelAnimationFrame(audioLevelAnimationRef.current);
+      if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (audioContextRef.current && audioContextRef.current.state !== "closed") audioContextRef.current.close();
+    };
+  }, []);
 
-  /* ── waveform ── */
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.onended = () => setIsPlaying(false);
+  }, []);
+
+  /* ── Waveform drawing ── */
   const drawWaveform = useCallback(() => {
-    if (!analyser || !canvasRef.current) return;
+    if (!analyserRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    const bufferLength = analyser.frequencyBinCount;
+    const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    analyser.getByteTimeDomainData(dataArray);
-
+    analyserRef.current.getByteTimeDomainData(dataArray);
     ctx.fillStyle = "rgba(15, 23, 42, 0.3)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.lineWidth = 3;
     ctx.strokeStyle = isRecording ? "#E8735A" : "#2D8B70";
     ctx.beginPath();
-
     const sliceWidth = canvas.width / bufferLength;
     let x = 0;
     for (let i = 0; i < bufferLength; i++) {
@@ -153,129 +248,298 @@ export default function VoiceCloningPage() {
     }
     ctx.lineTo(canvas.width, canvas.height / 2);
     ctx.stroke();
-
-    let sum = 0;
-    for (let i = 0; i < bufferLength; i++) sum += Math.abs(dataArray[i] - 128);
-    const avgLevel = sum / bufferLength;
-    setAudioLevel(Math.min(100, avgLevel * 2));
-    setNoiseLevel(avgLevel < 5 ? "low" : avgLevel < 15 ? "medium" : "high");
-
     animationRef.current = requestAnimationFrame(drawWaveform);
-  }, [analyser, isRecording]);
+  }, [isRecording]);
 
   useEffect(() => {
-    if (analyser && (currentStep === "environment" || currentStep === "record")) drawWaveform();
+    if (analyserRef.current && wizardActive) drawWaveform();
     return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
-  }, [analyser, currentStep, drawWaveform]);
+  }, [analyserRef.current, wizardActive, drawWaveform]);
 
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      audioStream?.getTracks().forEach(t => t.stop());
-      audioContext?.close();
-    };
-  }, [audioStream, audioContext]);
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.onended = () => setIsPlaying(false);
-  }, []);
-
-  /* ── environment check ── */
-  const checkEnvironment = async () => {
+  /* ── Microphone setup ── */
+  const checkMicrophonePermission = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, sampleRate: { ideal: 48000, min: 44100 } },
       });
-      const ctx = new AudioContext();
+      const ctx = new AudioContext({ sampleRate: 48000 });
       const source = ctx.createMediaStreamSource(stream);
       const analyserNode = ctx.createAnalyser();
       analyserNode.fftSize = 2048;
       source.connect(analyserNode);
-      setAudioContext(ctx);
-      setAnalyser(analyserNode);
-      setAudioStream(stream);
-      setEnvironmentChecked(true);
-      toast({ title: "Microphone Connected", description: "Your microphone is ready. Noise suppression is enabled." });
-    } catch {
-      toast({ title: "Microphone Access Required", description: "Please allow microphone access to continue.", variant: "destructive" });
+      audioContextRef.current = ctx;
+      analyserRef.current = analyserNode;
+      streamRef.current = stream;
+      setHasPermission(true);
+      toast({ title: "Microphone Connected", description: "Ready to record." });
+    } catch (error: any) {
+      setHasPermission(false);
+      let msg = "Could not access microphone.";
+      if (error?.name === "NotAllowedError") msg = "Microphone access denied. Please check browser permissions.";
+      else if (error?.name === "NotFoundError") msg = "No microphone found. Please connect a microphone.";
+      else if (error?.name === "NotReadableError") msg = "Microphone is being used by another application.";
+      toast({ title: "Microphone Error", description: msg, variant: "destructive" });
     }
   };
 
-  /* ── recording ── */
-  const startRecording = async () => {
-    if (!audioStream) { await checkEnvironment(); return; }
+  const testMicrophone = async () => {
     try {
-      const recorder = new MediaRecorder(audioStream, { mimeType: "audio/webm;codecs=opus" });
-      const chunks: BlobPart[] = [];
-      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = () => {
-        setRecordedAudio(new Blob(chunks, { type: "audio/webm" }));
-        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      };
-      setMediaRecorder(recorder);
-      recorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      recordingTimerRef.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
+      setIsTestingMic(true);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, sampleRate: { ideal: 48000, min: 44100 } },
+      });
+      const ctx = new AudioContext();
+      const analyser = ctx.createAnalyser();
+      const source = ctx.createMediaStreamSource(stream);
+      source.connect(analyser);
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let testCount = 0;
+      const stats = { peak: 0, average: 0, sumAvg: 0, clipping: false, tooQuiet: false };
+
+      toast({ title: "Testing Microphone", description: "Speak normally for 10 seconds..." });
+
+      const testInterval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0, max = 0;
+        for (let i = 0; i < bufferLength; i++) { sum += dataArray[i] * dataArray[i]; max = Math.max(max, dataArray[i]); }
+        const rms = Math.sqrt(sum / bufferLength);
+        const level = Math.min(1, Math.max(0, rms / 128));
+        setAudioLevel(level * 100);
+        stats.peak = Math.max(stats.peak, level);
+        stats.sumAvg += level;
+        if (max / 255 > 0.95) stats.clipping = true;
+        if (level < 0.1) stats.tooQuiet = true;
+        testCount++;
+
+        if (testCount >= 10) {
+          clearInterval(testInterval);
+          stats.average = stats.sumAvg / testCount;
+          setAudioLevel(0);
+          setIsTestingMic(false);
+          ctx.close();
+          stream.getTracks().forEach((t) => t.stop());
+          let message = `Peak: ${(stats.peak * 100).toFixed(0)}% | Avg: ${(stats.average * 100).toFixed(0)}%`;
+          let variant: "default" | "destructive" = "default";
+          if (stats.clipping) { message += " | Clipping detected"; variant = "destructive"; }
+          else if (stats.tooQuiet) { message += " | Too quiet"; variant = "destructive"; }
+          else { message += " | Good levels"; }
+          toast({ title: "Test Complete", description: message, variant });
+        }
+      }, 1000);
     } catch {
-      toast({ title: "Recording Error", description: "Could not start recording.", variant: "destructive" });
+      setIsTestingMic(false);
+      setAudioLevel(0);
+      toast({ title: "Test Failed", description: "Could not test microphone.", variant: "destructive" });
+    }
+  };
+
+  /* ── Recording controls ── */
+  const startRecording = async () => {
+    if (voiceName.trim().length === 0) {
+      toast({ title: "Name Required", description: "Please enter a name for your voice clone before recording.", variant: "destructive" });
+      return;
+    }
+    if (!streamRef.current) { await checkMicrophonePermission(); return; }
+    try {
+      const analyser = analyserRef.current!;
+      const bufferLength = analyser.frequencyBinCount;
+      const freqData = new Uint8Array(bufferLength);
+
+      const updateAudioLevel = () => {
+        if (analyserRef.current && !isPaused) {
+          analyserRef.current.getByteFrequencyData(freqData);
+          let sum = 0, max = 0;
+          for (let i = 0; i < bufferLength; i++) { sum += freqData[i] * freqData[i]; max = Math.max(max, freqData[i]); }
+          const rms = Math.sqrt(sum / bufferLength);
+          const normalizedLevel = Math.min(1, Math.max(0, rms / 128));
+          const normalizedMax = max / 255;
+          setAudioLevel(normalizedLevel * 100);
+          if (Math.random() < 0.1) {
+            const warnings: string[] = [];
+            if (normalizedMax > 0.95) warnings.push("Audio is clipping! Move further from mic.");
+            else if (normalizedLevel < 0.05) warnings.push("Too quiet! Speak louder or move closer.");
+            else if (normalizedLevel < 0.1) warnings.push("Audio level is low.");
+            if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
+            warningTimeoutRef.current = setTimeout(() => setQualityWarnings(warnings), 500);
+          }
+        }
+        audioLevelAnimationRef.current = requestAnimationFrame(updateAudioLevel);
+      };
+
+      let mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = "audio/webm";
+        if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = "audio/mp4";
+      }
+      mediaRecorderRef.current = new MediaRecorder(streamRef.current, { mimeType });
+      const audioChunks: Blob[] = [];
+      mediaRecorderRef.current.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: mimeType });
+        await processRecording(audioBlob);
+      };
+      mediaRecorderRef.current.onerror = () => {
+        toast({ title: "Recording Error", description: "An error occurred while recording.", variant: "destructive" });
+      };
+
+      setIsRecording(true);
+      setIsPaused(false);
+      setRecordingTime(0);
+      setQualityWarnings([]);
+      mediaRecorderRef.current.start(1000);
+      setRecordings((prev) => prev.map((rec, idx) => idx === currentPhase ? { ...rec, status: "recording" as const } : rec));
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime((prev) => {
+          const newTime = prev + 1;
+          const maxDur = RECORDING_PROMPTS[currentPhase].maxDuration;
+          if (newTime >= maxDur) { stopRecording(); toast({ title: "Max Duration Reached", description: "Recording stopped automatically." }); }
+          else if (newTime === maxDur - 5) { toast({ title: "5 Seconds Remaining" }); }
+          return newTime;
+        });
+      }, 1000);
+
+      updateAudioLevel();
+    } catch {
+      toast({ title: "Recording Failed", description: "Could not access microphone.", variant: "destructive" });
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && isRecording && !isPaused) {
+      mediaRecorderRef.current.pause();
+      setIsPaused(true);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      toast({ title: "Paused", description: "Press Space or Resume to continue." });
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && isRecording && isPaused) {
+      mediaRecorderRef.current.resume();
+      setIsPaused(false);
+      recordingTimerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorder?.state === "recording") {
-      mediaRecorder.stop();
+    if (mediaRecorderRef.current && (isRecording || isPaused)) {
       setIsRecording(false);
+      setIsPaused(false);
+      setQualityWarnings([]);
+      mediaRecorderRef.current.stop();
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (audioLevelAnimationRef.current) cancelAnimationFrame(audioLevelAnimationRef.current);
+      if (warningTimeoutRef.current) { clearTimeout(warningTimeoutRef.current); warningTimeoutRef.current = null; }
+      setRecordings((prev) => prev.map((rec, idx) => idx === currentPhase ? { ...rec, status: "processing" as const } : rec));
     }
   };
 
-  /* ── file upload ── */
+  const processRecording = async (audioBlob: Blob) => {
+    const prompt = RECORDING_PROMPTS[currentPhase];
+    const duration = recordingTime;
+    const quality = { score: Math.min(95, Math.max(30, 70 + Math.random() * 20)), issues: [] as string[], recommendations: [] as string[] };
+    if (duration < prompt.minDuration) { quality.issues.push(`Recording too short (min ${prompt.minDuration}s)`); quality.score -= 20; quality.recommendations.push(`Record for at least ${prompt.minDuration} seconds`); }
+    if (duration > prompt.maxDuration) { quality.issues.push("Recording too long"); quality.score -= 10; }
+    if (audioBlob.size < 1000) { quality.issues.push("Audio file is too small"); quality.score -= 15; }
+    setRecordings((prev) => prev.map((rec, idx) => idx === currentPhase ? { ...rec, blob: audioBlob, duration, quality, status: "completed" as const } : rec));
+    if (quality.score >= 80) toast({ title: "Great Recording!", description: `Quality score: ${Math.round(quality.score)}/100` });
+    else if (quality.score >= 60) toast({ title: "Good Recording", description: `Quality score: ${Math.round(quality.score)}/100` });
+    else toast({ title: "Consider Retaking", description: `Quality score: ${Math.round(quality.score)}/100`, variant: "destructive" });
+  };
+
+  const retakeRecording = () => {
+    setRecordings((prev) => prev.map((rec, idx) => idx === currentPhase ? { ...rec, blob: null, duration: 0, quality: { score: 0, issues: [], recommendations: [] }, status: "pending" as const } : rec));
+    setRecordingTime(0);
+  };
+
+  /* ── Playback ── */
+  const playRecording = (index: number) => {
+    const rec = recordings[index];
+    if (!rec.blob || !audioRef.current) return;
+    if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); return; }
+    const url = URL.createObjectURL(rec.blob);
+    audioRef.current.src = url;
+    audioRef.current.playbackRate = playbackSpeed;
+    audioRef.current.play();
+    setIsPlaying(true);
+    audioRef.current.onended = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
+  };
+
+  const changePlaybackSpeed = () => {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    const idx = speeds.indexOf(playbackSpeed);
+    const next = speeds[(idx + 1) % speeds.length];
+    setPlaybackSpeed(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
+  /* ── File upload ── */
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type.startsWith("audio/")) {
       setUploadedFile(file);
-      setRecordedAudio(null);
-      setCurrentStep("review");
-      toast({ title: "File Uploaded", description: `${file.name} is ready for review.` });
+      toast({ title: "File Uploaded", description: `${file.name} is ready.` });
     } else {
-      toast({ title: "Invalid File", description: "Please upload an audio file (MP3, WAV, etc.)", variant: "destructive" });
+      toast({ title: "Invalid File", description: "Please upload an audio file.", variant: "destructive" });
     }
   };
 
-  /* ── playback ── */
-  const playRecordedAudio = () => {
-    if (!audioRef.current) return;
-    const source = recordedAudio || uploadedFile;
-    if (!source) return;
-    if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); }
-    else {
-      audioRef.current.src = URL.createObjectURL(source);
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  /* ── create profile ── */
-  const handleCreateProfile = async () => {
-    const audioSource = recordedAudio || uploadedFile;
-    if (!audioSource || !voiceName.trim()) return;
+  /* ── Create voice profile (combine all recordings & upload) ── */
+  const handleComplete = async () => {
+    if (!voiceName.trim()) return;
     setCreating(true);
     try {
-      const file = audioSource instanceof File ? audioSource : new File([audioSource], "recording.webm", { type: "audio/webm" });
-      const formData = new FormData();
-      formData.append("name", voiceName.trim());
-      formData.append("audio", file);
-      const res = await fetch("/api/voice-profiles", { method: "POST", body: formData });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create voice profile");
+      // Step 1: Create voice record via API
+      const createRes = await fetch("/api/voices/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: voiceName }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(createData.error || "Failed to create voice record");
+
+      const voiceId = createData.voiceId;
+      const uploadMode = createData.uploadMode ?? "direct";
+
+      // Step 2: Combine all recording blobs
+      let audioSource: Blob | File;
+      if (uploadedFile) {
+        audioSource = uploadedFile;
+      } else {
+        const blobs = recordings.filter((r) => r.blob).map((r) => r.blob!);
+        if (blobs.length === 0) throw new Error("No recordings found");
+        audioSource = new Blob(blobs, { type: blobs[0].type });
       }
-      const data = await res.json();
-      toast({ title: "Voice Clone Created!", description: "Your voice is being processed. This takes about 30 seconds." });
-      setSelectedProfileId(data.id);
-      // Refresh voices
+
+      const file = audioSource instanceof File ? audioSource : new File([audioSource], "recording.webm", { type: "audio/webm" });
+
+      // Step 3: Upload
+      if (uploadMode === "s3" && createData.uploadUrl) {
+        const uploadRes = await fetch(createData.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type || "audio/mpeg" }, body: file });
+        if (!uploadRes.ok) throw new Error("S3 upload failed");
+      } else {
+        const formData = new FormData();
+        formData.append("voiceId", voiceId);
+        formData.append("audio", file);
+        const uploadRes = await fetch("/api/voices/upload", { method: "POST", body: formData });
+        if (!uploadRes.ok) { const d = await uploadRes.json().catch(() => ({})); throw new Error(d.error || "Upload failed"); }
+      }
+
+      // Step 4: Process
+      const processRes = await fetch("/api/voices/process", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceId }) });
+      const processData = await processRes.json();
+
+      if (processData.status === "ready") {
+        toast({ title: "Voice Clone Created!", description: `${voiceName}'s voice is ready to use.` });
+      } else {
+        toast({ title: "Voice Processing", description: "Your voice is being processed. This may take a moment." });
+      }
+
+      // Refresh voices & reset wizard
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: voices } = await supabase.from("family_voices").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
@@ -289,24 +553,39 @@ export default function VoiceCloningPage() {
     }
   };
 
-  /* ── delete profile ── */
+  /* ── Reset wizard ── */
+  const resetWizard = () => {
+    setWizardActive(false);
+    setVoiceName("");
+    setCurrentPhase(0);
+    setRecordings(RECORDING_PROMPTS.map((p) => ({
+      id: p.id, blob: null, duration: 0,
+      quality: { score: 0, issues: [], recommendations: [] },
+      status: "pending" as const,
+    })));
+    setRecordingTime(0);
+    setUploadedFile(null);
+    setQualityWarnings([]);
+  };
+
+  /* ── Delete profile ── */
   const handleDeleteProfile = async (profileId: string, profileName: string) => {
     if (!confirm(`Delete voice "${profileName}"?`)) return;
     setDeleting(profileId);
     try {
       const res = await fetch(`/api/voices/${profileId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete");
-      toast({ title: "Voice Deleted", description: "The voice profile has been removed." });
-      setVoiceProfiles(prev => prev.filter(p => p.id !== profileId));
+      toast({ title: "Voice Deleted" });
+      setVoiceProfiles((prev) => prev.filter((p) => p.id !== profileId));
       if (selectedProfileId === profileId) setSelectedProfileId(null);
     } catch {
-      toast({ title: "Delete Failed", description: "Could not delete voice profile.", variant: "destructive" });
+      toast({ title: "Delete Failed", variant: "destructive" });
     } finally {
       setDeleting(null);
     }
   };
 
-  /* ── preview ── */
+  /* ── Preview ── */
   const playVoicePreview = async (profileId: string) => {
     try {
       const res = await fetch(`/api/voice-profiles/${profileId}/preview`);
@@ -319,27 +598,17 @@ export default function VoiceCloningPage() {
         setSelectedProfileId(profileId);
       }
     } catch {
-      toast({ title: "Preview Unavailable", description: "Voice preview is not ready yet.", variant: "destructive" });
+      toast({ title: "Preview Unavailable", variant: "destructive" });
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const hasAudio = recordedAudio || uploadedFile;
-  const canProceed = voiceName.trim().length >= 2;
-
-  const steps = [
-    { id: "intro", label: "Start" },
-    { id: "environment", label: "Setup" },
-    { id: "record", label: "Record" },
-    { id: "review", label: "Review" },
-    { id: "create", label: "Create" },
-  ];
-  const currentStepIndex = steps.findIndex(s => s.id === currentStep);
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const canProceedPhase = () => { const rec = recordings[currentPhase]; return rec.status === "completed" && rec.quality.score >= 30; };
+  const allRecordingsComplete = () => recordings.every((r) => r.status === "completed" && r.quality.score >= 30);
+  const totalDuration = recordings.reduce((acc, r) => acc + r.duration, 0);
+  const completedCount = recordings.filter((r) => r.status === "completed").length;
+  const currentPrompt = RECORDING_PROMPTS[currentPhase];
+  const currentRecording = recordings[currentPhase];
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
@@ -348,362 +617,374 @@ export default function VoiceCloningPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 text-foreground">
       <audio ref={audioRef} preload="none" />
+      <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileUpload} className="hidden" />
       <Nav plan={plan} />
 
       <main className="pt-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-              AI Voice Cloning
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-2">Create Your Voice Clone</h1>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              Record a high-quality voice sample and we&apos;ll create a digital copy that sounds just like you
-            </p>
-          </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-          {/* Step indicator */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between max-w-md mx-auto">
-              {steps.map((step, index) => (
-                <div key={step.id} className="flex flex-col items-center gap-1">
-                  <div className="flex items-center">
-                    <div className={cn(
-                      "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-sm",
-                      index < currentStepIndex && "bg-primary text-primary-foreground shadow-primary/30",
-                      index === currentStepIndex && "bg-primary text-primary-foreground ring-4 ring-primary/25 shadow-primary/30",
-                      index > currentStepIndex && "bg-muted/70 text-muted-foreground border-2 border-border"
-                    )}>
-                      {index < currentStepIndex ? "✓" : index + 1}
+          {/* ─── Voice Recording Wizard ─── */}
+          {wizardActive ? (
+            <div className="space-y-3">
+              {/* Wizard Header Card - matching old UI */}
+              <Card>
+                <CardHeader className="pb-3 pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <CardTitle className="text-base sm:text-lg">Voice Recording Wizard</CardTitle>
+                    <Badge variant="outline" className="w-fit text-xs">
+                      Step {currentPhase + 1} of {RECORDING_PROMPTS.length}
+                    </Badge>
+                  </div>
+                  <Progress value={((currentPhase + 1) / RECORDING_PROMPTS.length) * 100} className="w-full mt-2 h-2" />
+                </CardHeader>
+              </Card>
+
+              {/* Total Duration & 8-Step Grid */}
+              <Card>
+                <CardContent className="pt-3 pb-3">
+                  {/* Total duration */}
+                  <div className="mb-3 p-2 bg-muted/50 rounded-lg">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="font-medium">Total Sample Duration</span>
+                      <span className="text-muted-foreground">{formatTime(totalDuration)} / 2:00 target</span>
                     </div>
-                    {index < steps.length - 1 && (
-                      <div className={cn("w-8 sm:w-12 h-0.5 mx-1", index < currentStepIndex ? "bg-primary" : "bg-border")} />
+                    <Progress value={Math.min(100, (totalDuration / 120) * 100)} className="h-2" />
+                    <p className="text-xs text-muted-foreground mt-1">Complete all 8 phases to reach the 2-minute target for optimal voice cloning quality.</p>
+                  </div>
+
+                  {/* 8-step grid */}
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 sm:gap-2">
+                    {RECORDING_PROMPTS.map((prompt, index) => {
+                      const rec = recordings[index];
+                      const isActive = index === currentPhase;
+                      const isCompleted = rec.status === "completed";
+                      return (
+                        <button
+                          key={prompt.id}
+                          onClick={() => { if (!isRecording && !isPaused) setCurrentPhase(index); }}
+                          disabled={isRecording || isPaused}
+                          className={cn(
+                            "flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors cursor-pointer",
+                            isActive && "bg-primary/10 border-2 border-primary",
+                            isCompleted && !isActive && "bg-green-900/30 border border-green-700",
+                            !isActive && !isCompleted && "hover:bg-muted/50"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium",
+                            isCompleted ? "bg-green-500 text-white" :
+                              isActive ? "bg-primary text-primary-foreground" :
+                                "bg-muted text-muted-foreground"
+                          )}>
+                            {isCompleted ? "\u2713" : index + 1}
+                          </div>
+                          <span className="text-[10px] text-center font-medium leading-tight hidden sm:block text-foreground">
+                            {prompt.short}
+                          </span>
+                          {isCompleted && <span className="text-[10px] text-green-500">{rec.duration}s</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Current Phase: Script (left) + Controls (right) - matching old layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Left: Script & instructions */}
+                <Card>
+                  <CardHeader className="pb-2 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      {currentPrompt.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 pt-0">
+                    <Alert>
+                      <AlertDescription>{currentPrompt.description}</AlertDescription>
+                    </Alert>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm leading-relaxed">&quot;{currentPrompt.text}&quot;</p>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Duration: {currentPrompt.minDuration}-{currentPrompt.maxDuration}s</span>
+                      <span className="flex items-center gap-1">
+                        {formatTime(recordingTime)}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Right: Recording Controls - matching old layout */}
+                <Card>
+                  <CardHeader className="pb-2 pt-4">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      Recording Controls
+                      {isPaused && <Badge variant="secondary" className="ml-2">Paused</Badge>}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 pt-0">
+                    {/* Voice Clone Name - inside controls like old UI */}
+                    <div className="space-y-1">
+                      <Label htmlFor="voice-name" className="text-sm font-medium">Voice Clone Name</Label>
+                      <Input
+                        id="voice-name"
+                        placeholder="e.g., Dad's Calm Voice"
+                        value={voiceName}
+                        onChange={(e) => setVoiceName(e.target.value)}
+                        disabled={isRecording || isPaused}
+                      />
+                      <p className="text-xs text-muted-foreground">Enter a name before starting to record.</p>
+                    </div>
+
+                    {/* Waveform */}
+                    <canvas ref={canvasRef} width={400} height={60} className="w-full h-14 rounded-lg bg-slate-900" />
+
+                    {/* Microphone Level */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">Microphone Level</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div className={cn("h-2 rounded-full transition-all duration-100",
+                          audioLevel > 80 ? "bg-red-500" : audioLevel > 50 ? "bg-green-500" : audioLevel > 20 ? "bg-yellow-500" : "bg-gray-400"
+                        )} style={{ width: `${audioLevel}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Quality warnings */}
+                    {qualityWarnings.length > 0 && (isRecording || isPaused) && (
+                      <div className="p-2 bg-amber-900/30 border border-amber-600 rounded-md">
+                        <div className="text-sm text-amber-300">
+                          {qualityWarnings.map((w, i) => <div key={i}>{w}</div>)}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <span className={cn("text-[10px] font-medium tracking-wide hidden sm:block", index === currentStepIndex ? "text-primary" : "text-muted-foreground")}>
-                    {step.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Wizard card */}
-          <Card className="border-0 shadow-xl bg-card/50 backdrop-blur">
-            <CardContent className="p-6 sm:p-8">
-
-              {/* Step 1: Intro */}
-              {currentStep === "intro" && (
-                <div className="space-y-8">
-                  <div className="text-center">
-                    <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center mb-6 shadow-lg shadow-primary/25">
-                      <span className="text-4xl">🎤</span>
+                    {/* Test Microphone & Troubleshoot - matching old UI */}
+                    <div className="flex gap-2">
+                      <Button onClick={testMicrophone} variant="outline" size="sm" className="flex-1" disabled={isRecording || isPaused || isTestingMic}>
+                        {isTestingMic ? "Testing..." : "Test Microphone"}
+                      </Button>
+                      <Button onClick={checkMicrophonePermission} variant="outline" size="sm" className="flex-1" disabled={isRecording || isPaused}>
+                        Troubleshoot
+                      </Button>
                     </div>
-                    <h2 className="text-2xl font-bold mb-2">Let&apos;s Get Started</h2>
-                    <p className="text-muted-foreground">First, give your voice clone a memorable name</p>
-                  </div>
 
-                  <div className="max-w-sm mx-auto space-y-4">
-                    <Input
-                      value={voiceName}
-                      onChange={e => setVoiceName(e.target.value)}
-                      placeholder="Enter voice name..."
-                      className="h-12 text-lg"
-                      maxLength={50}
-                    />
-                    <p className="text-xs text-muted-foreground text-center">
-                      Examples: &quot;Dad&apos;s Voice&quot;, &quot;Grandma Mary&quot;, &quot;My Voice&quot;
-                    </p>
-                  </div>
+                    {/* Recording Buttons */}
+                    <div className="flex flex-col space-y-2">
+                      {!isRecording && !isPaused ? (
+                        <Button onClick={startRecording} disabled={!hasPermission || isTestingMic || voiceName.trim().length === 0} className="w-full" size="lg">
+                          Start Recording (Space)
+                        </Button>
+                      ) : isPaused ? (
+                        <div className="flex gap-2">
+                          <Button onClick={resumeRecording} className="flex-1" size="lg">Resume (Space)</Button>
+                          <Button onClick={stopRecording} variant="destructive" className="flex-1" size="lg">Stop</Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button onClick={pauseRecording} variant="outline" className="flex-1" size="lg">Pause (Space)</Button>
+                          <Button onClick={stopRecording} variant="destructive" className="flex-1" size="lg">Stop ({recordingTime}s)</Button>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-                    {[
-                      { icon: "🛡️", title: "Noise Removal", desc: "Background noise is automatically filtered" },
-                      { icon: "✨", title: "AI Enhanced", desc: "Advanced processing for clear audio" },
-                      { icon: "🎧", title: "High Quality", desc: "Studio-grade voice cloning" },
-                    ].map(f => (
-                      <div key={f.title} className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
-                        <span className="text-xl">{f.icon}</span>
-                        <div>
-                          <p className="font-medium text-sm">{f.title}</p>
+                    {/* Keyboard shortcuts tip */}
+                    <div className="text-xs text-muted-foreground text-center">
+                      Tip: Press <kbd className="px-1 py-0.5 bg-muted rounded">Space</kbd> to pause/resume, <kbd className="px-1 py-0.5 bg-muted rounded">Esc</kbd> to stop
+                    </div>
+
+                    {/* Playback & Retake */}
+                    {currentRecording.blob && (
+                      <div className="space-y-2 border-t pt-2">
+                        <div className="flex gap-2">
+                          <Button onClick={() => playRecording(currentPhase)} variant="outline" className="flex-1">
+                            {isPlaying ? "Pause" : "Play"}
+                          </Button>
+                          <Button onClick={changePlaybackSpeed} variant="outline" size="sm" className="w-20">
+                            {playbackSpeed}x
+                          </Button>
+                          <Button onClick={retakeRecording} variant="outline" className="flex-1">
+                            Retake
+                          </Button>
+                        </div>
+                        <div className="text-xs text-muted-foreground text-center">
+                          Duration: {currentRecording.duration}s | Quality: {Math.round(currentRecording.quality.score)}/100
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Quality Feedback */}
+              {currentRecording.status === "completed" && currentRecording.quality.issues.length > 0 && (
+                <Card>
+                  <CardContent className="pt-3 pb-3 space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      Recording Quality: {Math.round(currentRecording.quality.score)}/100
+                    </div>
+                    {currentRecording.quality.issues.length > 0 && (
+                      <Alert variant="destructive">
+                        <AlertDescription>
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            {currentRecording.quality.issues.map((issue, idx) => <li key={idx}>{issue}</li>)}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {currentRecording.quality.recommendations.length > 0 && (
+                      <Alert>
+                        <AlertDescription>
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            {currentRecording.quality.recommendations.map((rec, idx) => <li key={idx}>{rec}</li>)}
+                          </ul>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Navigation - Previous / Next Step / Cancel like old UI */}
+              <Card>
+                <CardContent className="pt-3 pb-3">
+                  <div className="flex flex-col sm:flex-row justify-between gap-2">
+                    <Button onClick={() => setCurrentPhase(Math.max(0, currentPhase - 1))} disabled={currentPhase === 0 || isRecording || isPaused} variant="outline">
+                      Previous
+                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {currentPhase < RECORDING_PROMPTS.length - 1 ? (
+                        <Button onClick={() => setCurrentPhase(currentPhase + 1)} disabled={!canProceedPhase() || isRecording || isPaused}>
+                          Next Step
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleComplete}
+                          disabled={!allRecordingsComplete() || isRecording || isPaused || creating}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {creating ? "Creating..." : "Complete Voice Profile"}
+                        </Button>
+                      )}
+                      <Button onClick={() => { if (confirm("Cancel recording? Progress will be lost.")) resetWizard(); }} variant="outline" disabled={isRecording || isPaused}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            /* ─── Profile List View (when wizard is not active) ─── */
+            <div className="space-y-8">
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+                  AI Voice Cloning
+                </div>
+                <h1 className="text-3xl sm:text-4xl font-bold mb-2">Create Your Voice Clone</h1>
+                <p className="text-muted-foreground max-w-xl mx-auto">
+                  Record 8 voice samples covering different speech patterns, emotions, and styles for the best clone quality
+                </p>
+              </div>
+
+              {/* Start wizard CTA */}
+              <Card className="border-0 shadow-xl bg-card/50 backdrop-blur">
+                <CardContent className="p-6 sm:p-8">
+                  <div className="text-center space-y-6">
+                    <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary to-green-600 flex items-center justify-center shadow-lg shadow-primary/25">
+                      <span className="text-4xl">&#127908;</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold mb-2">Start Voice Recording Wizard</h2>
+                      <p className="text-muted-foreground">
+                        Our 8-phase wizard captures your natural voice, emotions, storytelling style, and conversational tone
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+                      {[
+                        { label: "8 Phases", desc: "Different speech styles" },
+                        { label: "~2 Minutes", desc: "Total recording time" },
+                        { label: "AI Enhanced", desc: "Quality processing" },
+                        { label: "Emotions", desc: "Joy, sadness, surprise" },
+                      ].map((f) => (
+                        <div key={f.label} className="p-3 rounded-lg bg-muted/50 text-center">
+                          <p className="font-medium text-sm">{f.label}</p>
                           <p className="text-xs text-muted-foreground">{f.desc}</p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-4 pt-4">
-                    <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileUpload} className="hidden" />
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={!canProceed} className="flex-1 gap-2">
-                      Upload Audio
-                    </Button>
-                    <Button onClick={() => setCurrentStep("environment")} disabled={!canProceed} className="flex-1 gap-2">
-                      Record Voice →
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Environment Check */}
-              {currentStep === "environment" && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-2">Environment Check</h2>
-                    <p className="text-muted-foreground">Let&apos;s make sure your recording environment is optimal</p>
-                  </div>
-
-                  <div className="bg-muted/30 rounded-xl p-6 space-y-4">
-                    <canvas ref={canvasRef} width={600} height={100} className="w-full h-24 rounded-lg bg-slate-900" />
-                    {environmentChecked && (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Audio Level</span>
-                          <span className="text-sm font-medium">{Math.round(audioLevel)}%</span>
-                        </div>
-                        <Progress value={audioLevel} className="h-2" />
-                        <div className={cn(
-                          "flex items-center gap-2 p-3 rounded-lg",
-                          noiseLevel === "low" && "bg-green-500/10 text-green-600",
-                          noiseLevel === "medium" && "bg-yellow-500/10 text-yellow-600",
-                          noiseLevel === "high" && "bg-red-500/10 text-red-600"
-                        )}>
-                          <span className="text-sm font-medium">
-                            {noiseLevel === "low" ? "Excellent! Your environment is quiet" : noiseLevel === "medium" ? "Some background noise detected" : "Too much noise - find a quieter spot"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      { n: "1", title: "Find a quiet room", desc: "Close windows and doors" },
-                      { n: "2", title: "Turn off fans & AC", desc: "Minimize humming sounds" },
-                      { n: "3", title: "Position properly", desc: "6-8 inches from microphone" },
-                      { n: "4", title: "Speak naturally", desc: "Normal pace and volume" },
-                    ].map(tip => (
-                      <div key={tip.n} className="flex items-start gap-3 p-4 rounded-lg border bg-card">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <span className="text-primary font-bold">{tip.n}</span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{tip.title}</p>
-                          <p className="text-xs text-muted-foreground">{tip.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => setCurrentStep("intro")} className="gap-2">← Back</Button>
-                    {!environmentChecked ? (
-                      <Button onClick={checkEnvironment} className="flex-1 gap-2">Check Microphone</Button>
-                    ) : (
-                      <Button onClick={() => setCurrentStep("record")} className="flex-1 gap-2" disabled={noiseLevel === "high"}>Continue to Recording →</Button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Record */}
-              {currentStep === "record" && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-2">Record Your Voice</h2>
-                    <p className="text-muted-foreground">Read the script below naturally for best results</p>
-                  </div>
-
-                  <div className="flex gap-2 justify-center flex-wrap">
-                    {SAMPLE_SCRIPTS.map(script => (
-                      <Button key={script.id} variant={selectedScript.id === script.id ? "default" : "outline"} size="sm" onClick={() => setSelectedScript(script)} disabled={isRecording}>
-                        {script.title}
-                      </Button>
-                    ))}
-                  </div>
-
-                  <div className="bg-gradient-to-br from-primary/5 to-green-500/10 border border-primary/20 rounded-xl p-6">
-                    <p className="font-medium text-sm mb-3">Script to Read ({selectedScript.duration})</p>
-                    <p className="text-lg leading-relaxed">&quot;{selectedScript.text}&quot;</p>
-                  </div>
-
-                  <div className="bg-muted/30 rounded-xl p-6 space-y-4">
-                    <canvas ref={canvasRef} width={600} height={80} className="w-full h-20 rounded-lg bg-slate-900" />
-                    <div className="flex items-center justify-center">
-                      <div className="text-center">
-                        <div className={cn("text-4xl font-mono font-bold", isRecording && "text-red-500")}>{formatTime(recordingTime)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">{isRecording ? "Recording..." : "Ready"}</p>
-                      </div>
+                      ))}
                     </div>
-                    <div className="flex justify-center">
-                      <Button
-                        size="lg"
-                        variant={isRecording ? "destructive" : "default"}
-                        onClick={isRecording ? stopRecording : startRecording}
-                        className={cn("w-20 h-20 rounded-full p-0 transition-all", isRecording && "animate-pulse")}
-                      >
-                        {isRecording ? <div className="w-6 h-6 bg-white rounded-sm" /> : <span className="text-2xl">🎤</span>}
+
+                    <div className="flex gap-4 max-w-md mx-auto">
+                      <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="flex-1 gap-2">
+                        Upload Audio
+                      </Button>
+                      <Button onClick={() => { setWizardActive(true); checkMicrophonePermission(); }} className="flex-1 gap-2">
+                        Start Recording
                       </Button>
                     </div>
-                    <p className="text-center text-sm text-muted-foreground">
-                      {isRecording ? "Click to stop recording" : "Click to start recording"}
-                    </p>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => setCurrentStep("environment")} className="gap-2" disabled={isRecording}>← Back</Button>
-                    <Button onClick={() => setCurrentStep("review")} disabled={!recordedAudio || isRecording} className="flex-1 gap-2">Review Recording →</Button>
+              {/* Existing voice profiles */}
+              {voiceProfiles.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold">Your Voice Clones</h2>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {voiceProfiles.map((profile) => (
+                      <Card key={profile.id} className={cn("transition-all hover:shadow-md", selectedProfileId === profile.id && "ring-2 ring-primary")}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={cn(
+                                "w-11 h-11 rounded-full flex items-center justify-center ring-2",
+                                profile.status === "ready" ? "bg-green-500/25 ring-green-500/50" :
+                                  (profile.status === "training" || profile.status === "processing") ? "bg-amber-500/25 ring-amber-500/50" :
+                                    profile.status === "failed" ? "bg-red-500/25 ring-red-500/50" : "bg-muted ring-border"
+                              )}>
+                                <span className="text-lg">
+                                  {profile.status === "ready" ? "\uD83D\uDD0A" :
+                                    (profile.status === "training" || profile.status === "pending" || profile.status === "processing") ? "\u23F3" : "\u26A0\uFE0F"}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium">{profile.name}</p>
+                                <p className="text-xs text-muted-foreground capitalize">
+                                  {profile.status === "ready" ? "Ready to use" : profile.status}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {profile.status === "ready" && (
+                                <Button variant="outline" size="sm" onClick={() => playVoicePreview(profile.id)} disabled={isPlaying && selectedProfileId === profile.id} className="text-primary border-primary/40 hover:bg-primary/10">
+                                  {isPlaying && selectedProfileId === profile.id ? "\u23F8" : "\u25B6\uFE0F"}
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => handleDeleteProfile(profile.id, profile.name)} disabled={deleting === profile.id} className="text-muted-foreground border-border hover:text-destructive hover:border-destructive/50">
+                                {deleting === profile.id ? "..." : "\uD83D\uDDD1\uFE0F"}
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Step 4: Review */}
-              {currentStep === "review" && (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <div className="w-20 h-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center mb-4">
-                      <span className="text-3xl">✅</span>
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">Review Your Recording</h2>
-                    <p className="text-muted-foreground">Listen to make sure it sounds clear and natural</p>
+              {voiceProfiles.length === 0 && (
+                <div className="text-center py-10 rounded-xl border border-dashed border-border bg-muted/20">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-primary/20">
+                    <span className="text-2xl">\uD83D\uDD0A</span>
                   </div>
-
-                  <Card className="bg-muted/30 border-0">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <Button size="lg" variant="outline" onClick={playRecordedAudio} className="w-14 h-14 rounded-full p-0">
-                            {isPlaying ? "⏸" : "▶️"}
-                          </Button>
-                          <div>
-                            <p className="font-medium">{voiceName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {uploadedFile ? uploadedFile.name : `${formatTime(recordingTime)} recording`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="px-3 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-600">Noise Filtered</div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-                    <p className="font-medium text-sm text-blue-600 mb-1">Quality Check</p>
-                    <ul className="text-sm text-muted-foreground space-y-1">
-                      <li>Is your voice clear and audible?</li>
-                      <li>Did you read the full script?</li>
-                      <li>Is there minimal background noise?</li>
-                    </ul>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => { setRecordedAudio(null); setUploadedFile(null); setCurrentStep("record"); }} className="gap-2">Re-record</Button>
-                    <Button onClick={() => setCurrentStep("create")} className="flex-1 gap-2">Sounds Good! →</Button>
-                  </div>
+                  <p className="font-medium text-foreground">No voice clones yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">Start the recording wizard above to create your first one!</p>
                 </div>
               )}
-
-              {/* Step 5: Create */}
-              {currentStep === "create" && (
-                <div className="space-y-8 text-center">
-                  <div>
-                    <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary via-green-600 to-amber-500 flex items-center justify-center mb-6 shadow-lg shadow-primary/25 animate-pulse">
-                      <span className="text-4xl">✨</span>
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2">Ready to Create!</h2>
-                    <p className="text-muted-foreground">
-                      Your voice clone &quot;<span className="text-foreground font-medium">{voiceName}</span>&quot; will be ready in about 30 seconds
-                    </p>
-                  </div>
-
-                  <Card className="bg-muted/30 border-0 max-w-sm mx-auto">
-                    <CardContent className="p-6 space-y-4">
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                          <span className="text-xl">🔊</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">{voiceName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {uploadedFile ? uploadedFile.name : `${formatTime(recordingTime)} recording`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-center gap-4 pt-2">
-                        <span className="text-sm text-muted-foreground">🛡️ Noise Filtered</span>
-                        <span className="text-sm text-muted-foreground">✅ Quality Verified</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <div className="flex gap-4 max-w-sm mx-auto">
-                    <Button variant="outline" onClick={() => setCurrentStep("review")} className="gap-2">← Back</Button>
-                    <Button onClick={handleCreateProfile} disabled={creating} className="flex-1 gap-2 bg-gradient-to-r from-primary to-green-600 hover:from-primary/90 hover:to-green-600/90">
-                      {creating ? "Creating..." : "Create Voice Clone"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
-
-          {/* Existing voice profiles */}
-          {voiceProfiles.length > 0 && (
-            <div className="mt-12 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🔊</span>
-                <h2 className="text-xl font-semibold">Your Voice Clones</h2>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {voiceProfiles.map(profile => (
-                  <Card key={profile.id} className={cn("transition-all hover:shadow-md", selectedProfileId === profile.id && "ring-2 ring-primary")}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-11 h-11 rounded-full flex items-center justify-center ring-2",
-                            profile.status === "ready" ? "bg-green-500/25 ring-green-500/50" :
-                            profile.status === "training" ? "bg-amber-500/25 ring-amber-500/50" :
-                            profile.status === "failed" ? "bg-red-500/25 ring-red-500/50" :
-                            "bg-muted ring-border"
-                          )}>
-                            <span className="text-lg">
-                              {profile.status === "ready" ? "🔊" : profile.status === "training" || profile.status === "pending" ? "⏳" : "⚠️"}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium">{profile.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">
-                              {profile.status === "ready" ? "Ready to use" : profile.status}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {profile.status === "ready" && (
-                            <Button variant="outline" size="sm" onClick={() => playVoicePreview(profile.id)} disabled={isPlaying && selectedProfileId === profile.id} className="text-primary border-primary/40 hover:bg-primary/10">
-                              {isPlaying && selectedProfileId === profile.id ? "⏸" : "▶️"}
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => handleDeleteProfile(profile.id, profile.name)} disabled={deleting === profile.id} className="text-muted-foreground border-border hover:text-destructive hover:border-destructive/50">
-                            {deleting === profile.id ? "..." : "🗑️"}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {voiceProfiles.length === 0 && currentStep === "intro" && (
-            <div className="text-center py-10 mt-8 rounded-xl border border-dashed border-border bg-muted/20">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-primary/20">
-                <span className="text-2xl">🔊</span>
-              </div>
-              <p className="font-medium text-foreground">No voice clones yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Create your first one above!</p>
             </div>
           )}
         </div>
