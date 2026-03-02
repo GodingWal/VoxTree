@@ -38,6 +38,9 @@ export function Nav({ plan, showBack }: NavProps) {
           <Link href="/stories" className="text-sm text-muted-foreground hover:text-foreground">
             Stories
           </Link>
+          <Link href="/voice-cloning" className="text-sm text-muted-foreground hover:text-foreground">
+            Voice Clone
+          </Link>
           <Link href="/profile" className="text-sm text-muted-foreground hover:text-foreground">
             Profile
           </Link>
