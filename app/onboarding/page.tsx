@@ -13,16 +13,21 @@ export default function OnboardingPage() {
   const [uploadUrl, setUploadUrl] = useState<string | null>(null);
   const [s3Key, setS3Key] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("processing");
   const [error, setError] = useState<string | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
   async function handleStep1() {
     if (!voiceName.trim()) return;
     setError(null);
     setUpgradePrompt(null);
+    setIsLoading(true);
 
     try {
       const res = await fetch("/api/voices/create", {
@@ -48,18 +53,29 @@ export default function OnboardingPage() {
       setStep(2);
     } catch {
       setError("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   }
 
   async function handleStep2() {
     if (!file || !uploadUrl || !voiceId || !s3Key) return;
     setError(null);
+    setIsLoading(true);
+
+    // Validate MIME type
+    const allowed = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/m4a"];
+    const mimeType = file.type || "audio/mpeg";
+    if (!allowed.includes(mimeType)) {
+      setFileError("Unsupported format. Please upload an MP3, WAV, or M4A file.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      // Upload to S3 via presigned URL
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
-        headers: { "Content-Type": "audio/mpeg" },
+        headers: { "Content-Type": mimeType },
         body: file,
       });
 
@@ -69,26 +85,30 @@ export default function OnboardingPage() {
       }
 
       setStep(3);
+      setTimedOut(false);
 
-      // Trigger voice processing
+      // Show timeout warning after 45 seconds
+      timeoutRef.current = setTimeout(() => setTimedOut(true), 45_000);
+
       const processRes = await fetch("/api/voices/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          voiceId,
-          userId: "current", // Server will validate from session
-        }),
+        body: JSON.stringify({ voiceId }),
       });
 
       const processData = await processRes.json();
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setStatus(processData.status ?? "failed");
 
       if (processData.status === "ready") {
         setTimeout(() => router.push("/dashboard"), 2000);
       }
     } catch {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setError("Processing failed. Please try again.");
       setStatus("failed");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -100,9 +120,8 @@ export default function OnboardingPage() {
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className={`h-2 w-16 rounded-full ${
-                s <= step ? "bg-primary" : "bg-muted"
-              }`}
+              className={`h-2 w-16 rounded-full ${s <= step ? "bg-primary" : "bg-muted"
+                }`}
             />
           ))}
         </div>
@@ -159,10 +178,10 @@ export default function OnboardingPage() {
             {!upgradePrompt && (
               <button
                 onClick={handleStep1}
-                disabled={!voiceName.trim()}
+                disabled={!voiceName.trim() || isLoading}
                 className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
               >
-                Continue
+                {isLoading ? "Creating..." : "Continue"}
               </button>
             )}
           </div>
@@ -189,7 +208,11 @@ export default function OnboardingPage() {
                 type="file"
                 accept="audio/*"
                 className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const chosen = e.target.files?.[0] ?? null;
+                  setFile(chosen);
+                  setFileError(null);
+                }}
               />
               {file ? (
                 <div className="space-y-1">
@@ -208,14 +231,16 @@ export default function OnboardingPage() {
               )}
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {(error || fileError) && (
+              <p className="text-sm text-destructive">{fileError ?? error}</p>
+            )}
 
             <button
               onClick={handleStep2}
-              disabled={!file}
+              disabled={!file || isLoading}
               className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
             >
-              Upload & Process
+              {isLoading ? "Uploading..." : "Upload & Process"}
             </button>
           </div>
         )}

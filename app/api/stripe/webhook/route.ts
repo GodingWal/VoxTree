@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { adminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
@@ -27,10 +27,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
 
   switch (event.type) {
     case "checkout.session.completed": {
@@ -39,7 +35,7 @@ export async function POST(request: Request) {
       const plan = session.metadata?.plan;
 
       if (userId && plan) {
-        await supabase
+        await adminClient
           .from("users")
           .update({ plan })
           .eq("id", userId);
@@ -51,14 +47,14 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
 
-      const { data: user } = await supabase
+      const { data: user } = await adminClient
         .from("users")
         .select("id")
         .eq("stripe_customer_id", customerId)
         .single();
 
       if (user) {
-        await supabase
+        await adminClient
           .from("users")
           .update({ plan: "free" })
           .eq("id", user.id);

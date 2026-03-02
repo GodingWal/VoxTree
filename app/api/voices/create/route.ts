@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { adminClient } from "@/lib/supabase/admin";
 import { checkLimit } from "@/lib/limits";
 import { getPresignedUploadUrl, S3_PATHS } from "@/lib/aws";
 import { NextResponse } from "next/server";
@@ -15,6 +16,11 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Ensure the user profile row exists (guard against trigger not having fired)
+  await adminClient
+    .from("users")
+    .upsert({ id: user.id }, { onConflict: "id", ignoreDuplicates: true });
 
   const body = await request.json();
   const parsed = createVoiceSchema.safeParse(body);
@@ -61,8 +67,8 @@ export async function POST(request: Request) {
   const s3Key = S3_PATHS.voiceSample(user.id, voice.id);
   const uploadUrl = await getPresignedUploadUrl(s3Key, "audio/mpeg");
 
-  // Increment voice slots used
-  await supabase.rpc("increment_voice_slots", { user_id: user.id });
+  // Increment voice slots used (atomic via RPC)
+  await adminClient.rpc("increment_voice_slots", { p_user_id: user.id });
 
   return NextResponse.json({
     voiceId: voice.id,

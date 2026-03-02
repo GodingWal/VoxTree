@@ -40,15 +40,27 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users away from protected routes
-  if (
-    !user &&
-    request.nextUrl.pathname.startsWith("/dashboard")
-  ) {
+  const pathname = request.nextUrl.pathname;
+
+  // Protected routes that require authentication
+  const protectedPaths = ["/dashboard", "/onboarding", "/browse", "/watch", "/profile", "/settings", "/voice-cloning", "/videos", "/stories", "/create"];
+  const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
+
+  // Admin routes require admin role
+  const isAdmin = pathname.startsWith("/admin");
+
+  if (!user && (isProtected || isAdmin)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
+
+  // Add security headers
+  supabaseResponse.headers.set("X-Frame-Options", "DENY");
+  supabaseResponse.headers.set("X-Content-Type-Options", "nosniff");
+  supabaseResponse.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  supabaseResponse.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
 
   return supabaseResponse;
 }

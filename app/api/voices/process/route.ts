@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createAuthClient } from "@/lib/supabase/server";
+import { adminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
 import { getPresignedDownloadUrl, S3_PATHS } from "@/lib/aws";
 import { NextResponse } from "next/server";
@@ -6,7 +7,6 @@ import { z } from "zod";
 
 const processSchema = z.object({
   voiceId: z.string().uuid(),
-  userId: z.string().uuid(),
 });
 
 /**
@@ -14,10 +14,16 @@ const processSchema = z.object({
  * Called by the client after a successful upload, or by a webhook.
  */
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  // Authenticate from session
+  const authClient = createAuthClient();
+  const { data: { user: authUser } } = await authClient.auth.getUser();
+
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = authUser.id;
+
 
   const body = await request.json();
   const parsed = processSchema.safeParse(body);
@@ -29,10 +35,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { voiceId, userId } = parsed.data;
+  const { voiceId } = parsed.data;
 
   // Verify the voice record exists and belongs to the user
-  const { data: voice } = await supabase
+  const { data: voice } = await adminClient
     .from("family_voices")
     .select("*")
     .eq("id", voiceId)
@@ -54,7 +60,7 @@ export async function POST(request: Request) {
     const elevenlabsVoiceId = await cloneVoice(audioBuffer, voice.name);
 
     // Update voice record with ElevenLabs voice ID
-    await supabase
+    await adminClient
       .from("family_voices")
       .update({
         elevenlabs_voice_id: elevenlabsVoiceId,
@@ -69,7 +75,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     // Mark voice as failed
-    await supabase
+    await adminClient
       .from("family_voices")
       .update({ status: "failed" })
       .eq("id", voiceId);

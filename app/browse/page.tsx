@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { Nav } from "@/components/nav";
 import Link from "next/link";
 
 export default async function BrowsePage() {
@@ -11,13 +12,7 @@ export default async function BrowsePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/dashboard" className="text-xl font-bold text-brand-green">
-            VoxTree
-          </Link>
-        </div>
-      </header>
+      <Nav />
 
       <main className="container py-8 space-y-6">
         <div className="space-y-2">

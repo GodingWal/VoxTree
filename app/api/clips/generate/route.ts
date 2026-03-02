@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { adminClient } from "@/lib/supabase/admin";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { NextResponse } from "next/server";
@@ -71,8 +72,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // TODO: Invoke Lambda or background worker for ffmpeg processing
-  // For now, return the clip ID for status polling
+  // Increment monthly clip usage
+  await adminClient.rpc("increment_clips_used", { p_user_id: user.id });
+
+  // Fire-and-forget clip processing (runs async in the background)
+  import("@/lib/jobs").then(({ processClipJob }) => {
+    processClipJob(clip.id).catch(() => { });
+  });
 
   return NextResponse.json({
     clipId: clip.id,
