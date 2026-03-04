@@ -1,5 +1,37 @@
 # VoxTree Code Review — Recommended Improvements
 
+## Critical — Schema / Data Mismatch
+
+### 0a. Database Schema Does Not Match Application Code
+**Files:** `supabase/migrations/001_initial_schema.sql` vs `lib/limits.ts`, `types/database.ts`
+
+The database schema and the application code expect different columns and values:
+
+| What | Schema says | Code expects |
+|------|-------------|--------------|
+| Plan values | `'free', 'pro', 'family'` | `'free', 'family', 'premium'` |
+| Usage columns | `clips_used_this_month`, `clips_reset_at` | `videos_used`, `stories_used` |
+
+The `limits.ts` queries `videos_used` and `stories_used`, but these columns **do not exist** in the schema. The plan check constraint allows `'pro'` but the code uses `'premium'`. This will cause runtime errors on every limit check.
+
+**Fix:** Add a new migration to align the schema with the code — add the missing columns and update the plan constraint.
+
+### 0b. Missing `increment_voice_slots` RPC Function
+**File:** `app/api/voices/create/route.ts:65`
+
+```ts
+await supabase.rpc("increment_voice_slots", { user_id: user.id });
+```
+
+This function is never defined in the migration. Voice creation will fail with a "function not found" error. Add it as an atomic increment function in a new migration.
+
+### 0c. Missing `content_type` Column in Schema
+**File:** `types/database.ts:4` vs `supabase/migrations/001_initial_schema.sql`
+
+`types/database.ts` defines `ContentType = "video" | "story"` and `ContentItem.content_type`, but the `content_library` table has no `content_type` column.
+
+---
+
 ## Critical — Security
 
 ### 1. Voice Process Endpoint Has No Authentication
@@ -175,6 +207,9 @@ Selecting all columns transfers unnecessary data. Select only the columns you ac
 
 | # | Severity | Issue |
 |---|----------|-------|
+| 0a | Critical | DB schema mismatches code (wrong plan values, missing columns) |
+| 0b | Critical | Missing `increment_voice_slots` RPC function |
+| 0c | Critical | Missing `content_type` column in content_library |
 | 1 | Critical | Unauthenticated voice process endpoint |
 | 2 | Critical | Open redirect in OAuth callback |
 | 5 | High | `generate_clip` action doesn't exist — clips always blocked |
