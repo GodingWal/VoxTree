@@ -10,13 +10,15 @@ import {
   ArrowUpRight,
   Sparkles,
   AlertTriangle,
-  Clock,
-  CheckCircle2,
-  XCircle,
+  ChevronRight,
   User,
   LogOut,
-  ChevronRight,
 } from "lucide-react";
+
+import { VoiceCard } from "@/components/voice-card";
+import { VoiceSlotsProgress } from "@/components/voice-slots-progress";
+import { ActivityFeed } from "@/components/activity-feed";
+import { DarkModeToggle } from "@/components/dark-mode-toggle";
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -70,15 +72,15 @@ export default async function DashboardPage() {
   const clipCount = recentClips?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-brand-cream/40">
+    <div className="min-h-screen bg-brand-cream/40 dark:bg-background">
       {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b bg-white/80 dark:bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
-            <span className="text-xl font-bold text-brand-charcoal">
+            <span className="text-xl font-bold text-brand-charcoal dark:text-foreground">
               VoxTree
             </span>
           </Link>
@@ -92,7 +94,8 @@ export default async function DashboardPage() {
             <span className="inline-flex items-center rounded-full bg-brand-green/10 text-brand-green px-3 py-1 text-xs font-semibold">
               {planLabel} Plan
             </span>
-            <div className="h-8 w-8 rounded-full bg-brand-sage/50 flex items-center justify-center">
+            <DarkModeToggle />
+            <div className="h-8 w-8 rounded-full bg-brand-sage/50 dark:bg-brand-sage/20 flex items-center justify-center">
               <User className="h-4 w-4 text-brand-green" />
             </div>
           </div>
@@ -103,7 +106,7 @@ export default async function DashboardPage() {
         {/* Welcome Section */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-brand-charcoal">
+            <h1 className="text-3xl font-bold text-brand-charcoal dark:text-foreground">
               Welcome back, {firstName}
             </h1>
             <p className="text-muted-foreground mt-1">
@@ -131,7 +134,7 @@ export default async function DashboardPage() {
                 <AlertTriangle className="h-4 w-4 text-brand-gold" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-brand-charcoal">
+                <p className="text-sm font-semibold text-brand-charcoal dark:text-foreground">
                   Voice profile limit reached
                 </p>
                 <p className="text-sm text-muted-foreground">
@@ -153,12 +156,12 @@ export default async function DashboardPage() {
 
         {/* Stats Cards */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-white border p-5 flex items-center gap-4 shadow-sm">
+          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
             <div className="rounded-xl bg-brand-green/10 p-3">
               <Mic className="h-5 w-5 text-brand-green" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-brand-charcoal">
+              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
                 {voiceCount}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -166,12 +169,12 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="rounded-xl bg-white border p-5 flex items-center gap-4 shadow-sm">
+          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
             <div className="rounded-xl bg-brand-coral/10 p-3">
               <Play className="h-5 w-5 text-brand-coral" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-brand-charcoal">
+              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
                 {clipCount}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -179,12 +182,12 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          <div className="rounded-xl bg-white border p-5 flex items-center gap-4 shadow-sm">
+          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
             <div className="rounded-xl bg-brand-gold/10 p-3">
               <Sparkles className="h-5 w-5 text-brand-gold" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-brand-charcoal">
+              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
                 {planLabel}
               </p>
               <p className="text-xs text-muted-foreground">Current Plan</p>
@@ -195,76 +198,42 @@ export default async function DashboardPage() {
         {/* Family Voices */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-semibold text-brand-charcoal">
-                Family Voices
-              </h2>
-              {limits.voice_slots !== null && (
-                <span className="text-xs text-muted-foreground bg-muted rounded-full px-2.5 py-0.5">
-                  {voiceSlotsUsed} / {limits.voice_slots} used
-                </span>
-              )}
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold text-brand-charcoal dark:text-foreground">
+                  Family Voices
+                </h2>
+                {atVoiceLimit && plan !== "premium" && (
+                  <Link
+                    href="/pricing"
+                    className="inline-flex items-center gap-1 text-sm text-brand-gold font-medium hover:underline"
+                  >
+                    Upgrade for more
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
+              {/* Voice slots progress bar */}
+              <div className="w-48">
+                <VoiceSlotsProgress
+                  used={voiceSlotsUsed}
+                  total={limits.voice_slots}
+                />
+              </div>
             </div>
-            {atVoiceLimit && plan !== "premium" && (
-              <Link
-                href="/pricing"
-                className="inline-flex items-center gap-1 text-sm text-brand-gold font-medium hover:underline"
-              >
-                Upgrade for more
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {voices && voices.length > 0 ? (
               voices.map((voice) => (
-                <div
-                  key={voice.id}
-                  className="group rounded-xl bg-white border p-5 space-y-3 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-brand-sage/40 flex items-center justify-center shrink-0">
-                      <Mic className="h-4 w-4 text-brand-green" />
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="font-medium text-brand-charcoal truncate">
-                        {voice.name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {voice.status === "ready" ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 text-green-500" />
-                            <span className="text-xs text-green-600">
-                              Ready
-                            </span>
-                          </>
-                        ) : voice.status === "processing" ? (
-                          <>
-                            <Clock className="h-3 w-3 text-brand-gold" />
-                            <span className="text-xs text-brand-gold">
-                              Processing
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3 w-3 text-brand-coral" />
-                            <span className="text-xs text-brand-coral">
-                              Error
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <VoiceCard key={voice.id} voice={voice} />
               ))
             ) : (
               <div className="col-span-full rounded-xl border-2 border-dashed border-brand-sage/40 p-8 text-center">
                 <div className="mx-auto w-12 h-12 rounded-full bg-brand-sage/20 flex items-center justify-center mb-3">
                   <Mic className="h-5 w-5 text-brand-green/60" />
                 </div>
-                <p className="text-sm font-medium text-brand-charcoal">
+                <p className="text-sm font-medium text-brand-charcoal dark:text-foreground">
                   No voices yet
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -282,10 +251,16 @@ export default async function DashboardPage() {
           </div>
         </section>
 
+        {/* Activity Feed */}
+        <ActivityFeed
+          voices={voices ?? []}
+          clips={recentClips ?? []}
+        />
+
         {/* Recent Clips */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-brand-charcoal">
+            <h2 className="text-xl font-semibold text-brand-charcoal dark:text-foreground">
               Continue Watching
             </h2>
             {recentClips && recentClips.length > 0 && (
@@ -303,7 +278,7 @@ export default async function DashboardPage() {
               recentClips.map((clip) => (
                 <div
                   key={clip.id}
-                  className="group rounded-xl bg-white border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  className="group rounded-xl bg-white dark:bg-card border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="aspect-video bg-gradient-to-br from-brand-sage/30 to-brand-green/10 flex items-center justify-center">
                     <div className="h-12 w-12 rounded-full bg-white/80 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
@@ -311,7 +286,7 @@ export default async function DashboardPage() {
                     </div>
                   </div>
                   <div className="p-4">
-                    <p className="text-sm font-medium text-brand-charcoal truncate">
+                    <p className="text-sm font-medium text-brand-charcoal dark:text-foreground truncate">
                       {(clip as Record<string, unknown>).content_library
                         ? (
                             (clip as Record<string, unknown>)
@@ -338,7 +313,7 @@ export default async function DashboardPage() {
                 <div className="mx-auto w-12 h-12 rounded-full bg-brand-coral/10 flex items-center justify-center mb-3">
                   <Play className="h-5 w-5 text-brand-coral/60" />
                 </div>
-                <p className="text-sm font-medium text-brand-charcoal">
+                <p className="text-sm font-medium text-brand-charcoal dark:text-foreground">
                   No clips yet
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
