@@ -57,3 +57,19 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Smooth dark mode transitions */
+html {
+  transition: color-scheme 0.3s ease;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Scrollbar styling */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
