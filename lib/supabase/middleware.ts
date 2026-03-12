@@ -43,7 +43,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Protected routes that require authentication
-  const protectedPaths = ["/dashboard", "/onboarding", "/browse", "/watch", "/profile", "/settings", "/voice-cloning", "/videos", "/stories", "/create"];
+  const protectedPaths = ["/dashboard", "/onboarding", "/browse", "/watch", "/profile", "/settings", "/clone", "/voice-cloning", "/videos", "/stories", "/create"];
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   // Admin routes require admin role

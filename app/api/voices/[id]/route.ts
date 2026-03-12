@@ -49,12 +49,16 @@ export async function DELETE(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
 
-  // Delete from ElevenLabs if it has an ID
+  // Delete from ElevenLabs if it has an ID. If it fails, abort to prevent orphaned voices.
   if (voice.elevenlabs_voice_id) {
     try {
       await deleteElevenLabsVoice(voice.elevenlabs_voice_id);
-    } catch {
-      // Continue even if ElevenLabs deletion fails
+    } catch (error) {
+      console.error("Failed to delete voice from ElevenLabs:", error);
+      return NextResponse.json(
+        { error: "Failed to delete voice from ElevenLabs. Please try again." },
+        { status: 500 }
+      );
     }
   }
 

@@ -19,6 +19,7 @@ export default function ProfilePage() {
   const { toast } = useToast();
 
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -29,14 +30,29 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.push("/login"); return; }
-      setEmail(user.email ?? "");
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { router.push("/login"); return; }
+        setEmail(user.email ?? "");
 
-      const { data } = await supabase.from("users").select("*").eq("id", user.id).single();
-      if (data) {
-        setProfile(data);
-        setName(data.name ?? "");
+        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single();
+        if (error) {
+          console.error("Profile fetch error:", error);
+          // Still show the page with defaults from auth user
+          setProfile({ plan: "free", role: "user", created_at: new Date().toISOString(), voice_slots_used: 0, clips_used_this_month: 0, videos_used: 0, stories_used: 0 });
+          setName(user.user_metadata?.name ?? user.email?.split("@")[0] ?? "");
+        } else if (data) {
+          setProfile(data);
+          setName(data.name ?? "");
+        } else {
+          // No data and no error — set fallback
+          setProfile({ plan: "free", role: "user", created_at: new Date().toISOString(), voice_slots_used: 0, clips_used_this_month: 0, videos_used: 0, stories_used: 0 });
+        }
+      } catch (err) {
+        console.error("Profile load failed:", err);
+        setProfile({ plan: "free", role: "user", created_at: new Date().toISOString(), voice_slots_used: 0, clips_used_this_month: 0, videos_used: 0, stories_used: 0 });
+      } finally {
+        setLoading(false);
       }
     }
     load();
@@ -68,7 +84,7 @@ export default function ProfilePage() {
     return name.split(" ").map((p) => p.charAt(0)).slice(0, 2).join("").toUpperCase();
   };
 
-  if (!profile) {
+  if (loading || !profile) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Loading...</p></div>;
   }
 

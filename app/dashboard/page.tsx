@@ -1,24 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { PLAN_LIMITS } from "@/lib/limits";
 import { redirect } from "next/navigation";
+import { Nav } from "@/components/nav";
 import Link from "next/link";
-import {
-  Mic,
-  Play,
-  BookOpen,
-  Plus,
-  ArrowUpRight,
-  Sparkles,
-  AlertTriangle,
-  ChevronRight,
-  User,
-  LogOut,
-} from "lucide-react";
-
-import { VoiceCard } from "@/components/voice-card";
-import { VoiceSlotsProgress } from "@/components/voice-slots-progress";
-import { ActivityFeed } from "@/components/activity-feed";
-import { DarkModeToggle } from "@/components/dark-mode-toggle";
+import { FamilyVoicesList } from "@/components/dashboard/FamilyVoicesList";
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -48,303 +33,182 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .eq("status", "ready")
     .order("created_at", { ascending: false })
-    .limit(3);
-
-  const planMap: Record<string, string> = {
-    free: "Free",
-    family: "Family",
-    premium: "Premium",
-  };
+    .limit(6);
 
   const plan = (profile?.plan ?? "free") as keyof typeof PLAN_LIMITS;
-  const planLabel = planMap[plan];
   const limits = PLAN_LIMITS[plan];
   const voiceSlotsUsed: number = profile?.voice_slots_used ?? 0;
+  const clipsUsed: number = profile?.clips_used_this_month ?? 0;
   const atVoiceLimit =
     limits.voice_slots !== null && voiceSlotsUsed >= limits.voice_slots;
 
-  const firstName =
-    user.user_metadata?.full_name?.split(" ")[0] ??
-    user.email?.split("@")[0] ??
-    "there";
-
-  const voiceCount = voices?.length ?? 0;
-  const clipCount = recentClips?.length ?? 0;
-
   return (
-    <div className="min-h-screen bg-brand-cream/40 dark:bg-background">
-      {/* Header */}
-      <header className="border-b bg-white/80 dark:bg-card/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-              VoxTree
-            </span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/browse"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
-            >
-              Browse
-            </Link>
-            <span className="inline-flex items-center rounded-full bg-brand-green/10 text-brand-green px-3 py-1 text-xs font-semibold">
-              {planLabel} Plan
-            </span>
-            <DarkModeToggle />
-            <div className="h-8 w-8 rounded-full bg-brand-sage/50 dark:bg-brand-sage/20 flex items-center justify-center">
-              <User className="h-4 w-4 text-brand-green" />
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background">
+      <Nav plan={plan} />
 
-      <main className="container py-8 space-y-8">
-        {/* Welcome Section */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-brand-charcoal dark:text-foreground">
-              Welcome back, {firstName}
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              {voiceCount === 0
-                ? "Get started by adding your first family voice."
-                : `You have ${voiceCount} voice${voiceCount !== 1 ? "s" : ""} and ${clipCount} clip${clipCount !== 1 ? "s" : ""} ready.`}
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-background via-background to-secondary py-16 sm:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-4xl md:text-5xl font-bold text-primary mb-6">
+              Create Magical
+              <br />
+              Family Videos
+            </h2>
+            <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+              Transform your family memories with AI-powered voice cloning, collaborative editing, and stunning video creation tools designed for families.
             </p>
-          </div>
-          {!atVoiceLimit && (
-            <Link
-              href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-green px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-green/90 transition-colors shadow-sm"
-            >
-              <Plus className="h-4 w-4" />
-              Add Voice
-            </Link>
-          )}
-        </div>
-
-        {/* Voice limit upsell banner */}
-        {atVoiceLimit && plan !== "premium" && (
-          <div className="rounded-xl border border-brand-gold/30 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-transparent p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 rounded-full bg-brand-gold/20 p-2">
-                <AlertTriangle className="h-4 w-4 text-brand-gold" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-brand-charcoal dark:text-foreground">
-                  Voice profile limit reached
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {plan === "free"
-                    ? "You've used your 1 free voice profile. Upgrade to Family for 2, or Premium for unlimited."
-                    : "You've used both Family voice profiles. Upgrade to Premium for unlimited."}
-                </p>
-              </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link href="/create" className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-primary-foreground hover:bg-primary/90">
+                Start Creating
+              </Link>
+              <Link href="/stories" className="inline-flex h-12 items-center justify-center rounded-md bg-secondary px-6 text-base font-medium hover:bg-secondary/80">
+                Browse Stories
+              </Link>
             </div>
-            <Link
-              href="/pricing"
-              className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-brand-gold px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-gold/90 transition-colors shadow-sm"
-            >
+          </div>
+        </div>
+        <div className="absolute top-20 right-10 w-32 h-32 bg-primary/20 rounded-full blur-xl hidden sm:block" />
+        <div className="absolute bottom-20 left-10 w-24 h-24 bg-accent/20 rounded-full blur-xl hidden sm:block" />
+      </section>
+
+      {/* Quick Actions */}
+      <section className="py-12 bg-card">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[
+              { icon: "🎤", title: "Clone Studio", desc: "Clone voice, face & body with AI", href: "/clone", color: "bg-primary/20" },
+              { icon: "🤖", title: "Voice Clone", desc: "Create AI voice duplicates instantly", href: "/clone", color: "bg-accent/20" },
+              { icon: "🎬", title: "Create Video", desc: "Generate family stories with AI", href: "/create", color: "bg-primary/20" },
+              { icon: "👥", title: "Collaborate", desc: "Work together in real-time", href: "/videos", color: "bg-accent/20" },
+            ].map((action) => (
+              <Link key={action.title} href={action.href} className="rounded-xl border p-6 hover:shadow-lg transition-all hover:border-primary/50 group">
+                <div className={`w-12 h-12 ${action.color} rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                  <span className="text-xl">{action.icon}</span>
+                </div>
+                <h3 className="font-semibold mb-1">{action.title}</h3>
+                <p className="text-sm text-muted-foreground">{action.desc}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+        {/* Usage Summary */}
+        <section className="rounded-xl border bg-card p-6">
+          <h2 className="text-lg font-semibold mb-4">Usage Summary</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Voice Profiles</p>
+              <p className="text-2xl font-bold">{voiceSlotsUsed} <span className="text-sm font-normal text-muted-foreground">/ {limits.voice_slots ?? "∞"}</span></p>
+              {limits.voice_slots !== null && (
+                <div className="w-full bg-secondary rounded-full h-2">
+                  <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.min((voiceSlotsUsed / limits.voice_slots) * 100, 100)}%` }} />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Clips This Month</p>
+              <p className="text-2xl font-bold">{clipsUsed} <span className="text-sm font-normal text-muted-foreground">/ {limits.clips_per_month ?? "∞"}</span></p>
+              {limits.clips_per_month !== null && (
+                <div className="w-full bg-secondary rounded-full h-2">
+                  <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.min((clipsUsed / limits.clips_per_month) * 100, 100)}%` }} />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Plan</p>
+              <p className="text-2xl font-bold capitalize">{plan}</p>
+              {plan !== "premium" && (
+                <Link href="/pricing" className="text-sm text-primary hover:underline">Upgrade plan</Link>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Voice limit upsell */}
+        {atVoiceLimit && plan !== "premium" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold text-amber-900">Voice profile limit reached</p>
+              <p className="text-sm text-amber-700">
+                {plan === "free"
+                  ? "You've used your 1 free voice profile. Upgrade to Family for 2 profiles, or Premium for unlimited."
+                  : "You've used both Family voice profiles. Upgrade to Premium for unlimited voice profiles."}
+              </p>
+            </div>
+            <Link href="/pricing" className="shrink-0 inline-flex h-9 items-center rounded-md bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700">
               Upgrade
-              <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
-            <div className="rounded-xl bg-brand-green/10 p-3">
-              <Mic className="h-5 w-5 text-brand-green" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                {voiceCount}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Voice{voiceCount !== 1 ? "s" : ""} Added
-              </p>
-            </div>
-          </div>
-          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
-            <div className="rounded-xl bg-brand-coral/10 p-3">
-              <Play className="h-5 w-5 text-brand-coral" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                {clipCount}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Clip{clipCount !== 1 ? "s" : ""} Created
-              </p>
-            </div>
-          </div>
-          <div className="rounded-xl bg-white dark:bg-card border p-5 flex items-center gap-4 shadow-sm">
-            <div className="rounded-xl bg-brand-gold/10 p-3">
-              <Sparkles className="h-5 w-5 text-brand-gold" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                {planLabel}
-              </p>
-              <p className="text-xs text-muted-foreground">Current Plan</p>
-            </div>
-          </div>
-        </div>
-
         {/* Family Voices */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-semibold text-brand-charcoal dark:text-foreground">
-                  Family Voices
-                </h2>
-                {atVoiceLimit && plan !== "premium" && (
-                  <Link
-                    href="/pricing"
-                    className="inline-flex items-center gap-1 text-sm text-brand-gold font-medium hover:underline"
-                  >
-                    Upgrade for more
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Link>
-                )}
-              </div>
-              {/* Voice slots progress bar */}
-              <div className="w-48">
-                <VoiceSlotsProgress
-                  used={voiceSlotsUsed}
-                  total={limits.voice_slots}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {voices && voices.length > 0 ? (
-              voices.map((voice) => (
-                <VoiceCard key={voice.id} voice={voice} />
-              ))
+            <h2 className="text-2xl font-semibold">Your Family Voices</h2>
+            {atVoiceLimit && plan !== "premium" ? (
+              <Link href="/pricing" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">Upgrade to Add More</Link>
             ) : (
-              <div className="col-span-full rounded-xl border-2 border-dashed border-brand-sage/40 p-8 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-brand-sage/20 flex items-center justify-center mb-3">
-                  <Mic className="h-5 w-5 text-brand-green/60" />
-                </div>
-                <p className="text-sm font-medium text-brand-charcoal dark:text-foreground">
-                  No voices yet
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Add a family member&apos;s voice to get started.
-                </p>
-                <Link
-                  href="/onboarding"
-                  className="inline-flex items-center gap-1.5 mt-4 text-sm font-medium text-brand-green hover:underline"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add your first voice
-                </Link>
-              </div>
+              <Link href="/onboarding" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">Add Voice</Link>
             )}
           </div>
+          {limits.voice_slots !== null && (
+            <p className="text-xs text-muted-foreground">{voiceSlotsUsed} / {limits.voice_slots} voice profile{limits.voice_slots === 1 ? "" : "s"} used</p>
+          )}
+          <FamilyVoicesList initialVoices={voices || []} />
         </section>
-
-        {/* Activity Feed */}
-        <ActivityFeed
-          voices={voices ?? []}
-          clips={recentClips ?? []}
-        />
 
         {/* Recent Clips */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-brand-charcoal dark:text-foreground">
-              Continue Watching
-            </h2>
-            {recentClips && recentClips.length > 0 && (
-              <Link
-                href="/browse"
-                className="inline-flex items-center gap-1 text-sm text-brand-green font-medium hover:underline"
-              >
-                View all
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
+            <div>
+              <h2 className="text-2xl font-semibold">Your Family Library</h2>
+              <p className="text-muted-foreground text-sm">Recent videos and ongoing projects</p>
+            </div>
+            <Link href="/create" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              New Project
+            </Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {recentClips && recentClips.length > 0 ? (
-              recentClips.map((clip) => (
-                <div
-                  key={clip.id}
-                  className="group rounded-xl bg-white dark:bg-card border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="aspect-video bg-gradient-to-br from-brand-sage/30 to-brand-green/10 flex items-center justify-center">
-                    <div className="h-12 w-12 rounded-full bg-white/80 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                      <Play className="h-5 w-5 text-brand-green ml-0.5" />
-                    </div>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-sm font-medium text-brand-charcoal dark:text-foreground truncate">
-                      {(clip as Record<string, unknown>).content_library
-                        ? (
-                            (clip as Record<string, unknown>)
-                              .content_library as Record<string, unknown>
-                          ).title as string
-                        : "Untitled"}
-                    </p>
-                    {(clip as Record<string, unknown>).family_voices && (
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <Mic className="h-3 w-3" />
-                        {
-                          (
-                            (clip as Record<string, unknown>)
-                              .family_voices as Record<string, unknown>
-                          ).name as string
-                        }
-                      </p>
+            {recentClips && recentClips.length > 0 ? recentClips.map((clip) => {
+              const content = clip.content_library as Record<string, unknown> | null;
+              return (
+                <div key={clip.id} className="rounded-lg border overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="aspect-video bg-muted flex items-center justify-center">
+                    {content?.thumbnail_url ? (
+                      <img src={content.thumbnail_url as string} alt={content?.title as string} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-3xl text-muted-foreground">🎬</span>
                     )}
                   </div>
+                  <div className="p-3">
+                    <p className="text-sm font-medium truncate">{content?.title as string ?? "Untitled"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Voice: {(clip.family_voices as Record<string, unknown>)?.name as string ?? "Unknown"}</p>
+                  </div>
                 </div>
-              ))
-            ) : (
-              <div className="col-span-full rounded-xl border-2 border-dashed border-muted p-8 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-brand-coral/10 flex items-center justify-center mb-3">
-                  <Play className="h-5 w-5 text-brand-coral/60" />
-                </div>
-                <p className="text-sm font-medium text-brand-charcoal dark:text-foreground">
-                  No clips yet
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Browse content to create your first personalized video.
-                </p>
+              );
+            }) : (
+              <div className="text-center py-12 col-span-full">
+                <span className="text-4xl block mb-4">🎬</span>
+                <h3 className="text-lg font-semibold mb-2">No videos yet</h3>
+                <p className="text-muted-foreground mb-4">Start creating your first family video</p>
+                <Link href="/create" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">Create Your First Video</Link>
               </div>
             )}
           </div>
         </section>
 
         {/* Browse CTA */}
-        <section className="rounded-2xl bg-gradient-to-br from-brand-green to-brand-green/80 p-8 sm:p-10 text-center space-y-4 shadow-lg">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-            <BookOpen className="h-7 w-7 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-white">
-            Discover Educational Content
-          </h2>
-          <p className="text-white/80 max-w-md mx-auto">
-            Browse our library of children&apos;s educational videos and hear
-            them narrated in your family&apos;s voice.
-          </p>
-          <Link
-            href="/browse"
-            className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-brand-green hover:bg-white/90 transition-colors shadow-sm"
-          >
-            <BookOpen className="h-4 w-4" />
+        <section className="rounded-lg border bg-card p-6 text-center space-y-3">
+          <h2 className="text-xl font-semibold">Discover Educational Content</h2>
+          <p className="text-muted-foreground">Browse our library of children&apos;s educational videos and hear them in your family&apos;s voice.</p>
+          <Link href="/browse" className="inline-flex h-10 items-center rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             Browse Content
           </Link>
         </section>
       </main>
-    </div>
+    </div >
   );
 }

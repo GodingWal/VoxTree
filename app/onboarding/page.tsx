@@ -1072,7 +1072,7 @@ export default function OnboardingPage() {
                     <Button variant="outline" onClick={() => { setWizardStep("recording"); setCurrentPhase(0); setStatus("processing"); setError(null); }}>
                       Try Again
                     </Button>
-                    <Button asChild><Link href="/voice-cloning">Voice Cloning Studio</Link></Button>
+                    <Button asChild><Link href="/clone">Clone Studio</Link></Button>
                   </div>
                 )}
 

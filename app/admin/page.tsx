@@ -142,10 +142,10 @@ export default async function AdminDashboardPage() {
               <p className="text-xs text-muted-foreground">View & manage users</p>
             </div>
           </Link>
-          <Link href="/voice-cloning" className="rounded-lg border p-4 hover:shadow-md transition-shadow bg-card flex items-center gap-3">
+          <Link href="/clone" className="rounded-lg border p-4 hover:shadow-md transition-shadow bg-card flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center"><span className="text-xl">🎤</span></div>
             <div>
-              <p className="font-medium">Voice Studio</p>
+              <p className="font-medium">Clone Studio</p>
               <p className="text-xs text-muted-foreground">Create & test voices</p>
             </div>
           </Link>
@@ -185,12 +185,11 @@ export default async function AdminDashboardPage() {
                     <p className="font-medium text-sm">{v.name}</p>
                     <p className="text-xs text-muted-foreground">{new Date(v.created_at).toLocaleDateString()}</p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    v.status === "ready" ? "bg-green-100 text-green-700" :
-                    v.status === "processing" ? "bg-amber-100 text-amber-700" :
-                    v.status === "failed" ? "bg-red-100 text-red-700" :
-                    "bg-muted text-muted-foreground"
-                  }`}>{v.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.status === "ready" ? "bg-green-100 text-green-700" :
+                      v.status === "processing" ? "bg-amber-100 text-amber-700" :
+                        v.status === "failed" ? "bg-red-100 text-red-700" :
+                          "bg-muted text-muted-foreground"
+                    }`}>{v.status}</span>
                 </div>
               ))}
               {(!recentVoices || recentVoices.length === 0) && (
@@ -209,12 +208,11 @@ export default async function AdminDashboardPage() {
                     <p className="font-medium text-sm">Clip #{c.id.slice(0, 8)}</p>
                     <p className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    c.status === "ready" ? "bg-green-100 text-green-700" :
-                    c.status === "processing" ? "bg-amber-100 text-amber-700" :
-                    c.status === "failed" ? "bg-red-100 text-red-700" :
-                    "bg-muted text-muted-foreground"
-                  }`}>{c.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.status === "ready" ? "bg-green-100 text-green-700" :
+                      c.status === "processing" ? "bg-amber-100 text-amber-700" :
+                        c.status === "failed" ? "bg-red-100 text-red-700" :
+                          "bg-muted text-muted-foreground"
+                    }`}>{c.status}</span>
                 </div>
               ))}
               {(!recentClips || recentClips.length === 0) && (

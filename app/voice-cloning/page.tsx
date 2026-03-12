@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { DeleteVoiceButton } from "@/components/ui/DeleteVoiceButton";
 
 /* ─── 8 Recording Phases ─── */
 const RECORDING_PROMPTS = [
@@ -122,7 +123,6 @@ export default function VoiceCloningPage() {
   const [plan, setPlan] = useState("free");
   const [voiceProfiles, setVoiceProfiles] = useState<VoiceProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
   // Voice name
   const [voiceName, setVoiceName] = useState("");
@@ -568,23 +568,6 @@ export default function VoiceCloningPage() {
     setQualityWarnings([]);
   };
 
-  /* ── Delete profile ── */
-  const handleDeleteProfile = async (profileId: string, profileName: string) => {
-    if (!confirm(`Delete voice "${profileName}"?`)) return;
-    setDeleting(profileId);
-    try {
-      const res = await fetch(`/api/voices/${profileId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
-      toast({ title: "Voice Deleted" });
-      setVoiceProfiles((prev) => prev.filter((p) => p.id !== profileId));
-      if (selectedProfileId === profileId) setSelectedProfileId(null);
-    } catch {
-      toast({ title: "Delete Failed", variant: "destructive" });
-    } finally {
-      setDeleting(null);
-    }
-  };
-
   /* ── Preview ── */
   const playVoicePreview = async (profileId: string) => {
     try {
@@ -964,9 +947,14 @@ export default function VoiceCloningPage() {
                                   {isPlaying && selectedProfileId === profile.id ? "\u23F8" : "\u25B6\uFE0F"}
                                 </Button>
                               )}
-                              <Button variant="outline" size="sm" onClick={() => handleDeleteProfile(profile.id, profile.name)} disabled={deleting === profile.id} className="text-muted-foreground border-border hover:text-destructive hover:border-destructive/50">
-                                {deleting === profile.id ? "..." : "\uD83D\uDDD1\uFE0F"}
-                              </Button>
+                              <DeleteVoiceButton
+                                voiceId={profile.id}
+                                voiceName={profile.name}
+                                onDeleteSuccess={(id) => {
+                                  setVoiceProfiles((prev) => prev.filter((p) => p.id !== id));
+                                  if (selectedProfileId === id) setSelectedProfileId(null);
+                                }}
+                              />
                             </div>
                           </div>
                         </CardContent>
