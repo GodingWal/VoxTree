@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // null means unlimited
 export const PLAN_LIMITS = {
@@ -35,13 +35,6 @@ interface LimitCheckResult {
   upgradePrompt?: string;
 }
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 /**
  * Check whether a user is allowed to perform a given action
  * based on their current plan and usage.
@@ -50,7 +43,7 @@ export async function checkLimit(
   userId: string,
   action: Action
 ): Promise<LimitCheckResult> {
-  const supabase = getAdminClient();
+  const supabase = createAdminClient();
 
   const { data: user, error } = await supabase
     .from("users")

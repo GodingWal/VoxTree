@@ -15,6 +15,9 @@ export interface User {
   updated_at: string;
 }
 
+// Note: generate types from schema with:
+//   npx supabase gen types typescript --project-id <id> > types/database.ts
+
 export interface FamilyVoice {
   id: string;
   user_id: string;
@@ -29,7 +32,7 @@ export interface FamilyVoice {
 export interface ContentItem {
   id: string;
   title: string;
-  content_type: ContentType;
+  content_type: ContentType; // added by migration 002
   series: string | null;
   episode_number: number | null;
   original_video_url: string;

@@ -20,6 +20,12 @@ import { VoiceSlotsProgress } from "@/components/voice-slots-progress";
 import { ActivityFeed } from "@/components/activity-feed";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 
+interface ClipWithRelations {
+  id: string;
+  content_library: { title: string } | null;
+  family_voices: { name: string } | null;
+}
+
 export default async function DashboardPage() {
   const supabase = createClient();
   const {
@@ -275,7 +281,7 @@ export default async function DashboardPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentClips && recentClips.length > 0 ? (
-              recentClips.map((clip) => (
+              (recentClips as ClipWithRelations[]).map((clip) => (
                 <div
                   key={clip.id}
                   className="group rounded-xl bg-white dark:bg-card border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
@@ -287,22 +293,12 @@ export default async function DashboardPage() {
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-brand-charcoal dark:text-foreground truncate">
-                      {(clip as Record<string, unknown>).content_library
-                        ? (
-                            (clip as Record<string, unknown>)
-                              .content_library as Record<string, unknown>
-                          ).title as string
-                        : "Untitled"}
+                      {clip.content_library?.title ?? "Untitled"}
                     </p>
-                    {(clip as Record<string, unknown>).family_voices && (
+                    {clip.family_voices && (
                       <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                         <Mic className="h-3 w-3" />
-                        {
-                          (
-                            (clip as Record<string, unknown>)
-                              .family_voices as Record<string, unknown>
-                          ).name as string
-                        }
+                        {clip.family_voices.name}
                       </p>
                     )}
                   </div>

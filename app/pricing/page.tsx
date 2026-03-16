@@ -60,9 +60,11 @@ const plans = [
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingPeriod>("monthly");
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   async function handleCheckout(plan: "family" | "premium") {
     setLoading(plan);
+    setCheckoutError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -72,7 +74,13 @@ export default function PricingPage() {
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        setCheckoutError(
+          data.error ?? "Could not start checkout. Please try again."
+        );
       }
+    } catch {
+      setCheckoutError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(null);
     }
@@ -127,6 +135,12 @@ export default function PricingPage() {
             </span>
           </span>
         </div>
+
+        {checkoutError && (
+          <div className="max-w-5xl mx-auto rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive text-center">
+            {checkoutError}
+          </div>
+        )}
 
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
           {plans.map((plan) => (

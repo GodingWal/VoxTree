@@ -3,6 +3,7 @@ import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import type { Action } from "@/lib/limits";
 
 const generateSchema = z.object({
   contentId: z.string().uuid(),
@@ -11,13 +12,21 @@ const generateSchema = z.object({
 
 export async function POST(request: Request) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
   const parsed = generateSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -29,8 +38,37 @@ export async function POST(request: Request) {
 
   const { contentId, voiceId } = parsed.data;
 
-  // Check clip generation limit
-  const limitCheck = await checkLimit(user.id, "generate_clip");
+  // Fetch the content item to determine its type and premium status
+  const { data: contentItem } = await supabase
+    .from("content_library")
+    .select("id, content_type, is_premium")
+    .eq("id", contentId)
+    .single();
+
+  if (!contentItem) {
+    return NextResponse.json({ error: "Content not found" }, { status: 404 });
+  }
+
+  // Check premium access if content requires it
+  if (contentItem.is_premium) {
+    const premiumCheck = await checkLimit(user.id, "premium_content");
+    if (!premiumCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: premiumCheck.reason,
+          upgradeRequired: true,
+          upgradePrompt: premiumCheck.upgradePrompt,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
+  // Check content-type-specific usage limit for free tier users
+  const contentAction: Action =
+    contentItem.content_type === "story" ? "add_story" : "add_video";
+
+  const limitCheck = await checkLimit(user.id, contentAction);
   if (!limitCheck.allowed) {
     return NextResponse.json(
       {
