@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getRouteClient } from "@/lib/supabase/auth";
 import { checkLimit } from "@/lib/limits";
 import { getPresignedUploadUrl, S3_PATHS } from "@/lib/aws";
 import { NextResponse } from "next/server";
@@ -9,7 +9,7 @@ const createVoiceSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
