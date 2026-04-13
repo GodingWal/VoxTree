@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getRouteClient } from "@/lib/supabase/auth";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -24,7 +24,7 @@ const checkoutSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
