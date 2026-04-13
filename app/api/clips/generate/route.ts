@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getRouteClient } from "@/lib/supabase/auth";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { NextResponse } from "next/server";
@@ -10,7 +10,7 @@ const generateSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = createClient();
+  const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

@@ -56,7 +56,14 @@ lib/                    # Shared utilities
   limits.ts             # Plan-based usage limits
 supabase/migrations/    # Database schema & RLS policies
 types/                  # TypeScript type definitions
+mobile/                 # Expo React Native mobile app (see mobile/README.md)
 ```
+
+## Mobile app
+
+The iOS/Android companion lives in [`/mobile`](./mobile/README.md). It reuses
+the same Supabase project and Next.js API routes. See `mobile/README.md` for
+setup.
 
 ## Plans & Limits
 
