@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "VoxTree",
+    "slug": "voxtree",
+    "scheme": "voxtree",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./src/assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./src/assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8F0"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.voxtree.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "VoxTree needs microphone access to record a voice sample that we use to clone your family member's voice.",
+        "NSPhotoLibraryUsageDescription": "VoxTree needs access to your audio files so you can upload a voice sample."
+      }
+    },
+    "android": {
+      "package": "com.voxtree.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/adaptive-icon.png",
+        "backgroundColor": "#2D8B70"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./src/assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow VoxTree to access your microphone so we can record a voice sample."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow VoxTree to access your photos so you can choose a voice sample."
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": "",
+      "apiBaseUrl": ""
+    }
+  }
+}
