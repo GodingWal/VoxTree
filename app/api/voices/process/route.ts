@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
 import { getPresignedDownloadUrl, S3_PATHS } from "@/lib/aws";
 import { NextResponse } from "next/server";
@@ -14,10 +14,7 @@ const processSchema = z.object({
  * Called by the client after a successful upload, or by a webhook.
  */
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const supabase = createAdminClient();
 
   const body = await request.json();
   const parsed = processSchema.safeParse(body);
