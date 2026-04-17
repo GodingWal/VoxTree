@@ -1,15 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "./supabase/admin";
 import { getCloudFrontUrl, S3_PATHS } from "./aws";
-
-/**
- * Create a Supabase admin client for server-side cache operations.
- */
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 /**
  * Check if audio has already been generated for a content + voice combination.
@@ -19,7 +9,7 @@ export async function getCachedAudio(
   contentId: string,
   voiceId: string
 ): Promise<string | null> {
-  const supabase = getAdminClient();
+  const supabase = createAdminClient();
 
   const { data } = await supabase
     .from("generated_clips")
@@ -44,7 +34,7 @@ export async function markAsCached(
   contentId: string,
   voiceId: string
 ): Promise<string> {
-  const supabase = getAdminClient();
+  const supabase = createAdminClient();
   const videoKey = S3_PATHS.clipVideo(userId, contentId, voiceId);
   const cloudFrontUrl = getCloudFrontUrl(videoKey);
 
