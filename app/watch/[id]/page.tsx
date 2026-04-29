@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { StoryPlayer } from "@/components/story-player";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
+import { BrandLogo } from "@/components/brand-logo";
 
 interface WatchPageProps {
   params: Promise<{ id: string }>;
@@ -60,14 +61,7 @@ export default async function WatchPage({ params }: WatchPageProps) {
               <span className="hidden sm:inline">Back to Browse</span>
             </Link>
             <div className="h-5 w-px bg-border hidden sm:block" />
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-brand-charcoal dark:text-foreground hidden sm:block">
-                VoxTree
-              </span>
-            </Link>
+            <BrandLogo href="/dashboard" hideTextOnMobile />
           </div>
           <DarkModeToggle />
         </div>

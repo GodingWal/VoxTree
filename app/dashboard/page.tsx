@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { PLAN_LIMITS } from "@/lib/limits";
+import { PLAN_LIMITS, planLabel } from "@/lib/limits";
+import type { Plan } from "@/types/database";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,13 +13,19 @@ import {
   AlertTriangle,
   ChevronRight,
   User,
-  LogOut,
 } from "lucide-react";
 
 import { VoiceCard } from "@/components/voice-card";
 import { VoiceSlotsProgress } from "@/components/voice-slots-progress";
 import { ActivityFeed } from "@/components/activity-feed";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
+import { BrandLogo } from "@/components/brand-logo";
+
+type DashboardClip = {
+  id: string;
+  content_library: { title: string } | null;
+  family_voices: { name: string } | null;
+};
 
 export default async function DashboardPage() {
   const supabase = createClient();
@@ -50,14 +57,7 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(3);
 
-  const planMap: Record<string, string> = {
-    free: "Free",
-    family: "Family",
-    premium: "Premium",
-  };
-
-  const plan = (profile?.plan ?? "free") as keyof typeof PLAN_LIMITS;
-  const planLabel = planMap[plan];
+  const plan = (profile?.plan ?? "free") as Plan;
   const limits = PLAN_LIMITS[plan];
   const voiceSlotsUsed: number = profile?.voice_slots_used ?? 0;
   const atVoiceLimit =
@@ -76,14 +76,7 @@ export default async function DashboardPage() {
       {/* Header */}
       <header className="border-b bg-white/80 dark:bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-              VoxTree
-            </span>
-          </Link>
+          <BrandLogo />
           <div className="flex items-center gap-3">
             <Link
               href="/browse"
@@ -92,7 +85,7 @@ export default async function DashboardPage() {
               Browse
             </Link>
             <span className="inline-flex items-center rounded-full bg-brand-green/10 text-brand-green px-3 py-1 text-xs font-semibold">
-              {planLabel} Plan
+              {planLabel(plan)} Plan
             </span>
             <DarkModeToggle />
             <div className="h-8 w-8 rounded-full bg-brand-sage/50 dark:bg-brand-sage/20 flex items-center justify-center">
@@ -188,7 +181,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                {planLabel}
+                {planLabel(plan)}
               </p>
               <p className="text-xs text-muted-foreground">Current Plan</p>
             </div>
@@ -275,7 +268,7 @@ export default async function DashboardPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentClips && recentClips.length > 0 ? (
-              recentClips.map((clip) => (
+              (recentClips as DashboardClip[]).map((clip) => (
                 <div
                   key={clip.id}
                   className="group rounded-xl bg-white dark:bg-card border overflow-hidden shadow-sm hover:shadow-md transition-shadow"
@@ -287,22 +280,12 @@ export default async function DashboardPage() {
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-brand-charcoal dark:text-foreground truncate">
-                      {(clip as Record<string, unknown>).content_library
-                        ? (
-                            (clip as Record<string, unknown>)
-                              .content_library as Record<string, unknown>
-                          ).title as string
-                        : "Untitled"}
+                      {clip.content_library?.title ?? "Untitled"}
                     </p>
-                    {(clip as Record<string, unknown>).family_voices && (
+                    {clip.family_voices && (
                       <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                         <Mic className="h-3 w-3" />
-                        {
-                          (
-                            (clip as Record<string, unknown>)
-                              .family_voices as Record<string, unknown>
-                          ).name as string
-                        }
+                        {clip.family_voices.name}
                       </p>
                     )}
                   </div>
