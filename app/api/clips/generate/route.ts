@@ -29,8 +29,8 @@ export async function POST(request: Request) {
 
   const { contentId, voiceId } = parsed.data;
 
-  // Check clip generation limit
-  const limitCheck = await checkLimit(user.id, "generate_clip");
+  // Check clip generation limit (clips count against the videos limit)
+  const limitCheck = await checkLimit(user.id, "add_video");
   if (!limitCheck.allowed) {
     return NextResponse.json(
       {

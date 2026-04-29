@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Play, Sparkles, Clock } from "lucide-react";
+import { ArrowLeft, BookOpen, Play, Clock } from "lucide-react";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default async function BrowsePage() {
   const supabase = createClient();
@@ -24,14 +25,7 @@ export default async function BrowsePage() {
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
             <div className="h-5 w-px bg-border hidden sm:block" />
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-brand-green flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-brand-charcoal dark:text-foreground hidden sm:block">
-                VoxTree
-              </span>
-            </Link>
+            <BrandLogo href="/dashboard" hideTextOnMobile />
           </div>
           <DarkModeToggle />
         </div>

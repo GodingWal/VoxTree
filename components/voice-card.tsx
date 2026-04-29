@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Mic,
   Play,
@@ -25,9 +25,7 @@ interface VoiceCardProps {
 export function VoiceCard({ voice }: VoiceCardProps) {
   const [playing, setPlaying] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [audioRef] = useState<{ current: HTMLAudioElement | null }>({
-    current: null,
-  });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   function handlePlaySample() {
     if (!voice.sample_url) return;
