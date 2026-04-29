@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Play, Mic, AlertCircle } from "lucide-react";
+import { CheckCircle2, Clock, Play, AlertCircle } from "lucide-react";
 
 interface ActivityItem {
   id: string;
@@ -68,10 +68,8 @@ export function ActivityFeed({ voices, clips }: ActivityFeedProps) {
   }
 
   for (const clip of clips) {
-    const title =
-      (clip.content_library as { title: string } | null)?.title ?? "a story";
-    const voiceName =
-      (clip.family_voices as { name: string } | null)?.name ?? "a voice";
+    const title = clip.content_library?.title ?? "a story";
+    const voiceName = clip.family_voices?.name ?? "a voice";
     activities.push({
       id: `clip-${clip.id}`,
       type: "clip_ready",

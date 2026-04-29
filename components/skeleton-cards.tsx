@@ -37,16 +37,6 @@ export function SkeletonClipCard() {
   );
 }
 
-export function SkeletonActivityItem() {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      <div className="h-7 w-7 rounded-full bg-muted skeleton-shimmer shrink-0" />
-      <div className="h-4 flex-1 rounded bg-muted skeleton-shimmer" />
-      <div className="h-3 w-12 rounded bg-muted skeleton-shimmer shrink-0" />
-    </div>
-  );
-}
-
 export function DashboardSkeleton() {
   return (
     <div className="space-y-8 animate-fade-in">
