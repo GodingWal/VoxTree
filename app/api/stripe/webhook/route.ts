@@ -1,10 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-02-24.acacia",
-});
+import type Stripe from "stripe";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 

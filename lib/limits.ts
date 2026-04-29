@@ -23,6 +23,16 @@ export const PLAN_LIMITS = {
   },
 } as const;
 
+export const PLAN_LABELS: Record<Plan, string> = {
+  free: "Free",
+  family: "Family",
+  premium: "Premium",
+};
+
+export function planLabel(plan: Plan | null | undefined): string {
+  return PLAN_LABELS[(plan ?? "free") as Plan];
+}
+
 export type { Plan };
 export type Action =
   | "add_voice"
