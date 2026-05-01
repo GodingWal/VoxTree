@@ -61,21 +61,20 @@ async function request<T>(
 }
 
 export const api = {
-  createVoice: (name: string) =>
+  createVoice: (name: string, contentType?: string) =>
     request<{ voiceId: string; uploadUrl: string; s3Key: string }>(
       "/api/voices/create",
-      { method: "POST", json: { name } }
+      {
+        method: "POST",
+        json: contentType ? { name, contentType } : { name },
+      }
     ),
 
-  processVoice: async (voiceId: string) => {
-    const { data } = await supabase.auth.getUser();
-    const userId = data.user?.id;
-    if (!userId) throw new Error("Not signed in");
-    return request<{ status: "ready" | "processing" | "failed" }>(
+  processVoice: (voiceId: string) =>
+    request<{ status: "ready" | "processing" | "failed" }>(
       "/api/voices/process",
-      { method: "POST", json: { voiceId, userId } }
-    );
-  },
+      { method: "POST", json: { voiceId } }
+    ),
 
   generateClip: (contentId: string, voiceId: string) =>
     request<{ clipId: string; status: string }>(
