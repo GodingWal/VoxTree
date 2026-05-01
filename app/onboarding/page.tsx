@@ -6,60 +6,71 @@ import Link from "next/link";
 
 type Step = 1 | 2 | 3;
 
+const ALLOWED_AUDIO_TYPES = new Set([
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/mp4",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+]);
+
+function pickContentType(file: File): string {
+  if (file.type && ALLOWED_AUDIO_TYPES.has(file.type)) return file.type;
+  return "audio/mpeg";
+}
+
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
   const [voiceName, setVoiceName] = useState("");
-  const [voiceId, setVoiceId] = useState<string | null>(null);
-  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
-  const [s3Key, setS3Key] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string>("processing");
   const [error, setError] = useState<string | null>(null);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  async function handleStep1() {
+  function handleStep1() {
     if (!voiceName.trim()) return;
     setError(null);
     setUpgradePrompt(null);
+    setStep(2);
+  }
+
+  async function handleStep2() {
+    if (!file) return;
+    setError(null);
+    setUpgradePrompt(null);
+    setSubmitting(true);
+
+    const contentType = pickContentType(file);
 
     try {
-      const res = await fetch("/api/voices/create", {
+      const createRes = await fetch("/api/voices/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: voiceName }),
+        body: JSON.stringify({ name: voiceName, contentType }),
       });
+      const createData = await createRes.json();
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.upgradeRequired && data.upgradePrompt) {
-          setUpgradePrompt(data.upgradePrompt);
+      if (!createRes.ok) {
+        if (createData.upgradeRequired && createData.upgradePrompt) {
+          setUpgradePrompt(createData.upgradePrompt);
+          setStep(1);
         } else {
-          setError(data.error ?? "Failed to create voice");
+          setError(createData.error ?? "Failed to start upload.");
         }
         return;
       }
 
-      setVoiceId(data.voiceId);
-      setUploadUrl(data.uploadUrl);
-      setS3Key(data.s3Key);
-      setStep(2);
-    } catch {
-      setError("Network error. Please try again.");
-    }
-  }
-
-  async function handleStep2() {
-    if (!file || !uploadUrl || !voiceId || !s3Key) return;
-    setError(null);
-
-    try {
-      // Upload to S3 via presigned URL
-      const uploadRes = await fetch(uploadUrl, {
+      // Sign matches: PUT to S3 with the same Content-Type that signed the URL.
+      const uploadRes = await fetch(createData.uploadUrl, {
         method: "PUT",
-        headers: { "Content-Type": "audio/mpeg" },
+        headers: { "Content-Type": contentType },
         body: file,
       });
 
@@ -70,14 +81,10 @@ export default function OnboardingPage() {
 
       setStep(3);
 
-      // Trigger voice processing
       const processRes = await fetch("/api/voices/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          voiceId,
-          userId: "current", // Server will validate from session
-        }),
+        body: JSON.stringify({ voiceId: createData.voiceId }),
       });
 
       const processData = await processRes.json();
@@ -89,6 +96,8 @@ export default function OnboardingPage() {
     } catch {
       setError("Processing failed. Please try again.");
       setStatus("failed");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -212,10 +221,10 @@ export default function OnboardingPage() {
 
             <button
               onClick={handleStep2}
-              disabled={!file}
+              disabled={!file || submitting}
               className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
             >
-              Upload & Process
+              {submitting ? "Uploading…" : "Upload & Process"}
             </button>
           </div>
         )}
