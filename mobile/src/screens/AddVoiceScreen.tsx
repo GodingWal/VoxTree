@@ -50,8 +50,6 @@ export function AddVoiceScreen({ navigation }: Props) {
 
   const [step, setStep] = useState<Step>(1);
   const [name, setName] = useState("");
-  const [voiceId, setVoiceId] = useState<string | null>(null);
-  const [uploadUrl, setUploadUrl] = useState<string | null>(null);
   const [sample, setSample] = useState<PickedSample | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -73,36 +71,13 @@ export function AddVoiceScreen({ navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ---------- Step 1: name + create voice record ---------- */
+  /* ---------- Step 1: collect the name ---------- */
 
-  async function goToUpload() {
+  function goToUpload() {
     if (!name.trim()) return;
     setError(null);
     setUpgradePrompt(null);
-    setBusy(true);
-    try {
-      const res = await api.createVoice(name.trim());
-      setVoiceId(res.voiceId);
-      setUploadUrl(res.uploadUrl);
-      setStep(2);
-    } catch (e) {
-      if (e instanceof Error) {
-        // api.ts attaches upgrade fields onto the thrown error
-        const anyE = e as Error & {
-          upgradeRequired?: boolean;
-          upgradePrompt?: string;
-        };
-        if (anyE.upgradeRequired && anyE.upgradePrompt) {
-          setUpgradePrompt(anyE.upgradePrompt);
-        } else {
-          setError(e.message);
-        }
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
-    } finally {
-      setBusy(false);
-    }
+    setStep(2);
   }
 
   /* ---------- Step 2: record or pick an audio sample ---------- */
@@ -201,24 +176,45 @@ export function AddVoiceScreen({ navigation }: Props) {
   /* ---------- Upload + kick off processing ---------- */
 
   async function handleUploadAndProcess() {
-    if (!sample || !uploadUrl || !voiceId) return;
+    if (!sample) return;
     setBusy(true);
     setError(null);
+    setUpgradePrompt(null);
+
+    // Sign the upload URL with the actual sample's content type so S3 accepts
+    // the PUT — the signed Content-Type must match the request header.
+    const contentType = sample.mimeType || "audio/mpeg";
+    let createRes: { voiceId: string; uploadUrl: string };
     try {
-      // Read the local file as binary and PUT to the presigned S3 URL.
-      // `expo-file-system` uploadAsync handles streaming without loading the
-      // whole file into memory.
-      const res = await FileSystem.uploadAsync(uploadUrl, sample.uri, {
+      createRes = await api.createVoice(name.trim(), contentType);
+    } catch (e) {
+      const anyE = e as Error & {
+        upgradeRequired?: boolean;
+        upgradePrompt?: string;
+      };
+      if (anyE.upgradeRequired && anyE.upgradePrompt) {
+        setUpgradePrompt(anyE.upgradePrompt);
+        setStep(1);
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to start upload.");
+      }
+      setBusy(false);
+      return;
+    }
+
+    try {
+      // Stream the local file directly to S3 using the presigned PUT URL.
+      const res = await FileSystem.uploadAsync(createRes.uploadUrl, sample.uri, {
         httpMethod: "PUT",
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: { "Content-Type": sample.mimeType || "audio/mpeg" },
+        headers: { "Content-Type": contentType },
       });
       if (res.status < 200 || res.status >= 300) {
         throw new Error(`Upload failed (status ${res.status})`);
       }
 
       setStep(3);
-      const processed = await api.processVoice(voiceId);
+      const processed = await api.processVoice(createRes.voiceId);
       setProcessingStatus(processed.status);
       if (processed.status === "ready") {
         setTimeout(() => navigation.goBack(), 1500);

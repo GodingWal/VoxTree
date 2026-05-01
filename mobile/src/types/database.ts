@@ -31,7 +31,7 @@ export interface FamilyVoice {
 export interface ContentItem {
   id: string;
   title: string;
-  content_type?: ContentType;
+  content_type: ContentType;
   series: string | null;
   episode_number: number | null;
   original_video_url: string;
