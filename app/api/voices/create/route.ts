@@ -4,8 +4,26 @@ import { getPresignedUploadUrl, S3_PATHS } from "@/lib/aws";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const ALLOWED_AUDIO_TYPES = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/mp4",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+] as const;
+
 const createVoiceSchema = z.object({
   name: z.string().min(1).max(100),
+  contentType: z
+    .string()
+    .refine((t) => (ALLOWED_AUDIO_TYPES as readonly string[]).includes(t), {
+      message: "Unsupported audio content type",
+    })
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -16,7 +34,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const parsed = createVoiceSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -57,9 +80,11 @@ export async function POST(request: Request) {
     );
   }
 
-  // Generate presigned upload URL
+  // Generate presigned upload URL — the client must PUT with the same
+  // Content-Type, so accept the client's content type when provided.
   const s3Key = S3_PATHS.voiceSample(user.id, voice.id);
-  const uploadUrl = await getPresignedUploadUrl(s3Key, "audio/mpeg");
+  const contentType = parsed.data.contentType ?? "audio/mpeg";
+  const uploadUrl = await getPresignedUploadUrl(s3Key, contentType);
 
   // Increment voice slots used
   await supabase.rpc("increment_voice_slots", { user_id: user.id });

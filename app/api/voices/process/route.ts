@@ -1,3 +1,4 @@
+import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
 import { getPresignedDownloadUrl, S3_PATHS } from "@/lib/aws";
@@ -6,17 +7,29 @@ import { z } from "zod";
 
 const processSchema = z.object({
   voiceId: z.string().uuid(),
-  userId: z.string().uuid(),
 });
 
 /**
  * Process a voice cloning request after audio has been uploaded to S3.
- * Called by the client after a successful upload, or by a webhook.
+ * Authenticates the caller and operates as the signed-in user — never trust
+ * a userId supplied in the body.
  */
 export async function POST(request: Request) {
-  const supabase = createAdminClient();
+  const supabase = getRouteClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const body = await request.json();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const parsed = processSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -26,32 +39,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const { voiceId, userId } = parsed.data;
+  const { voiceId } = parsed.data;
+  const userId = user.id;
 
-  // Verify the voice record exists and belongs to the user
+  // Verify the voice record exists and belongs to the caller. RLS already
+  // restricts the user-scoped client; the explicit check keeps the error
+  // message clean.
   const { data: voice } = await supabase
     .from("family_voices")
-    .select("*")
+    .select("id, name, user_id")
     .eq("id", voiceId)
-    .eq("user_id", userId)
     .single();
 
-  if (!voice) {
+  if (!voice || voice.user_id !== userId) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
 
+  // ElevenLabs upload + status writes use the admin client so RLS doesn't
+  // block the post-success update path under any custom policy.
+  const admin = createAdminClient();
+
   try {
-    // Download audio from S3
     const s3Key = S3_PATHS.voiceSample(userId, voiceId);
     const downloadUrl = await getPresignedDownloadUrl(s3Key);
     const audioResponse = await fetch(downloadUrl);
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
 
-    // Clone voice via ElevenLabs
     const elevenlabsVoiceId = await cloneVoice(audioBuffer, voice.name);
 
-    // Update voice record with ElevenLabs voice ID
-    await supabase
+    await admin
       .from("family_voices")
       .update({
         elevenlabs_voice_id: elevenlabsVoiceId,
@@ -65,8 +81,7 @@ export async function POST(request: Request) {
       elevenlabsVoiceId,
     });
   } catch (error) {
-    // Mark voice as failed
-    await supabase
+    await admin
       .from("family_voices")
       .update({ status: "failed" })
       .eq("id", voiceId);

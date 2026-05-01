@@ -18,7 +18,7 @@ interface VoiceCardProps {
     id: string;
     name: string;
     status: string;
-    sample_url?: string | null;
+    sample_audio_url?: string | null;
   };
 }
 
@@ -28,7 +28,7 @@ export function VoiceCard({ voice }: VoiceCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   function handlePlaySample() {
-    if (!voice.sample_url) return;
+    if (!voice.sample_audio_url) return;
 
     if (playing && audioRef.current) {
       audioRef.current.pause();
@@ -37,7 +37,7 @@ export function VoiceCard({ voice }: VoiceCardProps) {
       return;
     }
 
-    const audio = new Audio(voice.sample_url);
+    const audio = new Audio(voice.sample_audio_url);
     audioRef.current = audio;
     audio.play();
     setPlaying(true);
@@ -111,7 +111,7 @@ export function VoiceCard({ voice }: VoiceCardProps) {
       {voice.status === "ready" && (
         <button
           onClick={handlePlaySample}
-          disabled={!voice.sample_url}
+          disabled={!voice.sample_audio_url}
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-brand-green/20 bg-brand-green/5 dark:bg-brand-green/10 px-3 py-2 text-sm font-medium text-brand-green hover:bg-brand-green/10 dark:hover:bg-brand-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {playing ? (
