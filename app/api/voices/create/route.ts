@@ -26,7 +26,17 @@ const createVoiceSchema = z.object({
     .optional(),
 });
 
+import { RateLimit } from "@/lib/rate-limit"; // We will create this generic rate limiter
+
+const rateLimiter = new RateLimit({ limit: 10, windowMs: 60000 });
+
 export async function POST(request: Request) {
+  // Simple IP based rate limiting stub
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (!rateLimiter.check(ip)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -36,7 +46,12 @@ export async function POST(request: Request) {
 
   let body: unknown;
   try {
-    body = await request.json();
+    const text = await request.text();
+    if (text) {
+      body = JSON.parse(text);
+    } else {
+      body = {};
+    }
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

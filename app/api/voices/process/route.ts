@@ -26,7 +26,12 @@ export async function POST(request: Request) {
 
   let body: unknown;
   try {
-    body = await request.json();
+    const text = await request.text();
+    if (text) {
+      body = JSON.parse(text);
+    } else {
+      body = {};
+    }
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -71,7 +76,7 @@ export async function POST(request: Request) {
       .from("family_voices")
       .update({
         elevenlabs_voice_id: elevenlabsVoiceId,
-        sample_audio_url: downloadUrl,
+        sample_audio_url: s3Key,
         status: "ready",
       })
       .eq("id", voiceId);

@@ -60,9 +60,11 @@ const plans = [
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [billing, setBilling] = useState<BillingPeriod>("monthly");
+  const [error, setError] = useState<string | null>(null);
 
   async function handleCheckout(plan: "family" | "premium") {
     setLoading(plan);
+    setError(null);
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
@@ -70,9 +72,15 @@ export default function PricingPage() {
         body: JSON.stringify({ plan, billing }),
       });
       const data = await res.json();
-      if (data.url) {
+      if (data.error) {
+        setError(data.error);
+      } else if (data.url) {
         window.location.href = data.url;
+      } else {
+        setError("An unexpected error occurred.");
       }
+    } catch (e) {
+      setError("An unexpected error occurred. Please try again later.");
     } finally {
       setLoading(null);
     }
@@ -96,6 +104,12 @@ export default function PricingPage() {
             our core voice cloning technology.
           </p>
         </div>
+
+        {error && (
+          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive border border-destructive/20 text-center max-w-lg mx-auto">
+            {error}
+          </div>
+        )}
 
         {/* Billing toggle */}
         <div className="flex items-center justify-center gap-3">
