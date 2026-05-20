@@ -60,6 +60,33 @@ export async function POST(request: Request) {
       break;
     }
 
+    case "customer.subscription.updated": {
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId = subscription.customer as string;
+      const metadataPlan = subscription.metadata?.plan;
+
+      if (metadataPlan) {
+        const { data: user } = await supabase
+          .from("users")
+          .select("id")
+          .eq("stripe_customer_id", customerId)
+          .single();
+
+        if (user) {
+          await supabase
+            .from("users")
+            .update({ plan: metadataPlan })
+            .eq("id", user.id);
+        }
+      }
+      break;
+    }
+
+    case "invoice.paid": {
+      // Logic to confirm successful renewal can be placed here.
+      break;
+    }
+
     case "invoice.payment_failed": {
       // TODO: Send email notification about failed payment
       break;

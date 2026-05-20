@@ -22,16 +22,22 @@ export async function cloneVoice(
     "sample.mp3"
   );
 
-  const response = await fetch(`${ELEVENLABS_BASE_URL}/voices/add`, {
-    method: "POST",
-    headers: {
-      "xi-api-key": getApiKey(),
-    },
-    body: formData,
-  });
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(`${ELEVENLABS_BASE_URL}/voices/add`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": getApiKey(),
+      },
+      body: formData,
+    });
+    if (response.ok) break;
+    // Simple exponential backoff
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+  }
 
-  if (!response.ok) {
-    const error = await response.text();
+  if (!response?.ok) {
+    const error = await response?.text();
     throw new Error(`ElevenLabs voice cloning failed: ${error}`);
   }
 
@@ -47,27 +53,32 @@ export async function generateSpeech(
   voiceId: string,
   text: string
 ): Promise<Buffer> {
-  const response = await fetch(
-    `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": getApiKey(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        model_id: "eleven_turbo_v2_5",
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(
+      `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": getApiKey(),
+          "Content-Type": "application/json",
         },
-      }),
-    }
-  );
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_turbo_v2_5",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+          },
+        }),
+      }
+    );
+    if (response.ok) break;
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+  }
 
-  if (!response.ok) {
-    const error = await response.text();
+  if (!response?.ok) {
+    const error = await response?.text();
     throw new Error(`ElevenLabs speech generation failed: ${error}`);
   }
 
