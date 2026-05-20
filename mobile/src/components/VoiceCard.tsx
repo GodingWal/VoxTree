@@ -13,6 +13,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { radii, spacing, typography } from "@/lib/theme";
 import type { FamilyVoice } from "@/types/database";
+import { supabase } from "@/lib/supabase";
+import { config } from "@/lib/config";
 
 import { Card } from "./Card";
 
@@ -44,8 +46,17 @@ export function VoiceCard({ voice, onPress }: VoiceCardProps) {
     }
 
     try {
+      // Because mobile uses the same API, we need to provide full URL of API
+      const baseUrl = config.apiBaseUrl || "http://localhost:3000"; // Assuming dev, but in prod it uses config.apiUrl
+
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token || "";
+
       const { sound } = await Audio.Sound.createAsync(
-        { uri: voice.sample_audio_url },
+        {
+          uri: `${baseUrl}/api/voices/download?voiceId=${voice.id}`,
+          headers: { Authorization: `Bearer ${token}` }
+        },
         { shouldPlay: true }
       );
       soundRef.current = sound;

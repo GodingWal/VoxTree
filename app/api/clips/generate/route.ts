@@ -9,7 +9,16 @@ const generateSchema = z.object({
   voiceId: z.string().uuid(),
 });
 
+import { RateLimit } from "@/lib/rate-limit";
+
+const rateLimiter = new RateLimit({ limit: 5, windowMs: 60000 });
+
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  if (!rateLimiter.check(ip)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -17,7 +26,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    const text = await request.text();
+    if (text) {
+      body = JSON.parse(text);
+    } else {
+      body = {};
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const parsed = generateSchema.safeParse(body);
 
   if (!parsed.success) {

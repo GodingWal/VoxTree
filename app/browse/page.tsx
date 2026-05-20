@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, BookOpen, Play, Clock } from "lucide-react";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { BrandLogo } from "@/components/brand-logo";
@@ -51,10 +52,11 @@ export default async function BrowsePage() {
               {/* Thumbnail */}
               <div className="aspect-[16/10] bg-gradient-to-br from-brand-sage/30 to-brand-green/10 relative overflow-hidden">
                 {item.thumbnail_url ? (
-                  <img
+                  <Image
                     src={item.thumbnail_url}
                     alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
