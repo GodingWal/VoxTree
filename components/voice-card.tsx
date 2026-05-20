@@ -37,7 +37,8 @@ export function VoiceCard({ voice }: VoiceCardProps) {
       return;
     }
 
-    const audio = new Audio(voice.sample_audio_url);
+    const audioUrl = `/api/voices/download?voiceId=${voice.id}`;
+    const audio = new Audio(audioUrl);
     audioRef.current = audio;
     audio.play();
     setPlaying(true);

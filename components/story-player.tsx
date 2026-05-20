@@ -15,6 +15,7 @@ import {
   BookOpen,
   Plus,
 } from "lucide-react";
+import Image from "next/image";
 
 interface Voice {
   id: string;
@@ -264,10 +265,11 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
         {/* Thumbnail / Cover Art */}
         <div className="relative aspect-[21/9] bg-gradient-to-br from-brand-green/20 via-brand-sage/30 to-brand-coral/10">
           {content.thumbnail_url ? (
-            <img
+            <Image
               src={content.thumbnail_url}
               alt={content.title}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
