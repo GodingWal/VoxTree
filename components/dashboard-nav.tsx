@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { planLabel } from "@/lib/limits";
+import { isAdminEmail } from "@/lib/admin";
 import type { Plan } from "@/types/database";
 import { BrandLogo } from "@/components/brand-logo";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
@@ -14,8 +15,10 @@ export async function DashboardNav() {
 
   let plan: Plan = "free";
   let userName = "User";
+  let userEmail = "";
 
   if (user) {
+    userEmail = user.email ?? "";
     const { data: profile } = await supabase
       .from("users")
       .select("plan, name")
@@ -28,6 +31,16 @@ export async function DashboardNav() {
     }
   }
 
+  const showAdmin = isAdminEmail(userEmail);
+
+  const navLinks = [
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/dashboard/stories", label: "Stories" },
+    { href: "/dashboard/clones", label: "Clones" },
+    { href: "/browse", label: "Library" },
+    ...(showAdmin ? [{ href: "/dashboard/admin", label: "Admin" }] : []),
+  ];
+
   return (
     <header className="border-b bg-white/80 dark:bg-card/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container flex h-16 items-center justify-between">
@@ -35,24 +48,19 @@ export async function DashboardNav() {
           <BrandLogo />
           
           <nav className="hidden md:flex items-center gap-6">
-            <Link
-              href="/dashboard"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/dashboard/clones"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Clones
-            </Link>
-            <Link
-              href="/browse"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Library
-            </Link>
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`text-sm font-medium transition-colors ${
+                  link.label === "Admin"
+                    ? "text-brand-coral hover:text-brand-coral/80"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
         </div>
 
@@ -71,11 +79,21 @@ export async function DashboardNav() {
         </div>
       </div>
       
-      {/* Mobile navigation bottom bar can be added or we can use a hamburger menu in the future. For now we just provide the links at the top. */}
+      {/* Mobile navigation */}
       <nav className="md:hidden flex items-center justify-around border-t py-2 px-2 overflow-x-auto bg-background text-sm font-medium text-muted-foreground">
-        <Link href="/dashboard" className="px-3 py-2 hover:text-foreground">Dashboard</Link>
-        <Link href="/dashboard/clones" className="px-3 py-2 hover:text-foreground">Clones</Link>
-        <Link href="/browse" className="px-3 py-2 hover:text-foreground">Library</Link>
+        {navLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`px-3 py-2 whitespace-nowrap ${
+              link.label === "Admin"
+                ? "text-brand-coral hover:text-brand-coral/80"
+                : "hover:text-foreground"
+            }`}
+          >
+            {link.label}
+          </Link>
+        ))}
       </nav>
     </header>
   );
