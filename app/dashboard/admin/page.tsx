@@ -46,21 +46,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <main className="container max-w-5xl py-8 sm:py-12 space-y-8">
-      <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="rounded-xl bg-brand-coral/10 p-2.5">
-          <Shield className="h-5 w-5 text-brand-coral" />
-        </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-brand-charcoal dark:text-foreground">
-            Admin Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Platform overview and management
-          </p>
-        </div>
-      </div>
-
+    <div className="space-y-8">
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
         {stats.map((stat) => (
@@ -117,6 +103,6 @@ export default async function AdminPage() {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
