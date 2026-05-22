@@ -73,13 +73,13 @@ export default async function Home() {
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center gap-1.5 bg-brand-green/10 text-brand-green px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase">
                 <Sparkles className="h-3.5 w-3.5" />
-                Bedtime, Reimagined
+                Voice is Live &bull; Face is Coming Soon
               </div>
               <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-brand-charcoal dark:text-foreground leading-tight">
-                Hear <span className="text-brand-green">Grandma Read</span> to Your Kids — Every Bedtime.
+                Bring <span className="text-brand-green">Family</span> to Life for Bedtime Stories.
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-                VoxTree securely clones the voices of grandparents or parents, allowing them to narrate beautiful educational videos and children's bedtime stories. Keep family close, no matter the distance.
+                VoxTree securely clones the voice—and soon, the face—of grandparents or parents, allowing them to narrate and star in beautiful children's educational videos and bedtime stories. Keep family close, no matter the distance.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
@@ -144,20 +144,25 @@ export default async function Home() {
                   Quick Voice Cloning
                 </h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Record or upload a 30-second audio clip of a family member. Our secure voice cloning model recreates their exact speech pattern, natural tone, and warm inflections.
+                  Record or upload a 30-second audio clip of a family member. Our secure voice cloning model recreates their exact speech pattern, natural tone, and warm inflections instantly.
                 </p>
               </div>
 
               {/* Feature 2 */}
               <div className="bg-brand-cream/30 dark:bg-muted/10 p-8 rounded-2xl border border-brand-sage/10 space-y-4 hover:shadow-md transition-all group">
                 <div className="h-12 w-12 rounded-xl bg-brand-gold/10 text-brand-gold flex items-center justify-center transition-transform group-hover:scale-110">
-                  <BookOpen className="h-6 w-6" />
+                  <Video className="h-6 w-6" />
                 </div>
-                <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                  Vast Children's Library
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
+                    Face Cloning
+                  </h3>
+                  <span className="text-[10px] uppercase tracking-wider font-bold bg-brand-gold/20 text-brand-gold px-2 py-1 rounded-md">
+                    Coming Soon
+                  </span>
+                </div>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Explore a rich selection of illustrated bedtime classics, educational science books, adventure stories, and visual video templates read-aloud ready.
+                  Soon, you'll be able to upload a photo to generate a lifelike, expressive video avatar. Your kids won't just hear Grandma—they'll see her smiling and reading along with the story.
                 </p>
               </div>
 
@@ -170,7 +175,7 @@ export default async function Home() {
                   100% Private & Protected
                 </h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  Your family's voice profiles are completely private, encrypted, and only accessible to people you invite. We never share, sell, or reuse voice files.
+                  Your family's voice and face profiles are completely private, encrypted, and only accessible to people you invite. We never share, sell, or reuse personal data.
                 </p>
               </div>
             </div>
@@ -198,10 +203,10 @@ export default async function Home() {
                 01
               </div>
               <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                Record or Upload Voice
+                Create a Clone Profile
               </h3>
               <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-                Grandma or Dad reads a short, simple paragraph on their phone or uploads a pre-recorded audio snippet.
+                Grandma or Dad reads a short, simple paragraph on their phone to capture their voice (and soon, they can add a photo for face cloning!).
               </p>
             </div>
 
@@ -227,7 +232,7 @@ export default async function Home() {
                 Press Play & Enjoy
               </h3>
               <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-                Stream the storybook with visual animations, narrated instantly in their comforting family voice.
+                Stream the storybook with visual animations, narrated instantly in their comforting family voice (and soon, their smiling face!).
               </p>
             </div>
           </div>
