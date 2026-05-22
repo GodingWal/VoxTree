@@ -61,6 +61,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // Fetch the content details to determine mode
+  const { data: content, error: contentError } = await supabase
+    .from("content_library")
+    .select("content_mode, text_script, isolated_vocals_url, instrumental_url, original_video_url")
+    .eq("id", contentId)
+    .single();
+
+  if (contentError || !content) {
+    return NextResponse.json({ error: "Content not found" }, { status: 404 });
+  }
+
   // Check cache first
   const cachedUrl = await getCachedAudio(contentId, voiceId);
   if (cachedUrl) {
@@ -91,6 +102,20 @@ export async function POST(request: Request) {
   }
 
   // TODO: Invoke Lambda or background worker for ffmpeg processing
+  if (content.content_mode === "tts") {
+    // 1. Check if text_script is available
+    // 2. Fetch elevenlabs_voice_id from family_voices
+    // 3. Call generateSpeech() via lib/elevenlabs
+    // 4. Mix speech with instrumental_url / original_video_url via ffmpeg
+    console.log(`[Clip Generation] Triggering TTS workflow for clip ${clip.id}`);
+  } else if (content.content_mode === "v2v") {
+    // 1. Check if isolated_vocals_url is available
+    // 2. Fetch rvc_model_id from family_voices
+    // 3. Send isolated_vocals_url and rvc_model_id to GPU worker (e.g., Replicate)
+    // 4. Wait for webhook, mix returned vocals with instrumental_url via ffmpeg
+    console.log(`[Clip Generation] Triggering V2V (RVC) workflow for clip ${clip.id}`);
+  }
+
   // For now, return the clip ID for status polling
 
   return NextResponse.json({
