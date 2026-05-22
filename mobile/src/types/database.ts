@@ -1,9 +1,8 @@
-// Mirrored from /types/database.ts in the Next.js web app.
-
 export type Plan = "free" | "family" | "premium";
 export type VoiceStatus = "processing" | "ready" | "failed";
 export type ClipStatus = "queued" | "processing" | "ready" | "failed";
 export type ContentType = "video" | "story";
+export type ContentMode = "tts" | "v2v";
 
 export interface User {
   id: string;
@@ -22,6 +21,8 @@ export interface FamilyVoice {
   user_id: string;
   name: string;
   elevenlabs_voice_id: string | null;
+  rvc_model_id: string | null;
+  rvc_training_status: VoiceStatus | null;
   sample_audio_url: string | null;
   status: VoiceStatus;
   created_at: string;
@@ -32,9 +33,13 @@ export interface ContentItem {
   id: string;
   title: string;
   content_type: ContentType;
+  content_mode: ContentMode;
   series: string | null;
   episode_number: number | null;
+  text_script: string | null;
   original_video_url: string;
+  isolated_vocals_url: string | null;
+  instrumental_url: string | null;
   thumbnail_url: string | null;
   duration_seconds: number | null;
   age_range: string | null;
