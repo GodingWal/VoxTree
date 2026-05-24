@@ -1,7 +1,7 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
-import { getPresignedDownloadUrl, S3_PATHS } from "@/lib/aws";
+import { getPresignedDownloadUrl, GCP_PATHS } from "@/lib/gcp";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -65,8 +65,8 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   try {
-    const s3Key = S3_PATHS.voiceSample(userId, voiceId);
-    const downloadUrl = await getPresignedDownloadUrl(s3Key);
+    const gcpKey = GCP_PATHS.voiceSample(userId, voiceId);
+    const downloadUrl = await getPresignedDownloadUrl(gcpKey);
     const audioResponse = await fetch(downloadUrl);
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
 
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       .from("family_voices")
       .update({
         elevenlabs_voice_id: elevenlabsVoiceId,
-        sample_audio_url: s3Key,
+        sample_audio_url: gcpKey,
         status: "ready",
       })
       .eq("id", voiceId);

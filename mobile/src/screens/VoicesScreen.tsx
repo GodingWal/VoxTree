@@ -179,7 +179,7 @@ export function VoicesScreen(_props: Props) {
             ) : (
               <EmptyState
                 icon={<Mic size={26} color={brand.green + "AA"} />}
-                title="No voices yet"
+                title="No clones yet"
                 description="Add a family member's voice to start reading stories."
               />
             )}
@@ -216,7 +216,7 @@ export function VoicesScreen(_props: Props) {
             ) : (
               <EmptyState
                 icon={<Music size={26} color={brand.green + "AA"} />}
-                title="No voices yet"
+                title="No clones yet"
                 description="Create a standard reading voice first, then train it to sing."
               />
             )}

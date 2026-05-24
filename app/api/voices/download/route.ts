@@ -1,5 +1,5 @@
 import { getRouteClient } from "@/lib/supabase/auth";
-import { getPresignedDownloadUrl } from "@/lib/aws";
+import { getPresignedDownloadUrl } from "@/lib/gcp";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {

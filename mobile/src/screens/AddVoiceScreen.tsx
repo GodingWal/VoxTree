@@ -88,7 +88,7 @@ export function AddVoiceScreen({ navigation }: Props) {
       if (!perm.granted) {
         Alert.alert(
           "Microphone access needed",
-          "Allow microphone access in Settings so we can record a voice sample."
+          "Allow microphone access in Settings so we can record a clone sample."
         );
         return;
       }
@@ -282,7 +282,7 @@ export function AddVoiceScreen({ navigation }: Props) {
                   textAlign: "center",
                 }}
               >
-                Give this voice a name your kids will recognize.
+                Give this clone a name your kids will recognize.
               </Text>
             </View>
 
@@ -317,7 +317,7 @@ export function AddVoiceScreen({ navigation }: Props) {
                 <Text
                   style={{ color: palette.foreground, fontWeight: "600" }}
                 >
-                  Voice profile limit reached
+                  Clone profile limit reached
                 </Text>
                 <Text style={{ color: palette.mutedForeground }}>
                   {upgradePrompt}
@@ -353,7 +353,7 @@ export function AddVoiceScreen({ navigation }: Props) {
                   color: palette.foreground,
                 }}
               >
-                Add a voice sample
+                Add a clone sample
               </Text>
               <Text style={{ color: palette.mutedForeground }}>
                 Record 30–60 seconds of {name} speaking clearly, or upload an
@@ -538,18 +538,18 @@ export function AddVoiceScreen({ navigation }: Props) {
               }}
             >
               {processingStatus === "ready"
-                ? "Voice is ready!"
+                ? "Clone is ready!"
                 : processingStatus === "failed"
                   ? "Something went wrong"
-                  : "Processing voice…"}
+                  : "Processing clone…"}
             </Text>
             <Text
               style={{ color: palette.mutedForeground, textAlign: "center" }}
             >
               {processingStatus === "ready"
-                ? `${name}'s voice has been cloned successfully.`
+                ? `${name}'s clone has been created successfully.`
                 : processingStatus === "failed"
-                  ? "Voice cloning failed. Please try again with a different sample."
+                  ? "Cloning failed. Please try again with a different sample."
                   : `We're cloning ${name}'s voice. This usually takes 1–2 minutes.`}
             </Text>
 

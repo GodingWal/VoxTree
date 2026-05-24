@@ -17,7 +17,7 @@ export default async function AdminLayout({
   if (!user) redirect("/login");
 
   const admin = await isAdmin(user.email);
-  if (!admin) redirect("/dashboard");
+  if (!admin) redirect("/");
 
   const navItems = [
     { href: "/dashboard/admin", label: "Overview", icon: Shield },
@@ -27,29 +27,30 @@ export default async function AdminLayout({
   ];
 
   return (
-    <div className="container max-w-6xl py-8 sm:py-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-6">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-brand-coral/10 p-2.5">
-            <Shield className="h-6 w-6 text-brand-coral" />
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
+      <div className="fadeUp" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, gap: 24, borderBottom: "1px solid var(--ink-3)", paddingBottom: 24 }}>
+        <div>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--plum)", marginBottom: 12 }}>
+            Admin Console
           </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-charcoal dark:text-foreground">
-              Admin Console
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Manage platform, users, and content
-            </p>
-          </div>
+          <h1 className="serif" style={{ fontSize: "clamp(32px, 4vw, 48px)", margin: 0, letterSpacing: "-0.02em" }}>
+            Platform Management
+          </h1>
         </div>
-        <nav className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0">
+        <nav style={{ display: "flex", gap: 8 }}>
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                padding: "8px 16px",
+                background: "transparent", color: "var(--paper-dim)",
+                border: "1px solid var(--ink-3)", borderRadius: 99,
+                fontSize: 13, textDecoration: "none", transition: "all 0.2s"
+              }}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon size={14} />
               {item.label}
             </Link>
           ))}

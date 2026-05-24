@@ -78,3 +78,74 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
+
+/* --- Twilight Prototype Styles --- */
+@layer base {
+  :root {
+    --ink-0: #0A0E1F;
+    --ink-1: #11172B;
+    --ink-2: #1A2240;
+    --ink-3: #232C50;
+    --paper: #F4ECDB;
+    --paper-dim: #BFB6A2;
+    --paper-mute: #7C7763;
+    --lamp: #F4B860;
+    --lamp-soft: #FFD79A;
+    --moss: #7FC4A4;
+    --plum: #C58FB8;
+    --rose: #E8856C;
+  }
+}
+
+body[data-starfield="on"] {
+  background: var(--ink-0);
+  color: var(--paper);
+}
+
+body[data-starfield="on"]::before {
+  /* faint starfield, fixed */
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(244,236,219,.35), transparent 50%),
+    radial-gradient(1px 1px at 78% 12%, rgba(244,236,219,.25), transparent 50%),
+    radial-gradient(1.2px 1.2px at 88% 62%, rgba(244,184,96,.25), transparent 50%),
+    radial-gradient(1px 1px at 32% 88%, rgba(244,236,219,.3), transparent 50%),
+    radial-gradient(1px 1px at 64% 42%, rgba(127,196,164,.25), transparent 50%),
+    radial-gradient(1px 1px at 22% 56%, rgba(244,236,219,.18), transparent 50%),
+    radial-gradient(1.5px 1.5px at 92% 28%, rgba(244,236,219,.22), transparent 50%),
+    radial-gradient(1px 1px at 8% 78%, rgba(244,184,96,.18), transparent 50%);
+  background-size: 100% 100%;
+  z-index: 0;
+  transition: opacity .4s ease;
+}
+
+body[data-starfield="on"]::after {
+  /* warm vignette from lamp */
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(244,184,96,0.08), transparent 60%),
+              radial-gradient(ellipse 60% 40% at 80% 100%, rgba(127,196,164,0.06), transparent 60%);
+  z-index: 0;
+}
+
+/* scrollbars */
+.hide-scroll::-webkit-scrollbar { display: none; }
+.hide-scroll { scrollbar-width: none; }
+
+@keyframes lampPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.04); }
+}
+@keyframes barWave {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fadeUp { animation: fadeUp 0.6s cubic-bezier(.2,.7,.2,1) both; }
+

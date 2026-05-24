@@ -220,7 +220,7 @@ export function StoryScreen({ route, navigation }: Props) {
             description="Add a family voice first, then come back to listen."
             action={
               <Button
-                title="Add a voice"
+                title="Add a clone"
                 size="sm"
                 fullWidth={false}
                 onPress={() => navigation.navigate("AddVoice")}

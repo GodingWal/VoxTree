@@ -98,7 +98,7 @@ export function ProfileScreen(_props: Props) {
           Usage this month
         </Text>
         <Row
-          label="Voice profiles"
+          label="Clone profiles"
           value={`${profile?.voice_slots_used ?? 0}${
             limits.voice_slots !== null ? ` / ${limits.voice_slots}` : ""
           }`}

@@ -26,7 +26,7 @@ export function AppStack() {
       <Stack.Screen
         name="AddVoice"
         component={AddVoiceScreen}
-        options={{ title: "Add a voice", presentation: "modal" }}
+        options={{ title: "Add a clone", presentation: "modal" }}
       />
       <Stack.Screen
         name="Pricing"

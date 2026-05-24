@@ -1,8 +1,21 @@
 import { getRouteClient } from "@/lib/supabase/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
+import { generateSpeech } from "@/lib/elevenlabs";
+import { getPresignedUploadUrl, getPresignedDownloadUrl, GCP_PATHS } from "@/lib/gcp";
+import Replicate from "replicate";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import fs from "fs";
+import path from "path";
+import os from "os";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+const replicate = new Replicate({
+  auth: process.env.REPLICATE_API_TOKEN || "dummy_token",
+});
 
 const generateSchema = z.object({
   contentId: z.string().uuid(),
@@ -101,20 +114,117 @@ export async function POST(request: Request) {
     );
   }
 
-  // TODO: Invoke Lambda or background worker for ffmpeg processing
-  if (content.content_mode === "tts") {
-    // 1. Check if text_script is available
-    // 2. Fetch elevenlabs_voice_id from family_voices
-    // 3. Call generateSpeech() via lib/elevenlabs
-    // 4. Mix speech with instrumental_url / original_video_url via ffmpeg
-    console.log(`[Clip Generation] Triggering TTS workflow for clip ${clip.id}`);
-  } else if (content.content_mode === "v2v") {
-    // 1. Check if isolated_vocals_url is available
-    // 2. Fetch rvc_model_id from family_voices
-    // 3. Send isolated_vocals_url and rvc_model_id to GPU worker (e.g., Replicate)
-    // 4. Wait for webhook, mix returned vocals with instrumental_url via ffmpeg
-    console.log(`[Clip Generation] Triggering V2V (RVC) workflow for clip ${clip.id}`);
-  }
+  // Background processing function
+  const processClip = async () => {
+    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    const admin = createAdminClient();
+    try {
+      // Fetch voice details
+      const { data: voice } = await admin
+        .from("family_voices")
+        .select("elevenlabs_voice_id, rvc_model_id")
+        .eq("id", voiceId)
+        .single();
+
+      if (!voice) throw new Error("Voice not found");
+
+      const tmpDir = os.tmpdir();
+      const speechFile = path.join(tmpDir, `${clip.id}-speech.mp3`);
+      const bgFile = path.join(tmpDir, `${clip.id}-bg.mp3`);
+      const outputFile = path.join(tmpDir, `${clip.id}-output.mp4`); // or mp3
+
+      let rawVocalsBuffer: Buffer;
+
+      if (content.content_mode === "tts") {
+        if (!voice.elevenlabs_voice_id) throw new Error("TTS voice not set up");
+        console.log(`[Clip Generation] Generating speech via ElevenLabs for clip ${clip.id}`);
+        rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
+      } else if (content.content_mode === "v2v") {
+        if (!voice.rvc_model_id) throw new Error("V2V singing voice not set up");
+        console.log(`[Clip Generation] Triggering Replicate V2V workflow for clip ${clip.id}`);
+        
+        // Replicate RVC inference
+        const modelStr = `${voice.rvc_model_id}` as `${string}/${string}`;
+        const output = await replicate.run(
+          modelStr, // In reality, this would be the model owner/name:version
+          {
+            input: {
+              song_input: content.isolated_vocals_url,
+              pitch_change: 0,
+            }
+          }
+        ) as unknown as string;
+
+        // Download the output from Replicate
+        const repRes = await fetch(output);
+        rawVocalsBuffer = Buffer.from(await repRes.arrayBuffer());
+      } else {
+        throw new Error("Unsupported content mode");
+      }
+
+      // Save raw vocals to disk
+      fs.writeFileSync(speechFile, rawVocalsBuffer);
+
+      // Download instrumental
+      console.log(`[Clip Generation] Downloading instrumental for clip ${clip.id}`);
+      const bgRes = await fetch(content.instrumental_url);
+      const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
+      fs.writeFileSync(bgFile, bgBuffer);
+
+      // Mix with FFmpeg
+      console.log(`[Clip Generation] Mixing audio via FFmpeg for clip ${clip.id}`);
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg()
+          .input(speechFile)
+          .input(bgFile)
+          .complexFilter([
+            "[0:a]volume=1.0[a0]",
+            "[1:a]volume=0.3[a1]",
+            "[a0][a1]amix=inputs=2:duration=first[aout]"
+          ])
+          .outputOptions(["-map [aout]", "-c:a libmp3lame", "-b:a 192k"])
+          .output(outputFile)
+          .on("end", () => resolve())
+          .on("error", (err) => reject(err))
+          .run();
+      });
+
+      // Upload to GCP
+      console.log(`[Clip Generation] Uploading mixed output to GCP for clip ${clip.id}`);
+      const outputBuffer = fs.readFileSync(outputFile);
+      const gcpKey = GCP_PATHS.clipAudio(user.id, contentId, voiceId);
+      const uploadUrl = await getPresignedUploadUrl(gcpKey, "audio/mpeg");
+      
+      await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "audio/mpeg" },
+        body: outputBuffer,
+      });
+
+      // Update DB
+      await admin
+        .from("generated_clips")
+        .update({ status: "ready", media_url: gcpKey })
+        .eq("id", clip.id);
+
+      // Cleanup temp files
+      fs.unlinkSync(speechFile);
+      fs.unlinkSync(bgFile);
+      fs.unlinkSync(outputFile);
+      
+      console.log(`[Clip Generation] Completed successfully for clip ${clip.id}`);
+
+    } catch (err: any) {
+      console.error(`[Clip Generation] Failed for clip ${clip.id}:`, err);
+      await admin
+        .from("generated_clips")
+        .update({ status: "failed" })
+        .eq("id", clip.id);
+    }
+  };
+
+  // Fire and forget background execution (supported on GCP Compute VM)
+  processClip();
 
   // For now, return the clip ID for status polling
 

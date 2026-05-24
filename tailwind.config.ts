@@ -59,6 +59,26 @@ const config: Config = {
           coral: "#E8735A",
           sage: "#A8D5BA",
         },
+        twilight: {
+          ink: {
+            0: "#0A0E1F",
+            1: "#11172B",
+            2: "#1A2240",
+            3: "#232C50",
+          },
+          paper: {
+            DEFAULT: "#F4ECDB",
+            dim: "#BFB6A2",
+            mute: "#7C7763",
+          },
+          lamp: {
+            DEFAULT: "#F4B860",
+            soft: "#FFD79A",
+          },
+          moss: "#7FC4A4",
+          plum: "#C58FB8",
+          rose: "#E8856C",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -66,7 +86,8 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "DM Sans", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Instrument Serif", "Georgia", "serif"],
       },
       keyframes: {
         "accordion-down": {
