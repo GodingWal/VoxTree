@@ -53,5 +53,14 @@ When a user selects a Story or Video from the library and clicks "Generate", the
 3. The RVC model uses the original vocal track as a guide, swapping the original singer's voice with the user's cloned voice while keeping the exact same pitch and timing.
 4. An FFmpeg background worker mixes the new vocals with the song's `instrumental_url`.
 
+### Path C: The Content is "Mixed-Mode" (Segments)
+1. The system reads the `segments` array attached to the content library item, which defines specific timestamps for different modes.
+2. For each segment:
+   - If `tts_normal`, the text is sent to ElevenLabs Text-to-Speech API.
+   - If `tts_expressive`, the text or guide audio is sent to ElevenLabs Speech-to-Speech to capture exact emotional delivery.
+   - If `v2v_singing`, the guide audio is sent to the external RVC GPU worker.
+3. All returned generated audio segments are downloaded to a background worker.
+4. An FFmpeg worker stitches the segments together exactly at their `start_time` timestamps, normalizes volume, and mixes them with the `instrumental_url`.
+
 ### Delivery
-In both paths, the final rendered video/audio file is uploaded to S3, the `generated_clips` database record is marked as `ready`, and the media is streamed back to the user's dashboard!
+In all paths, the final rendered video/audio file is uploaded to S3, the `generated_clips` database record is marked as `ready`, and the media is streamed back to the user's dashboard!

@@ -4,6 +4,17 @@ export type ClipStatus = "queued" | "processing" | "ready" | "failed";
 export type ContentType = "video" | "story";
 export type ContentMode = "tts" | "v2v";
 
+export type SegmentType = "tts_normal" | "tts_expressive" | "v2v_singing";
+
+export interface ContentSegment {
+  id: string;
+  start_time: number;
+  end_time: number;
+  type: SegmentType;
+  text_script?: string;
+  guide_audio_url?: string;
+}
+
 export interface User {
   id: string;
   name: string | null;
@@ -34,6 +45,7 @@ export interface ContentItem {
   title: string;
   content_type: ContentType;
   content_mode: ContentMode;
+  segments?: ContentSegment[];
   series: string | null;
   episode_number: number | null;
   text_script: string | null;
