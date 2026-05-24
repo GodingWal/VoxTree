@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { StoryPlayer } from "@/components/story-player";
 import { TwilightShell } from "@/components/twilight-layout";
+import { getPresignedDownloadUrl } from "@/lib/gcp";
 
 interface WatchPageProps {
   params: Promise<{ id: string }>;
@@ -45,12 +46,33 @@ export default async function WatchPage({ params }: WatchPageProps) {
     .in("status", ["ready", "queued", "processing"])
     .order("created_at", { ascending: false });
 
+  // Resolve presigned URLs for clips in GCS/Mock Storage
+  const resolvedClips = existingClips
+    ? await Promise.all(
+        existingClips.map(async (clip) => {
+          let audioUrl = clip.output_audio_url;
+          let videoUrl = clip.output_video_url;
+          if (audioUrl && !audioUrl.startsWith("http")) {
+            audioUrl = await getPresignedDownloadUrl(audioUrl);
+          }
+          if (videoUrl && !videoUrl.startsWith("http")) {
+            videoUrl = await getPresignedDownloadUrl(videoUrl);
+          }
+          return {
+            ...clip,
+            output_audio_url: audioUrl,
+            output_video_url: videoUrl,
+          };
+        })
+      )
+    : [];
+
   return (
     <TwilightShell>
       <StoryPlayer
         content={content}
         voices={voices ?? []}
-        existingClips={existingClips ?? []}
+        existingClips={resolvedClips}
       />
     </TwilightShell>
   );

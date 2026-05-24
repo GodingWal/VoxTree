@@ -33,38 +33,104 @@ const TIPS = [
   "Fun fact: We use advanced AI models to capture the unique emotion and cadence of your loved ones.",
 ];
 
-const SCRIPT_CARDS = [
-  {
-    emotion: "Calm Narrator",
-    text: "Once upon a time, in a quiet little forest...",
-    color: "rgba(127,196,164,0.1)", textColor: "var(--lamp)",
-    emoji: "📖",
-  },
-  {
-    emotion: "Excited",
-    text: "...a tiny bunny discovered a giant, shiny, magical carrot!",
-    color: "rgba(244,184,96,0.1)", textColor: "var(--lamp)",
-    emoji: "✨",
-  },
-  {
-    emotion: "Whispering",
-    text: "He had to be very, very quiet, so the sleeping bear wouldn't wake up.",
-    color: "rgba(163,167,201,0.1)", textColor: "var(--lamp)",
-    emoji: "🤫",
-  },
-  {
-    emotion: "Surprised",
-    text: "But then—SNAP! A loud branch broke right behind him!",
-    color: "rgba(232,133,108,0.1)", textColor: "var(--rose)",
-    emoji: "😲",
-  },
-  {
-    emotion: "Grumpy",
-    text: "'Who wakes me from my slumber?!' grumbled the bear.",
-    color: "rgba(197,143,184,0.1)", textColor: "var(--lamp)",
-    emoji: "😠",
-  },
-];
+const SCRIPTS_TEMPLATES = {
+  adventure: [
+    {
+      emotion: "Calm Narrator",
+      text: "Once upon a time, in a quiet little forest where the leaves whispered secrets to the wind, there lived a small bunny named Barnaby. Every evening, as the stars began to twinkle like tiny lanterns in the sky, he would sit on his favorite mossy log and listen to the soft, comforting sounds of the woodland preparing to sleep.",
+      color: "rgba(127,196,164,0.06)", textColor: "var(--lamp)",
+      emoji: "📖",
+    },
+    {
+      emotion: "Excited",
+      text: "But today was no ordinary day! As Barnaby hopped near the whispering creek, he spotted something incredible hidden beneath a glowing patch of wildflowers. It was a giant, shimmering golden carrot that radiated warmth! 'Oh my goodness!' he squeaked, jumping high in the air, 'This must be the legendary carrot of the stars!'",
+      color: "rgba(244,184,96,0.06)", textColor: "var(--lamp)",
+      emoji: "✨",
+    },
+    {
+      emotion: "Whispering",
+      text: "Suddenly, Barnaby realized he wasn't alone. Just a few feet away, curled up under a massive oak tree, was Barnaby's friend, the giant sleeping bear. Barnaby held his breath and stepped as softly as he could, tip-toeing across the dry leaves so he wouldn't disturb the bear's deep, peaceful slumber.",
+      color: "rgba(163,167,201,0.06)", textColor: "var(--lamp)",
+      emoji: "🤫",
+    },
+    {
+      emotion: "Surprised",
+      text: "But just as he reached for the golden carrot—SNAP! A dry branch broke beneath his foot with a sound like a lightning crack! The wind stopped blowing, the forest went completely silent, and Barnaby's ears stood straight up. He spun around, his heart pounding in his chest, staring at the shifting shadow behind him!",
+      color: "rgba(232,133,108,0.06)", textColor: "var(--rose)",
+      emoji: "😲",
+    },
+    {
+      emotion: "Grumpy",
+      text: "'Who dares wake me from my lovely afternoon slumber?!' grumbled the bear, slowly rubbing his eyes and letting out a deep, rumbling sigh. 'I was having the most wonderful dream about a river made of honey, and now I am awake, cold, and terribly hungry! Speak up, little bunny!'",
+      color: "rgba(197,143,184,0.06)", textColor: "var(--lamp)",
+      emoji: "😠",
+    },
+  ],
+  poetry: [
+    {
+      emotion: "Calm Narrator",
+      text: "Look up at the velvety night sky, where the moon hangs like a silver crescent cradling the dark. The stars are scattered like diamond dust across the vastness of the darkness, guiding travelers home with their gentle, everlasting glow. It is a time for the world to rest.",
+      color: "rgba(127,196,164,0.06)", textColor: "var(--lamp)",
+      emoji: "🌌",
+    },
+    {
+      emotion: "Excited",
+      text: "Look how they dance and shimmer! Each star tells an ancient story of grand adventures, flying ships, and mysterious alien worlds far beyond our own. The whole sky is alive, sparkling with endless possibilities and secrets waiting to be discovered!",
+      color: "rgba(244,184,96,0.06)", textColor: "var(--lamp)",
+      emoji: "⭐",
+    },
+    {
+      emotion: "Whispering",
+      text: "Speak softly now, for the night is a quiet sanctuary for dreams. Let the gentle wind blow away all your loud thoughts as the houses dim their lights. Breathe in the cool air, and let the quietness wrap around you like a warm blanket.",
+      color: "rgba(163,167,201,0.06)", textColor: "var(--lamp)",
+      emoji: "💤",
+    },
+    {
+      emotion: "Surprised",
+      text: "Wait, look! A brilliant shooting star just streaked across the dark sky, leaving a glowing trail of gold behind it! It was so fast, like a flash of lightning in the dark! Did you see it? Make a wish quickly before the light disappears forever!",
+      color: "rgba(232,133,108,0.06)", textColor: "var(--rose)",
+      emoji: "☄️",
+    },
+    {
+      emotion: "Grumpy",
+      text: "Oh, it is gone already, and my wish didn't even have time to form! Why do shooting stars have to be so fast? I wanted to wish for a giant mountain of chocolate chip cookies, but now all I have is a dark sky and a cold breeze.",
+      color: "rgba(197,143,184,0.06)", textColor: "var(--lamp)",
+      emoji: "😒",
+    },
+  ],
+  science: [
+    {
+      emotion: "Calm Narrator",
+      text: "Our beautiful planet Earth is a blue and green sphere spinning gracefully in the freezing silence of space. It is home to deep oceans, tall snowy mountains, and millions of amazing plants and animals, all protected by a thin, delicate atmosphere that keeps us safe.",
+      color: "rgba(127,196,164,0.06)", textColor: "var(--lamp)",
+      emoji: "🌍",
+    },
+    {
+      emotion: "Excited",
+      text: "Did you know that the Earth travels around the Sun at over sixty-seven thousand miles per hour? That is incredibly fast! Yet, we feel perfectly still as we spin through the solar system on our grand journey around the giant, burning star!",
+      color: "rgba(244,184,96,0.06)", textColor: "var(--lamp)",
+      emoji: "🚀",
+    },
+    {
+      emotion: "Whispering",
+      text: "Far away on the dark side of the moon, there is no air, no wind, and absolutely no sound. Everything is completely silent, frozen in time under the quiet gaze of distant galaxies. It is the quietest place in our entire neighborhood.",
+      color: "rgba(163,167,201,0.06)", textColor: "var(--lamp)",
+      emoji: "🌙",
+    },
+    {
+      emotion: "Surprised",
+      text: "Look! A massive rocket engine suddenly fires with a blinding flash of light, roaring into the sky! It shakes the ground for miles around as it breaks free of Earth's heavy gravity, launching brave astronauts into the great unknown!",
+      color: "rgba(232,133,108,0.06)", textColor: "var(--rose)",
+      emoji: "💥",
+    },
+    {
+      emotion: "Grumpy",
+      text: "Space travel is so loud and takes forever! You have to sit in a tiny metal capsule for months, eating freeze-dried paste out of plastic bags. And don't get me started on how hard it is to wash your hair or sleep in zero gravity!",
+      color: "rgba(197,143,184,0.06)", textColor: "var(--lamp)",
+      emoji: "🛸",
+    },
+  ],
+};
 
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
@@ -82,6 +148,11 @@ export default function OnboardingPage() {
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const audioChunks = useRef<BlobPart[]>([]);
+
+  // Teleprompter script state
+  const [activeTemplate, setActiveTemplate] = useState<"adventure" | "poetry" | "science">("adventure");
+  const [scriptCards, setScriptCards] = useState(SCRIPTS_TEMPLATES.adventure);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
@@ -141,7 +212,7 @@ export default function OnboardingPage() {
   }
 
   function nextCard() {
-    if (currentCardIndex < SCRIPT_CARDS.length - 1) {
+    if (currentCardIndex < scriptCards.length - 1) {
       setCurrentCardIndex((prev) => prev + 1);
     } else {
       stopRecording();
@@ -220,7 +291,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const currentCard = SCRIPT_CARDS[currentCardIndex];
+  const currentCard = scriptCards[currentCardIndex];
 
   return (
     <TwilightShell>
@@ -304,11 +375,113 @@ export default function OnboardingPage() {
                       <Mic size={32} color="var(--lamp)" />
                     </div>
                     <div>
-                      <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Capture {voiceName}&apos;s Emotion</h1>
+                      <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Capture {voiceName}&apos;s Voice</h1>
                       <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
-                        To build the perfect storyteller voice, we need to capture your emotional range. We&apos;ll guide you through a short 5-part script.
+                        For a natural-sounding voice, ElevenLabs recommends reading a 1-2 minute sample. Choose a story template below, or customize the text to your liking.
                       </p>
                     </div>
+
+                    {/* Script Selector */}
+                    <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+                      <span className="mono" style={{ fontSize: 11, letterSpacing: "0.08em", color: "var(--paper-mute)", textTransform: "uppercase" }}>Select Script Story</span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {(Object.keys(SCRIPTS_TEMPLATES) as Array<keyof typeof SCRIPTS_TEMPLATES>).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => {
+                              setActiveTemplate(t);
+                              setScriptCards(SCRIPTS_TEMPLATES[t]);
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: "10px 14px",
+                              borderRadius: 12,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              background: activeTemplate === t ? "rgba(244,184,96,0.15)" : "var(--ink-2)",
+                              border: `1px solid ${activeTemplate === t ? "var(--lamp)" : "var(--ink-3)"}`,
+                              color: activeTemplate === t ? "var(--lamp-soft)" : "var(--paper-dim)",
+                              cursor: "pointer",
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            {t === "adventure" ? "🐰 Adventure" : t === "poetry" ? "🌌 Poetry" : "🚀 Science"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Estimated stats */}
+                    <div style={{ background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 16, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--paper-dim)", textAlign: "left" }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--paper)" }}>Word Count</div>
+                        <div className="mono" style={{ fontSize: 11, marginTop: 4, color: "var(--lamp)" }}>{scriptCards.reduce((acc, c) => acc + c.text.split(" ").length, 0)} words</div>
+                      </div>
+                      <div style={{ width: 1, height: 28, background: "var(--ink-3)" }} />
+                      <div>
+                        <div style={{ fontWeight: 600, color: "var(--paper)" }}>Estimated Read</div>
+                        <div className="mono" style={{ fontSize: 11, marginTop: 4, color: "var(--moss)" }}>~90 - 120 seconds</div>
+                      </div>
+                    </div>
+
+                    {/* Script Preview & Customize */}
+                    <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span className="mono" style={{ fontSize: 11, letterSpacing: "0.08em", color: "var(--paper-mute)", textTransform: "uppercase" }}>Customize Script text</span>
+                        <button
+                          onClick={() => setIsEditing(!isEditing)}
+                          style={{
+                            background: "none",
+                            border: 0,
+                            color: "var(--lamp)",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            padding: 4
+                          }}
+                        >
+                          {isEditing ? "Done Customizing" : "Edit lines..."}
+                        </button>
+                      </div>
+
+                      {isEditing ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxHeight: 180, overflowY: "auto", paddingRight: 4 }}>
+                          {scriptCards.map((c, i) => (
+                            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 12, padding: 12 }}>
+                              <span className="mono" style={{ fontSize: 10, color: "var(--paper-mute)" }}>LINE {i+1} ({c.emotion})</span>
+                              <textarea
+                                value={c.text}
+                                onChange={(e) => {
+                                  const updated = [...scriptCards];
+                                  updated[i] = { ...updated[i], text: e.target.value };
+                                  setScriptCards(updated);
+                                }}
+                                rows={2}
+                                style={{
+                                  background: "var(--ink-1)",
+                                  border: "1px solid var(--ink-3)",
+                                  borderRadius: 8,
+                                  padding: 8,
+                                  color: "var(--paper)",
+                                  fontSize: 13,
+                                  outline: "none",
+                                  resize: "vertical"
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ maxHeight: 120, overflowY: "auto", padding: "12px 16px", background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 16, fontSize: 13, color: "var(--paper-dim)", lineHeight: 1.5 }}>
+                          {scriptCards.map((c, i) => (
+                            <p key={i} style={{ margin: "0 0 10px 0" }}>
+                              <strong style={{ color: "var(--lamp)" }}>{c.emotion}:</strong> {c.text}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <button onClick={startRecording} style={{ width: "100%", padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                       <Mic size={20} /> Start Teleprompter
                     </button>
@@ -323,12 +496,12 @@ export default function OnboardingPage() {
                         RECORDING
                       </div>
                       <div className="mono" style={{ fontSize: 12, color: "var(--paper-mute)", letterSpacing: "0.1em" }}>
-                        Card {currentCardIndex + 1} of {SCRIPT_CARDS.length}
+                        Card {currentCardIndex + 1} of {scriptCards.length}
                       </div>
                     </div>
 
                     <div style={{ height: 6, borderRadius: 99, background: "var(--ink-2)", overflow: "hidden" }}>
-                      <div style={{ height: "100%", background: "var(--lamp)", width: `${((currentCardIndex) / SCRIPT_CARDS.length) * 100}%`, transition: "width 0.5s ease" }} />
+                      <div style={{ height: "100%", background: "var(--lamp)", width: `${((currentCardIndex) / scriptCards.length) * 100}%`, transition: "width 0.5s ease" }} />
                     </div>
 
                     <div style={{ padding: 32, borderRadius: 20, background: currentCard.color, textAlign: "left", border: "1px solid rgba(255,255,255,0.05)" }}>
@@ -342,7 +515,7 @@ export default function OnboardingPage() {
                     </div>
 
                     <button onClick={nextCard} style={{ width: "100%", padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                      {currentCardIndex < SCRIPT_CARDS.length - 1 ? (
+                      {currentCardIndex < scriptCards.length - 1 ? (
                         <>Next Line <ArrowRight size={20} /></>
                       ) : (
                         <>Finish Recording <StopCircle size={20} /></>
