@@ -85,6 +85,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Content not found" }, { status: 404 });
   }
 
+  if (content.content_mode === "tts" && !content.text_script) {
+    return NextResponse.json({ error: "This story does not have a text script configured." }, { status: 400 });
+  }
+
+  if (!content.instrumental_url) {
+    return NextResponse.json({ error: "This story is missing a background music track." }, { status: 400 });
+  }
+
   // Check cache first
   const cachedUrl = await getCachedAudio(contentId, voiceId);
   if (cachedUrl) {
@@ -162,35 +170,40 @@ export async function POST(request: Request) {
         throw new Error("Unsupported content mode");
       }
 
-      // Save raw vocals to disk
-      fs.writeFileSync(speechFile, rawVocalsBuffer);
-
       // Download instrumental
       console.log(`[Clip Generation] Downloading instrumental for clip ${clip.id}`);
       const bgRes = await fetch(content.instrumental_url);
       const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
       fs.writeFileSync(bgFile, bgBuffer);
 
-      // Mix with FFmpeg
-      console.log(`[Clip Generation] Mixing audio via FFmpeg for clip ${clip.id}`);
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg()
-          .input(speechFile)
-          .input(bgFile)
-          .complexFilter([
-            "[0:a]volume=1.0[a0]",
-            "[1:a]volume=0.3[a1]",
-            "[a0][a1]amix=inputs=2:duration=first[aout]"
-          ])
-          .outputOptions(["-map [aout]", "-c:a libmp3lame", "-b:a 192k"])
-          .output(outputFile)
-          .on("end", () => resolve())
-          .on("error", (err) => reject(err))
-          .run();
-      });
+      if (rawVocalsBuffer.length === 0) {
+        console.log(`[Clip Generation] Empty vocals buffer (simulation mode). Copying instrumental directly.`);
+        fs.copyFileSync(bgFile, outputFile);
+      } else {
+        // Save raw vocals to disk
+        fs.writeFileSync(speechFile, rawVocalsBuffer);
+
+        // Mix with FFmpeg
+        console.log(`[Clip Generation] Mixing audio via FFmpeg for clip ${clip.id}`);
+        await new Promise<void>((resolve, reject) => {
+          ffmpeg()
+            .input(speechFile)
+            .input(bgFile)
+            .complexFilter([
+              "[0:a]volume=1.0[a0]",
+              "[1:a]volume=0.3[a1]",
+              "[a0][a1]amix=inputs=2:duration=first[aout]"
+            ])
+            .outputOptions(["-map [aout]", "-c:a libmp3lame", "-b:a 192k"])
+            .output(outputFile)
+            .on("end", () => resolve())
+            .on("error", (err) => reject(err))
+            .run();
+        });
+      }
 
       // Upload to GCP
-      console.log(`[Clip Generation] Uploading mixed output to GCP for clip ${clip.id}`);
+      console.log(`[Clip Generation] Uploading output to GCP for clip ${clip.id}`);
       const outputBuffer = fs.readFileSync(outputFile);
       const gcpKey = GCP_PATHS.clipAudio(user.id, contentId, voiceId);
       const uploadUrl = await getPresignedUploadUrl(gcpKey, "audio/mpeg");
@@ -204,13 +217,18 @@ export async function POST(request: Request) {
       // Update DB
       await admin
         .from("generated_clips")
-        .update({ status: "ready", media_url: gcpKey })
+        .update({
+          status: "ready",
+          output_audio_url: gcpKey,
+          output_video_url: gcpKey,
+          cached: true
+        })
         .eq("id", clip.id);
 
       // Cleanup temp files
-      fs.unlinkSync(speechFile);
-      fs.unlinkSync(bgFile);
-      fs.unlinkSync(outputFile);
+      if (fs.existsSync(speechFile)) fs.unlinkSync(speechFile);
+      if (fs.existsSync(bgFile)) fs.unlinkSync(bgFile);
+      if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
       
       console.log(`[Clip Generation] Completed successfully for clip ${clip.id}`);
 

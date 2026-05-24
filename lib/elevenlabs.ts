@@ -1,9 +1,7 @@
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
-function getApiKey(): string {
-  const key = process.env.ELEVENLABS_API_KEY;
-  if (!key) throw new Error("ELEVENLABS_API_KEY is not configured");
-  return key;
+function getApiKey(): string | null {
+  return process.env.ELEVENLABS_API_KEY || null;
 }
 
 /**
@@ -14,6 +12,15 @@ export async function cloneVoice(
   audioBuffer: Buffer,
   name: string
 ): Promise<string> {
+  const apiKey = getApiKey();
+  
+  if (!apiKey) {
+    console.warn("No ELEVENLABS_API_KEY found. Simulating Voice Cloning for development.");
+    // Simulate API delay
+    await new Promise(r => setTimeout(r, 2000));
+    return `simulated_voice_id_${Date.now()}`;
+  }
+
   const formData = new FormData();
   formData.append("name", name);
   formData.append(
@@ -27,7 +34,7 @@ export async function cloneVoice(
     response = await fetch(`${ELEVENLABS_BASE_URL}/voices/add`, {
       method: "POST",
       headers: {
-        "xi-api-key": getApiKey(),
+        "xi-api-key": apiKey,
       },
       body: formData,
     });
@@ -53,14 +60,50 @@ export async function generateSpeech(
   voiceId: string,
   text: string
 ): Promise<Buffer> {
+  const apiKey = getApiKey();
+  
+  if (!apiKey) {
+    console.warn("No ELEVENLABS_API_KEY found. Simulating Speech Generation.");
+    return Buffer.from([]);
+  }
+
+  let targetVoiceId = voiceId;
+  if (voiceId.startsWith("simulated_voice_id_")) {
+    console.warn("Using simulated voice ID with real API Key. Fetching available voices from ElevenLabs account...");
+    try {
+      const voicesRes = await fetch(`${ELEVENLABS_BASE_URL}/voices`, {
+        headers: {
+          "xi-api-key": apiKey,
+        },
+      });
+      if (voicesRes.ok) {
+        const voicesData = await voicesRes.json();
+        const activeVoice = voicesData.voices?.[0];
+        if (activeVoice) {
+          console.log(`Fallback voice found: ${activeVoice.name} (${activeVoice.voice_id})`);
+          targetVoiceId = activeVoice.voice_id;
+        } else {
+          console.warn("No voices found in ElevenLabs account. Using default Rachel voice.");
+          targetVoiceId = "21m00Tcm4TlvDq8ikWAM";
+        }
+      } else {
+        console.warn("Failed to fetch voices from ElevenLabs. Using default Rachel voice.");
+        targetVoiceId = "21m00Tcm4TlvDq8ikWAM";
+      }
+    } catch (err) {
+      console.error("Error fetching voices from ElevenLabs:", err);
+      targetVoiceId = "21m00Tcm4TlvDq8ikWAM";
+    }
+  }
+
   let response;
   for (let attempt = 0; attempt < 3; attempt++) {
     response = await fetch(
-      `${ELEVENLABS_BASE_URL}/text-to-speech/${voiceId}`,
+      `${ELEVENLABS_BASE_URL}/text-to-speech/${targetVoiceId}`,
       {
         method: "POST",
         headers: {
-          "xi-api-key": getApiKey(),
+          "xi-api-key": apiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -90,10 +133,16 @@ export async function generateSpeech(
  * Delete a cloned voice from ElevenLabs.
  */
 export async function deleteVoice(voiceId: string): Promise<void> {
+  const apiKey = getApiKey();
+  
+  if (!apiKey || voiceId.startsWith("simulated_voice_id_")) {
+    return; // Simulated deletion
+  }
+
   const response = await fetch(`${ELEVENLABS_BASE_URL}/voices/${voiceId}`, {
     method: "DELETE",
     headers: {
-      "xi-api-key": getApiKey(),
+      "xi-api-key": apiKey,
     },
   });
 

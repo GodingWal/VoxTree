@@ -19,7 +19,15 @@ export async function getPresignedUploadUrl(
   key: string,
   contentType: string
 ): Promise<string> {
-  const bucket = storage.bucket(BUCKET_NAME);
+  if (!process.env.GCS_BUCKET_NAME) {
+    console.warn("GCS_BUCKET_NAME is missing. Simulating presigned upload URL.");
+    // Return an absolute URL so server-side fetch() calls can resolve it
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const cleanUrl = appUrl.replace(":3000", ":3001");
+    return `${cleanUrl}/api/mock/upload?key=${encodeURIComponent(key)}`;
+  }
+
+  const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
   const file = bucket.file(key);
 
   const [url] = await file.getSignedUrl({
@@ -37,7 +45,15 @@ export async function getPresignedUploadUrl(
  * Expires after 1 hour.
  */
 export async function getPresignedDownloadUrl(key: string): Promise<string> {
-  const bucket = storage.bucket(BUCKET_NAME);
+  if (!process.env.GCS_BUCKET_NAME) {
+    console.warn("GCS_BUCKET_NAME is missing. Simulating presigned download URL.");
+    // Return an absolute local mock download URL (fetching via Node needs absolute URL)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const cleanUrl = appUrl.replace(":3000", ":3001");
+    return `${cleanUrl}/api/mock/download?key=${encodeURIComponent(key)}`;
+  }
+
+  const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
   const file = bucket.file(key);
 
   const [url] = await file.getSignedUrl({

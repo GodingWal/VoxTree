@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import { StoriesPlayer } from "@/components/stories-player";
+import { getPresignedDownloadUrl } from "@/lib/gcp";
 
 export default async function StoriesPage() {
   const supabase = createClient();
@@ -35,29 +36,49 @@ export default async function StoriesPage() {
     .eq("user_id", user.id)
     .eq("status", "ready");
 
+  // Resolve presigned URLs for clips in GCS/Mock Storage
+  const resolvedClips = existingClips
+    ? await Promise.all(
+        existingClips.map(async (clip) => {
+          let audioUrl = clip.output_audio_url;
+          let videoUrl = clip.output_video_url;
+          if (audioUrl && !audioUrl.startsWith("http")) {
+            audioUrl = await getPresignedDownloadUrl(audioUrl);
+          }
+          if (videoUrl && !videoUrl.startsWith("http")) {
+            videoUrl = await getPresignedDownloadUrl(videoUrl);
+          }
+          return {
+            ...clip,
+            output_audio_url: audioUrl,
+            output_video_url: videoUrl,
+          };
+        })
+      )
+    : [];
+
   return (
-    <main className="container max-w-3xl py-8 sm:py-12 space-y-6">
-      <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-brand-green/10 p-2.5">
-            <BookOpen className="h-5 w-5 text-brand-green" />
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
+      <div className="fadeUp" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 40, gap: 24 }}>
+        <div>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp)", marginBottom: 12 }}>
+            Story Time
           </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-charcoal dark:text-foreground">
-              Stories
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Listen to stories narrated by your family&apos;s voice — even with the screen off.
-            </p>
-          </div>
+          <h1 className="serif" style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, letterSpacing: "-0.02em", color: "var(--paper)" }}>
+            Stories, <span className="serif-italic" style={{ color: "var(--lamp)" }}>narrated by your family.</span>
+          </h1>
+          <p style={{ color: "var(--paper-mute)", marginTop: 16, maxWidth: 600, fontSize: 16, lineHeight: 1.5 }}>
+            Listen to classic tales and original stories narrated with the voices you have cloned. 
+            Perfect for bedtime, road trips, or simply unwinding.
+          </p>
         </div>
       </div>
 
       <StoriesPlayer
         stories={stories ?? []}
         voices={voices ?? []}
-        existingClips={existingClips ?? []}
+        existingClips={resolvedClips}
       />
-    </main>
+    </div>
   );
 }
