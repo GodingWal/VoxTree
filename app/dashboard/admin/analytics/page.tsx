@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { Play, Mic, Users, BookOpen } from "lucide-react";
+import { Section } from "@/components/twilight-ui";
 
 export default async function AdminAnalyticsPage() {
   const supabase = createClient();
@@ -12,7 +12,7 @@ export default async function AdminAnalyticsPage() {
 
   if (!user) redirect("/login");
   const admin = await isAdmin(user.email);
-  if (!admin) redirect("/dashboard");
+  if (!admin) redirect("/");
 
   const adminClient = createAdminClient();
 
@@ -23,8 +23,7 @@ export default async function AdminAnalyticsPage() {
   const { count: clipCount } = await adminClient.from("generated_clips").select("*", { count: "exact", head: true });
   const { count: contentCount } = await adminClient.from("content_library").select("*", { count: "exact", head: true });
 
-  // Most active users (by clips generated)
-  // Since we don't have a direct aggregate query easily without RPC, we'll fetch clips and group in memory for this simple dashboard
+  // Most active users
   const { data: clips } = await adminClient.from("generated_clips").select("user_id, content_id");
   const userClipCounts = (clips || []).reduce((acc: Record<string, number>, clip) => {
     acc[clip.user_id] = (acc[clip.user_id] || 0) + 1;
@@ -58,89 +57,96 @@ export default async function AdminAnalyticsPage() {
   const topContent = topContentData?.map(c => ({ ...c, count: contentCounts[c.id] })).sort((a, b) => b.count - a.count) || [];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h2 className="text-xl font-semibold text-brand-charcoal dark:text-foreground">
-          Platform Analytics
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Key Performance Indicators and Usage Stats
-        </p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-white dark:bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-muted-foreground mb-2">
-            <Users className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Total Users</h3>
-          </div>
-          <p className="text-2xl font-bold">{userCount || 0}</p>
-          <p className="text-xs text-brand-green mt-1">{premiumUserCount || 0} Premium</p>
-        </div>
-        <div className="rounded-xl border bg-white dark:bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-muted-foreground mb-2">
-            <Mic className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Voice Clones</h3>
-          </div>
-          <p className="text-2xl font-bold">{voiceCount || 0}</p>
-        </div>
-        <div className="rounded-xl border bg-white dark:bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-muted-foreground mb-2">
-            <Play className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Clips Generated</h3>
-          </div>
-          <p className="text-2xl font-bold">{clipCount || 0}</p>
-        </div>
-        <div className="rounded-xl border bg-white dark:bg-card p-5 shadow-sm">
-          <div className="flex items-center gap-3 text-muted-foreground mb-2">
-            <BookOpen className="h-4 w-4" />
-            <h3 className="text-sm font-medium">Content Items</h3>
-          </div>
-          <p className="text-2xl font-bold">{contentCount || 0}</p>
-        </div>
-      </div>
-
-      <div className="grid gap-8 lg:grid-cols-2">
-        {/* Top Content */}
-        <div className="rounded-xl border bg-white dark:bg-card shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Most Popular Content</h3>
-          <div className="space-y-4">
-            {topContent.map((c, i) => (
-              <div key={c.id} className="flex items-center gap-4">
-                <div className="w-6 text-center font-bold text-muted-foreground">{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{c.title}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{c.content_type}</p>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 56 }}>
+      <Section eyebrow="Overview" title={<>Performance <span className="serif-italic">Metrics</span></>}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 20 }}>
+          {[
+            { label: "Total Users", value: userCount, color: "var(--moss)" },
+            { label: "Voice Clones", value: voiceCount, color: "var(--rose)" },
+            { label: "Clips Generated", value: clipCount, color: "var(--lamp)" },
+            { label: "Content Items", value: contentCount, color: "var(--plum)" }
+          ].map((stat, i) => (
+            <div key={i} style={{
+              background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+              borderRadius: 20, padding: 24,
+              display: "flex", flexDirection: "column", gap: 12
+            }}>
+              <div style={{ width: 12, height: 12, borderRadius: 99, background: stat.color }} />
+              <div>
+                <div className="serif" style={{ fontSize: 36, color: "var(--paper)", lineHeight: 1 }}>
+                  {stat.value || 0}
                 </div>
-                <div className="text-sm font-semibold">{c.count} clips</div>
-              </div>
-            ))}
-            {topContent.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Top Users */}
-        <div className="rounded-xl border bg-white dark:bg-card shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Most Active Users</h3>
-          <div className="space-y-4">
-            {topUsers.map((u, i) => (
-              <div key={u.id} className="flex items-center gap-4">
-                <div className="w-6 text-center font-bold text-muted-foreground">{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{u.name || "Unnamed"}</p>
-                  <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                <div className="mono" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--paper-mute)", marginTop: 8 }}>
+                  {stat.label}
                 </div>
-                <div className="text-sm font-semibold">{u.count} clips</div>
               </div>
-            ))}
-             {topUsers.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
+      </Section>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 40 }}>
+        <Section eyebrow="Library" title={<>Most <span className="serif-italic">Popular Content</span></>}>
+          <div style={{
+            background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+            borderRadius: 20, padding: 24,
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {topContent.map((c, i) => (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--paper-mute)", width: 24, textAlign: "center" }}>
+                    {i + 1}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: "var(--paper)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {c.title}
+                    </div>
+                    <div className="mono" style={{ fontSize: 10, letterSpacing: "0.05em", color: "var(--paper-dim)", textTransform: "capitalize", marginTop: 4 }}>
+                      {c.content_type}
+                    </div>
+                  </div>
+                  <div className="mono" style={{ fontSize: 12, color: "var(--lamp)", fontWeight: 500 }}>
+                    {c.count} clips
+                  </div>
+                </div>
+              ))}
+              {topContent.length === 0 && (
+                <div style={{ fontSize: 13, color: "var(--paper-mute)", textAlign: "center", padding: "20px 0" }}>No data yet</div>
+              )}
+            </div>
+          </div>
+        </Section>
+
+        <Section eyebrow="Community" title={<>Most <span className="serif-italic">Active Users</span></>}>
+          <div style={{
+            background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+            borderRadius: 20, padding: 24,
+          }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {topUsers.map((u, i) => (
+                <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--paper-mute)", width: 24, textAlign: "center" }}>
+                    {i + 1}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, color: "var(--paper)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {u.name || "Unnamed"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--paper-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                      {u.email}
+                    </div>
+                  </div>
+                  <div className="mono" style={{ fontSize: 12, color: "var(--plum)", fontWeight: 500 }}>
+                    {u.count} clips
+                  </div>
+                </div>
+              ))}
+              {topUsers.length === 0 && (
+                <div style={{ fontSize: 13, color: "var(--paper-mute)", textAlign: "center", padding: "20px 0" }}>No data yet</div>
+              )}
+            </div>
+          </div>
+        </Section>
       </div>
     </div>
   );

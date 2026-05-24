@@ -2,28 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import {
-  Play,
-  Pause,
-  Mic,
-  Loader2,
-  CheckCircle2,
-  Volume2,
-  VolumeX,
-  RotateCcw,
-  Clock,
-  BookOpen,
-  Plus,
-  Share2,
-  Users,
-} from "lucide-react";
-import Image from "next/image";
+import { StoryArt, Avatar, Waveform } from "@/components/twilight-ui";
 
 interface Voice {
   id: string;
   name: string;
   status: string;
   sample_audio_url?: string | null;
+  relation?: string | null;
 }
 
 interface Content {
@@ -55,6 +41,36 @@ interface StoryPlayerProps {
 
 type PlayerState = "idle" | "generating" | "ready" | "playing" | "paused";
 
+// Map content type/tags to an art kind
+function getArtKind(c: Content) {
+  if (c.title.toLowerCase().includes("moon")) return "moon";
+  if (c.title.toLowerCase().includes("owl")) return "owl";
+  if (c.title.toLowerCase().includes("snow")) return "snow";
+  if (c.title.toLowerCase().includes("earth")) return "forest";
+  if (c.title.toLowerCase().includes("river")) return "river";
+  if (c.title.toLowerCase().includes("star")) return "stars";
+  if (c.title.toLowerCase().includes("cloud")) return "cloud";
+  return "lantern";
+}
+
+function getColor(c: Content) {
+  const hash = c.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8", "#A3A7C9"];
+  return colors[hash % colors.length];
+}
+
+function getVoiceColor(id: string) {
+  const hash = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8", "#A3A7C9"];
+  return colors[hash % colors.length];
+}
+
+function fmt(s: number) {
+  const m = Math.floor(s / 60);
+  const ss = Math.floor(s % 60);
+  return `${m}:${ss.toString().padStart(2, "0")}`;
+}
+
 export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps) {
   const [selectedVoice, setSelectedVoice] = useState<string>(
     voices[0]?.id ?? ""
@@ -62,10 +78,8 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
   const [playerState, setPlayerState] = useState<PlayerState>("idle");
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [muted, setMuted] = useState(false);
   const [clipUrl, setClipUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
@@ -172,6 +186,11 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
   }
 
   function handlePlayPause() {
+    if (playerState === "idle" || playerState === "generating") {
+      handleGenerate();
+      return;
+    }
+
     if (!clipUrl) return;
 
     if (playerState === "playing") {
@@ -190,7 +209,6 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
 
     const audio = new Audio(clipUrl);
     audioRef.current = audio;
-    audio.muted = muted;
 
     audio.addEventListener("loadedmetadata", () => {
       setDuration(audio.duration);
@@ -222,367 +240,177 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
     }, 200);
   }
 
-  function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
-    if (!audioRef.current || !duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioRef.current.currentTime = fraction * duration;
-    setProgress(fraction * duration);
-  }
-
-  function handleRestart() {
+  function handleSeek(amount: number) {
     if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      setProgress(0);
-      if (playerState !== "playing") {
-        audioRef.current.play();
-        setPlayerState("playing");
-        startProgressTracking();
-      }
+      const newTime = Math.max(0, Math.min(audioRef.current.duration || 0, audioRef.current.currentTime + amount));
+      audioRef.current.currentTime = newTime;
+      setProgress(newTime);
     }
   }
 
-  function toggleMute() {
-    setMuted((prev) => {
-      const next = !prev;
-      if (audioRef.current) audioRef.current.muted = next;
-      return next;
-    });
-  }
-
-  function formatTime(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
-  function handleShare() {
-    if (clipUrl) {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }
-
+  const activeVoice = voices.find((v) => v.id === selectedVoice);
+  const activeColor = activeVoice ? getVoiceColor(activeVoice.id) : "var(--lamp)";
   const progressPercent = duration > 0 ? (progress / duration) * 100 : 0;
-  const selectedVoiceName = voices.find((v) => v.id === selectedVoice)?.name ?? "";
+  const isPlaying = playerState === "playing" || playerState === "generating";
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Story Hero */}
-      <div className="rounded-2xl overflow-hidden border bg-white dark:bg-card shadow-lg hover:shadow-xl transition-all">
-        {/* Thumbnail / Cover Art */}
-        <div className="relative aspect-[21/9] bg-gradient-to-br from-brand-green/20 via-brand-sage/30 to-brand-coral/10 group">
-          {content.thumbnail_url ? (
-            <Image
-              src={content.thumbnail_url}
-              alt={content.title}
-              fill
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <BookOpen className="h-16 w-16 text-brand-green/30" />
-            </div>
-          )}
-          {content.is_premium && (
-            <span className="absolute top-4 right-4 rounded-full bg-brand-gold px-3 py-1 text-xs font-bold text-white shadow-sm">
-              Premium
-            </span>
-          )}
-        </div>
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 32px 24px" }}>
+      <Link href="/browse" style={{
+        background: "none", border: 0, color: "var(--paper-mute)",
+        cursor: "pointer", marginBottom: 24, fontSize: 13, textDecoration: "none",
+        display: "inline-block"
+      }}>← Back to library</Link>
 
-        {/* Story Info */}
-        <div className="p-6 sm:p-8 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-brand-charcoal dark:text-foreground">
-                {content.title}
-              </h1>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                {content.series && (
-                  <span>{content.series}{content.episode_number != null && ` · Ep. ${content.episode_number}`}</span>
-                )}
-                {content.age_range && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-sage/20 px-2.5 py-0.5 text-xs font-medium text-brand-green">
-                    Ages {content.age_range}
-                  </span>
-                )}
-                {content.duration_seconds && (
-                  <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5" />
-                    {Math.ceil(content.duration_seconds / 60)} min
-                  </span>
-                )}
-              </div>
+      <div style={{
+        display: "grid", gridTemplateColumns: "1.1fr 1fr",
+        gap: 56, alignItems: "start",
+      }}>
+        {/* Story art panel */}
+        <div style={{
+          position: "relative", borderRadius: 28, overflow: "hidden",
+          aspectRatio: "5/6",
+          border: "1px solid var(--ink-3)",
+        }}>
+          <StoryArt kind={getArtKind(content)} color={getColor(content)} height="100%" />
+          <div style={{
+            position: "absolute", inset: 0,
+            background: "linear-gradient(180deg, transparent 40%, rgba(10,14,31,0.85) 100%)",
+          }} />
+          <div style={{ position: "absolute", left: 32, right: 32, bottom: 32 }}>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp-soft)", marginBottom: 12 }}>
+              {content.series || "Standalone"} {content.episode_number ? `· Episode ${content.episode_number}` : ""}
             </div>
-            {/* Share Button (Only available if clip is ready) */}
-            {playerState !== "idle" && playerState !== "generating" && (
-              <button
-                onClick={handleShare}
-                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-brand-green/10 px-4 py-2 text-sm font-medium text-brand-green hover:bg-brand-green/20 transition-colors"
-              >
-                {copied ? <CheckCircle2 className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-                {copied ? "Copied!" : "Share with Family"}
-              </button>
-            )}
+            <h1 className="serif" style={{ fontSize: 48, lineHeight: 1.02, margin: 0, letterSpacing: "-0.02em", color: "var(--paper)" }}>
+              {content.title}
+            </h1>
           </div>
-
-          {content.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2">
-              {content.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-muted/50 px-3 py-1 text-xs text-muted-foreground"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Voice Selector / Multi-Character Casting UI */}
-      <div className="rounded-2xl border bg-white dark:bg-card p-6 sm:p-8 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-brand-green/10 p-2.5">
-              <Users className="h-5 w-5 text-brand-green" />
+        {/* Player panel */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+            <div style={{ position: "relative" }}>
+              {activeVoice ? (
+                <Avatar name={activeVoice.name} color={activeColor} size={64} ring />
+              ) : (
+                <div style={{ width: 64, height: 64, borderRadius: 99, background: "var(--ink-2)", border: "1px solid var(--ink-3)" }} />
+              )}
+              {isPlaying && (
+                <div style={{
+                  position: "absolute", inset: -6, borderRadius: 99,
+                  border: `2px solid ${activeColor}`,
+                  animation: "lampPulse 1.6s ease-in-out infinite",
+                  pointerEvents: "none",
+                }} />
+              )}
             </div>
             <div>
-              <h2 className="font-semibold text-brand-charcoal dark:text-foreground">
-                Cast your Clones
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Select who will narrate this story
-              </p>
+              <div className="mono" style={{ fontSize: 11, letterSpacing: "0.1em", color: "var(--paper-mute)", textTransform: "uppercase" }}>
+                Narrated by
+              </div>
+              <div className="serif" style={{ fontSize: 28, lineHeight: 1.1, marginTop: 4, color: "var(--paper)" }}>
+                {activeVoice ? activeVoice.name : "No Voice Selected"}
+              </div>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-brand-gold bg-brand-gold/10 px-3 py-1.5 rounded-full">
-            <Sparkles className="h-3.5 w-3.5" />
-            More roles coming soon
-          </div>
-        </div>
 
-        {/* Character Role Selection Group */}
-        <div className="pt-4 border-t border-border">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Role: Narrator
-            </span>
-          </div>
-          {voices.length > 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {voices.map((voice) => (
-                <button
-                  key={voice.id}
-                  onClick={() => setSelectedVoice(voice.id)}
-                  disabled={playerState === "generating"}
-                  className={`flex items-center gap-3 rounded-xl border-2 p-4 text-left transition-all ${
-                    selectedVoice === voice.id
-                      ? "border-brand-green bg-brand-green/5 dark:bg-brand-green/10 shadow-sm hover:-translate-y-0.5"
-                      : "border-transparent bg-muted/50 hover:bg-muted hover:border-muted hover:-translate-y-0.5"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <div
-                    className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                      selectedVoice === voice.id
-                        ? "bg-brand-green text-white shadow-md shadow-brand-green/20"
-                        : "bg-brand-sage/40 dark:bg-brand-sage/20 text-brand-green"
-                    }`}
-                  >
-                    <Mic className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-brand-charcoal dark:text-foreground truncate">
-                      {voice.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3 text-green-500" />
-                      Ready
-                    </p>
-                  </div>
-                  {selectedVoice === voice.id && (
-                    <div className="ml-auto shrink-0">
-                      <CheckCircle2 className="h-5 w-5 text-brand-green" />
-                    </div>
-                  )}
-                </button>
-              ))}
+          {/* Big waveform */}
+          <div style={{
+            background: "var(--ink-2)", border: `1px solid ${playerState === 'generating' ? 'var(--lamp-soft)' : 'var(--ink-3)'}`,
+            borderRadius: 22, padding: 24,
+            transition: "border-color 0.3s ease"
+          }}>
+            <div style={{ position: "relative" }}>
+              <Waveform playing={isPlaying} count={64} height={72} color={activeColor} />
+              {/* playhead */}
+              <div style={{
+                position: "absolute", top: 0, bottom: 0,
+                left: `${progressPercent}%`,
+                width: 2, background: "var(--lamp)",
+                boxShadow: "0 0 12px var(--lamp)",
+                transition: "left 0.2s linear"
+              }} />
+              
+              {playerState === "generating" && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10,14,31,0.5)", borderRadius: 8 }}>
+                  <div className="mono" style={{ color: "var(--lamp)", fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase" }}>Generating Audio...</div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-brand-sage/40 bg-brand-sage/5 p-8 text-center">
-              <div className="mx-auto w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm mb-3">
-                <Mic className="h-5 w-5 text-brand-green/60" />
-              </div>
-              <p className="text-sm font-medium text-brand-charcoal dark:text-foreground">
-                No voices available
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Add a family voice clone to cast them in this story.
-              </p>
-              <Link
-                href="/onboarding"
-                className="inline-flex items-center gap-1.5 mt-4 text-sm font-medium text-brand-green hover:underline"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add your first voice
-              </Link>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 12, color: "var(--paper-mute)" }} className="mono">
+              <span>{fmt(progress)}</span>
+              <span>−{fmt(duration > 0 ? duration - progress : 0)}</span>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Player Section */}
-      <div className="rounded-2xl border bg-white dark:bg-card shadow-lg overflow-hidden group">
-        {/* Main Play Button Area */}
-        <div className="p-8 sm:p-12 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
-          {/* Subtle background pulse for generating state */}
-          {playerState === "generating" && (
-            <div className="absolute inset-0 bg-brand-gold/5 animate-pulse" />
-          )}
-          
-          {/* Big Play Button */}
-          <button
-            onClick={
-              playerState === "idle" || playerState === "generating"
-                ? handleGenerate
-                : handlePlayPause
-            }
-            disabled={
-              !selectedVoice ||
-              playerState === "generating" ||
-              voices.length === 0
-            }
-            className={`relative z-10 h-28 w-28 sm:h-32 sm:w-32 rounded-full flex items-center justify-center transition-all duration-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-              playerState === "playing"
-                ? "bg-brand-coral shadow-2xl shadow-brand-coral/40 hover:scale-105"
-                : playerState === "generating"
-                  ? "bg-brand-gold shadow-2xl shadow-brand-gold/40"
-                  : "bg-brand-green shadow-2xl shadow-brand-green/40 hover:scale-105 active:scale-95"
-            }`}
-          >
-            {playerState === "generating" ? (
-              <Loader2 className="h-12 w-12 sm:h-14 sm:w-14 text-white animate-spin" />
-            ) : playerState === "playing" ? (
-              <Pause className="h-12 w-12 sm:h-14 sm:w-14 text-white" />
-            ) : (
-              <Play className="h-12 w-12 sm:h-14 sm:w-14 text-white ml-1.5" />
-            )}
-          </button>
-
-          {/* Status text */}
-          <div className="space-y-1 relative z-10 transition-all">
-            {playerState === "idle" && selectedVoice && (
-              <p className="text-lg font-medium text-brand-charcoal dark:text-foreground">
-                Press play to generate & listen
-              </p>
-            )}
-            {playerState === "idle" && selectedVoice && (
-              <p className="text-sm text-muted-foreground">
-                Narrated by {selectedVoiceName}
-              </p>
-            )}
-            {playerState === "generating" && (
-              <div className="animate-in fade-in slide-in-from-bottom-2">
-                <p className="text-lg font-bold text-brand-gold">
-                  Preparing your story...
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Cloning voice and rendering audio
-                </p>
-              </div>
-            )}
-            {playerState === "ready" && (
-              <div className="animate-in fade-in zoom-in-95">
-                <p className="text-lg font-bold text-brand-green">
-                  Ready to play
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Narrated by {selectedVoiceName}
-                </p>
-              </div>
-            )}
-            {playerState === "playing" && (
-              <p className="text-lg font-bold text-brand-coral animate-pulse">
-                Now playing
-              </p>
-            )}
-            {playerState === "paused" && (
-              <>
-                <p className="text-lg font-medium text-brand-charcoal dark:text-foreground">
-                  Paused
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Tap to resume
-                </p>
-              </>
-            )}
-            {!selectedVoice && voices.length > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Select a voice above to get started
-              </p>
-            )}
           </div>
 
-          {/* Error display */}
+          {/* Transport */}
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 24, marginTop: 32 }}>
+            <button onClick={() => handleSeek(-15)} style={{
+              background: "transparent", border: 0, color: "var(--paper-mute)", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /><text x="12" y="16" textAnchor="middle" fontSize="7" fill="currentColor" stroke="none">15</text></svg>
+            </button>
+            <button onClick={handlePlayPause} disabled={!selectedVoice} style={{
+              width: 72, height: 72, borderRadius: 99,
+              background: "var(--lamp)", color: "var(--ink-0)",
+              border: 0, cursor: !selectedVoice ? "not-allowed" : "pointer", fontSize: 22, fontWeight: 700,
+              boxShadow: "0 0 0 6px rgba(244,184,96,0.18), 0 20px 50px -10px rgba(244,184,96,0.5)",
+              opacity: !selectedVoice ? 0.5 : 1
+            }}>
+              {playerState === "playing" ? "❚❚" : "▸"}
+            </button>
+            <button onClick={() => handleSeek(15)} style={{
+              background: "transparent", border: 0, color: "var(--paper-mute)", cursor: "pointer",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" transform="scale(-1,1) translate(-24,0)"><path d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /></svg>
+            </button>
+          </div>
+
           {error && (
-            <div className="relative z-10 rounded-lg bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive max-w-sm animate-in shake">
+            <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(255,100,100,0.1)", border: "1px solid rgba(255,100,100,0.3)", borderRadius: 12, color: "var(--rose)", fontSize: 13, textAlign: "center" }}>
               {error}
             </div>
           )}
-        </div>
 
-        {/* Progress Bar & Controls - shown when audio is loaded */}
-        {(playerState === "playing" ||
-          playerState === "paused" ||
-          (playerState === "ready" && progress > 0)) && (
-          <div className="border-t bg-muted/10 px-6 py-5 space-y-4 animate-in slide-in-from-bottom-4">
-            {/* Progress bar */}
-            <div
-              className="group/progress relative h-2.5 rounded-full bg-muted cursor-pointer overflow-hidden"
-              onClick={handleSeek}
-            >
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-green to-brand-green/80 transition-all ease-linear"
-                style={{ width: `${progressPercent}%` }}
-              />
+          {/* Clone switcher */}
+          <div style={{ marginTop: 36 }}>
+            <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--paper-mute)", marginBottom: 12 }}>
+              Switch the narrator
             </div>
-
-            {/* Time + controls */}
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-medium text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-md">
-                {formatTime(progress)}
-              </span>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleRestart}
-                  className="rounded-full p-2.5 text-muted-foreground hover:text-brand-charcoal dark:hover:text-foreground hover:bg-white dark:hover:bg-card shadow-sm border border-transparent hover:border-border transition-all"
-                  aria-label="Restart"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={toggleMute}
-                  className="rounded-full p-2.5 text-muted-foreground hover:text-brand-charcoal dark:hover:text-foreground hover:bg-white dark:hover:bg-card shadow-sm border border-transparent hover:border-border transition-all"
-                  aria-label={muted ? "Unmute" : "Mute"}
-                >
-                  {muted ? (
-                    <VolumeX className="h-4 w-4 text-brand-coral" />
-                  ) : (
-                    <Volume2 className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-
-              <span className="text-xs font-medium text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-md">
-                {duration > 0 ? formatTime(duration) : "--:--"}
-              </span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+              {voices.map((v) => {
+                const isSelected = selectedVoice === v.id;
+                return (
+                  <button key={v.id}
+                    disabled={v.status !== "ready"}
+                    onClick={() => setSelectedVoice(v.id)}
+                    style={{
+                      background: isSelected ? "rgba(244,184,96,0.1)" : "var(--ink-2)",
+                      border: `1px solid ${isSelected ? "rgba(244,184,96,0.45)" : "var(--ink-3)"}`,
+                      borderRadius: 16, padding: 14,
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                      cursor: v.status === "ready" ? "pointer" : "not-allowed",
+                      color: "var(--paper)",
+                      opacity: v.status === "ready" ? 1 : 0.5,
+                    }}>
+                    <Avatar name={v.name} color={getVoiceColor(v.id)} size={38} />
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>{v.name.split(" ")[0]}</div>
+                    <div className="mono" style={{ fontSize: 9, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      {v.status === "ready" ? (v.relation || "Family") : "Training"}
+                    </div>
+                  </button>
+                );
+              })}
+              {voices.length === 0 && (
+                <div style={{ gridColumn: "1/-1", padding: 24, textAlign: "center", border: "1px dashed var(--ink-3)", borderRadius: 16, color: "var(--paper-mute)", fontSize: 13 }}>
+                  No voices ready. <Link href="/onboarding" style={{ color: "var(--lamp)", textDecoration: "none" }}>Add a voice →</Link>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

@@ -45,10 +45,12 @@ export function TabsNavigator() {
       />
       <Tab.Screen
         name="Voices"
-        component={VoicesScreen}
         options={{
+          tabBarLabel: "Clones",
           tabBarIcon: ({ color, size }) => <Mic color={color} size={size} />,
         }}
+        component={VoicesScreen}
+        
       />
       <Tab.Screen
         name="Profile"

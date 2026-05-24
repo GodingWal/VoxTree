@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
  * not contain a scheme (`https://...`).
  */
 function safeNext(raw: string | null): string {
-  const fallback = "/dashboard";
+  const fallback = "/";
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return fallback;
   if (raw.includes("://")) return fallback;
   return raw;

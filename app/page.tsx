@@ -1,298 +1,287 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BrandLogo } from "@/components/brand-logo";
-import { LandingDemo } from "@/components/landing-demo";
-import {
-  Sparkles,
-  Mic,
-  BookOpen,
-  ShieldCheck,
-  ArrowRight,
-  Smile,
-  CheckCircle2,
-  Video,
-  Heart
-} from "lucide-react";
+import { TwilightShell } from "@/components/twilight-layout";
+import { Avatar, Waveform, StoryArt, Section, TextLink } from "@/components/twilight-ui";
 
-export default async function Home() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+// Mock Data
+const CLONES = [
+  { id: "c1", name: "Grandma Rose", relation: "Grandmother", color: "#E8856C", status: "ready", stories: 83, lastUsed: "Tonight", recorded: "Sep 2017" },
+  { id: "c2", name: "Papa Theo", relation: "Grandfather", color: "#F4B860", status: "ready", stories: 41, lastUsed: "Tue", recorded: "Dec 2019" },
+  { id: "c3", name: "Mom", relation: "Mother", color: "#7FC4A4", status: "ready", stories: 12, lastUsed: "Last night", recorded: "Jan 2024" },
+  { id: "c4", name: "Aunt Sarah", relation: "Aunt", color: "#C58FB8", status: "training", stories: 0, lastUsed: "—", recorded: "Just now" },
+];
 
-  // If the user is logged in, redirect them to the dashboard
-  if (user) {
-    redirect("/dashboard");
-  }
+const STORIES = [
+  { id: "s1", series: "Goodnight Tales", ep: 14, title: "The Moon Who Forgot to Sleep", mins: 12, ages: "3-6", tone: "Calming", color: "#E8856C", art: "moon" },
+  { id: "s2", series: "Earth Songs", ep: 3, title: "What the Owl Said at Midnight", mins: 8, ages: "4-7", tone: "Curious", color: "#F4B860", art: "owl" },
+  { id: "s3", series: "Goodnight Tales", ep: 15, title: "The Quiet Color of Snow", mins: 15, ages: "3-6", tone: "Soothing", color: "#7FC4A4", art: "snow" },
+];
+
+export default function Home() {
+  const [playingDemo, setPlayingDemo] = useState(true);
+  const [cloneIdx, setCloneIdx] = useState(0);
 
   return (
-    <div className="min-h-screen flex flex-col bg-brand-cream dark:bg-background text-brand-charcoal dark:text-foreground">
-      {/* Navigation Header */}
-      <header className="border-b border-brand-sage/10 bg-white/80 dark:bg-card/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <BrandLogo />
-          
-          <nav className="hidden md:flex items-center gap-8">
-            <Link
-              href="/browse"
-              className="text-sm font-semibold text-muted-foreground hover:text-brand-green transition-colors"
-            >
-              Browse Stories
-            </Link>
-            <Link
-              href="/pricing"
-              className="text-sm font-semibold text-muted-foreground hover:text-brand-green transition-colors"
-            >
-              Pricing
-            </Link>
-          </nav>
-
-          <div className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-sm font-semibold text-muted-foreground hover:text-brand-green transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup"
-              className="text-sm font-bold bg-brand-green text-white px-4 py-2 rounded-lg hover:bg-brand-green/90 hover:shadow-md transition-all"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <main className="flex-1">
-        <section className="py-16 md:py-24 max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Hero Details */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-1.5 bg-brand-green/10 text-brand-green px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase">
-                <Sparkles className="h-3.5 w-3.5" />
-                Voice is Live &bull; Face is Coming Soon
-              </div>
-              <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-brand-charcoal dark:text-foreground leading-tight">
-                Bring <span className="text-brand-green">Family</span> to Life for Bedtime Stories.
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-                VoxTree securely clones the voice—and soon, the face—of grandparents or parents, allowing them to narrate and star in beautiful children's educational videos and bedtime stories. Keep family close, no matter the distance.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 pt-2">
-                <Link
-                  href="/signup"
-                  className="bg-brand-coral hover:bg-brand-coral/95 text-white font-bold px-8 py-4 rounded-xl shadow-lg hover:shadow-brand-coral/20 hover:-translate-y-0.5 transition-all text-center flex items-center justify-center gap-2 group"
-                >
-                  Create Free Account
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </Link>
-                <Link
-                  href="/browse"
-                  className="bg-white dark:bg-card border border-border hover:bg-muted font-bold px-8 py-4 rounded-xl transition-colors text-center text-brand-charcoal dark:text-foreground"
-                >
-                  Browse Stories
-                </Link>
-              </div>
-
-              {/* Trust Indicators */}
-              <div className="flex flex-wrap gap-x-6 gap-y-2 pt-6 text-sm font-semibold text-muted-foreground border-t border-brand-sage/10">
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4.5 w-4.5 text-brand-green" /> Free setup
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4.5 w-4.5 text-brand-green" /> Safe & encrypted
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4.5 w-4.5 text-brand-green" /> 100% private voice profiles
-                </span>
-              </div>
+    <TwilightShell>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
+        {/* Hero */}
+        <section style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: 64, alignItems: "center", marginBottom: 96 }} className="fadeUp">
+          <div>
+            <div className="mono" style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: "var(--lamp)", marginBottom: 32,
+            }}>
+              <span style={{ width: 18, height: 1, background: "var(--lamp)" }} />
+              8:47 pm · Bedtime in 13 minutes
             </div>
 
-            {/* Right Hero Demo Container */}
-            <div className="lg:col-span-5 flex justify-center">
-              <LandingDemo />
+            <h1 className="serif" style={{
+              fontSize: "clamp(48px, 7vw, 92px)",
+              lineHeight: 0.96, margin: 0,
+              letterSpacing: "-0.025em",
+            }}>
+              The clones that<br />
+              mean <span className="serif-italic" style={{ color: "var(--lamp)" }}>home</span>,
+              <br/>read on cue.
+            </h1>
+
+            <p style={{
+              marginTop: 28, maxWidth: 480,
+              fontSize: 17, lineHeight: 1.55,
+              color: "var(--paper-dim)",
+            }}>
+              Record a minute of Grandma. Then any bedtime story in our library
+              is read in her clone — warm, unhurried, exactly hers. Tonight,
+              and every night.
+            </p>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
+              <Link href="/browse" style={{
+                padding: "16px 26px",
+                background: "var(--lamp)", color: "var(--ink-0)", textDecoration: "none",
+                border: 0, borderRadius: 99,
+                fontSize: 15, fontWeight: 600, display: "inline-block",
+                boxShadow: "0 0 0 1px rgba(244,184,96,0.4), 0 12px 40px -8px rgba(244,184,96,0.55)",
+              }}>
+                ▸ &nbsp;Start story
+              </Link>
+              <Link href="/onboarding" style={{
+                padding: "16px 26px",
+                background: "transparent", color: "var(--paper)", textDecoration: "none",
+                border: "1px solid var(--ink-3)", display: "inline-block",
+                borderRadius: 99,
+                fontSize: 15, fontWeight: 500,
+              }}>
+                Add a clone
+              </Link>
+            </div>
+
+            <div style={{ marginTop: 56, display: "flex", gap: 32, color: "var(--paper-mute)", fontSize: 12 }}>
+              <Stat n="3" l="clones in your tree" />
+              <Stat n="83" l="stories read" />
+              <Stat n="41" l="hours of bedtime" />
             </div>
           </div>
+
+          {/* Right: live tree / lamp visual */}
+          <HeroLamp playing={playingDemo} onToggle={() => setPlayingDemo(p => !p)} cloneIdx={cloneIdx} setCloneIdx={setCloneIdx} />
         </section>
 
-        {/* Features Section */}
-        <section className="bg-white dark:bg-card/40 border-y border-brand-sage/10 py-20">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center max-w-xl mx-auto space-y-3 mb-16">
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-coral">
-                VoxTree Features
-              </span>
-              <h2 className="text-3xl md:text-4xl font-extrabold text-brand-charcoal dark:text-foreground">
-                Connecting Families Through Storytelling
-              </h2>
-              <p className="text-muted-foreground">
-                Everything you need to create custom, safe, and engaging audiobooks for your kids.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* Feature 1 */}
-              <div className="bg-brand-cream/30 dark:bg-muted/10 p-8 rounded-2xl border border-brand-sage/10 space-y-4 hover:shadow-md transition-all group">
-                <div className="h-12 w-12 rounded-xl bg-brand-green/10 text-brand-green flex items-center justify-center transition-transform group-hover:scale-110">
-                  <Mic className="h-6 w-6" />
-                </div>
-                <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                  Quick Voice Cloning
-                </h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Record or upload a 30-second audio clip of a family member. Our secure voice cloning model recreates their exact speech pattern, natural tone, and warm inflections instantly.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="bg-brand-cream/30 dark:bg-muted/10 p-8 rounded-2xl border border-brand-sage/10 space-y-4 hover:shadow-md transition-all group">
-                <div className="h-12 w-12 rounded-xl bg-brand-gold/10 text-brand-gold flex items-center justify-center transition-transform group-hover:scale-110">
-                  <Video className="h-6 w-6" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                    Face Cloning
+        {/* Continue */}
+        <Section eyebrow="Pick up where you stopped" title={<>Tonight, on the <span className="serif-italic">moon-side</span>.</>} action={<Link href="/browse" style={{ color: "var(--lamp-soft)", fontSize: 13, textDecoration: "none" }}>Browse the library →</Link>}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+            {STORIES.map(s => (
+              <Link key={s.id} href="/browse" style={{
+                textAlign: "left", display: "block", width: "100%", textDecoration: "none",
+                background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+                borderRadius: 20, overflow: "hidden", padding: 0
+              }}>
+                <StoryArt kind={s.art} color={s.color} height={170} />
+                <div style={{ padding: 18 }}>
+                  <div className="mono" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--paper-mute)", marginBottom: 8 }}>
+                    {s.series} · Ep {s.ep}
+                  </div>
+                  <h3 className="serif" style={{ fontSize: 22, margin: 0, lineHeight: 1.15, letterSpacing: "-0.01em", color: "var(--paper)" }}>
+                    {s.title}
                   </h3>
-                  <span className="text-[10px] uppercase tracking-wider font-bold bg-brand-gold/20 text-brand-gold px-2 py-1 rounded-md">
-                    Coming Soon
-                  </span>
+                  <div style={{ display: "flex", gap: 10, marginTop: 14, fontSize: 12, color: "var(--paper-dim)" }}>
+                    <Pill>{s.mins} min</Pill>
+                    <Pill>Ages {s.ages}</Pill>
+                    <Pill subtle>{s.tone}</Pill>
+                  </div>
                 </div>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Soon, you'll be able to upload a photo to generate a lifelike, expressive video avatar. Your kids won't just hear Grandma—they'll see her smiling and reading along with the story.
-                </p>
-              </div>
+              </Link>
+            ))}
+          </div>
+        </Section>
 
-              {/* Feature 3 */}
-              <div className="bg-brand-cream/30 dark:bg-muted/10 p-8 rounded-2xl border border-brand-sage/10 space-y-4 hover:shadow-md transition-all group">
-                <div className="h-12 w-12 rounded-xl bg-brand-coral/10 text-brand-coral flex items-center justify-center transition-transform group-hover:scale-110">
-                  <ShieldCheck className="h-6 w-6" />
+        {/* The Family Tree strip */}
+        <Section eyebrow="Your clone tree" title={<>Four <span className="serif-italic">familiar</span> clones, ready.</>} action={<Link href="/dashboard/clones" style={{ color: "var(--lamp-soft)", fontSize: 13, textDecoration: "none" }}>Manage clones →</Link>}>
+          <FamilyTreeStrip />
+        </Section>
+      </div>
+    </TwilightShell>
+  );
+}
+
+function Stat({ n, l }: { n: string, l: string }) {
+  return (
+    <div>
+      <div className="serif" style={{ fontSize: 32, lineHeight: 1, color: "var(--paper)" }}>{n}</div>
+      <div style={{ fontSize: 11, marginTop: 4, letterSpacing: "0.05em" }}>{l}</div>
+    </div>
+  );
+}
+
+function Pill({ children, subtle }: { children: React.ReactNode, subtle?: boolean }) {
+  return (
+    <span style={{
+      padding: "3px 10px", borderRadius: 99, fontSize: 11,
+      background: subtle ? "transparent" : "rgba(244,236,219,0.06)",
+      border: subtle ? "1px solid var(--ink-3)" : "1px solid transparent",
+      color: "var(--paper-dim)",
+    }}>{children}</span>
+  );
+}
+
+function HeroLamp({ playing, onToggle, cloneIdx, setCloneIdx }: { playing: boolean, onToggle: () => void, cloneIdx: number, setCloneIdx: (i: number) => void }) {
+  const clone = CLONES[cloneIdx % CLONES.length];
+  return (
+    <div style={{ position: "relative", aspectRatio: "1/1.05" }}>
+      <div style={{
+        position: "absolute", inset: -40,
+        background: "radial-gradient(circle at 50% 35%, rgba(244,184,96,0.32), transparent 55%)",
+        animation: playing ? "lampPulse 4s ease-in-out infinite" : "none",
+        pointerEvents: "none",
+      }} />
+
+      <div style={{
+        position: "absolute", inset: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <svg viewBox="0 0 320 320" width="100%" height="100%">
+          <defs>
+            <radialGradient id="lampG" cx="50%" cy="38%" r="60%">
+              <stop offset="0" stopColor="#F4B860" stopOpacity="0.45" />
+              <stop offset="1" stopColor="#F4B860" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <circle cx="160" cy="120" r="120" fill="url(#lampG)" />
+
+          {[110, 88, 66, 44, 22].map((r, i) => (
+            <path key={i}
+              d={`M${160 - r} 220 A${r} ${r} 0 0 1 ${160 + r} 220`}
+              stroke="#F4ECDB" strokeWidth={2 + i * 0.3}
+              opacity={playing ? 0.2 + i * 0.18 : 0.12 + i * 0.1}
+              fill="none" strokeLinecap="round"
+              style={{
+                transformOrigin: "160px 220px",
+                animation: playing ? `ripple-${i} ${3.2 + i * 0.4}s ease-in-out infinite` : "none",
+              }}
+            />
+          ))}
+
+          <circle cx="160" cy="60" r="6" fill="#F4ECDB" />
+          <path d="M154 220 Q156 250 158 285 L162 285 Q164 250 166 220 Z" fill="#F4ECDB" />
+          <path d="M120 285 L200 285" stroke="#F4ECDB" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
+
+          <style>{`
+            @keyframes ripple-0 { 50%{ opacity: 0.6; } }
+            @keyframes ripple-1 { 50%{ opacity: 0.7; } }
+            @keyframes ripple-2 { 50%{ opacity: 0.85; } }
+            @keyframes ripple-3 { 50%{ opacity: 1; } }
+            @keyframes ripple-4 { 50%{ opacity: 1; } }
+          `}</style>
+        </svg>
+      </div>
+
+      <div style={{
+        position: "absolute", left: "50%", bottom: 0, transform: "translateX(-50%)",
+        width: "min(380px, 90%)", background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+        borderRadius: 22, padding: 18, boxShadow: "0 24px 60px -16px rgba(0,0,0,0.6)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <Avatar name={clone.name} color={clone.color} size={44} ring />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="mono" style={{ fontSize: 10, letterSpacing: "0.1em", color: "var(--paper-mute)", textTransform: "uppercase" }}>
+              Now reading
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: "var(--paper)" }}>
+              {clone.name} <span style={{ color: "var(--paper-mute)", fontWeight: 400 }}>· The Moon Who Forgot to Sleep</span>
+            </div>
+          </div>
+          <button onClick={onToggle} style={{
+            width: 36, height: 36, borderRadius: 99, background: "var(--lamp)", color: "var(--ink-0)",
+            border: 0, cursor: "pointer", fontSize: 12, fontWeight: 700,
+          }}>
+            {playing ? "❚❚" : "▸"}
+          </button>
+        </div>
+        <Waveform playing={playing} count={42} height={28} color={clone.color} />
+        <div style={{ marginTop: 12, display: "flex", gap: 6 }}>
+          {CLONES.slice(0, 4).map((v, i) => (
+            <button key={v.id} onClick={() => setCloneIdx(i)}
+              style={{
+                flex: 1, padding: "6px 8px",
+                background: i === cloneIdx ? "rgba(244,184,96,0.14)" : "transparent",
+                border: `1px solid ${i === cloneIdx ? "rgba(244,184,96,0.35)" : "var(--ink-3)"}`,
+                borderRadius: 8, fontSize: 11, color: i === cloneIdx ? "var(--lamp-soft)" : "var(--paper-mute)",
+                cursor: "pointer", textAlign: "center",
+              }}>
+              {v.name.split(" ")[0]}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FamilyTreeStrip() {
+  return (
+    <div style={{
+      position: "relative", background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+      borderRadius: 24, padding: "40px 36px 36px", overflow: "hidden",
+    }}>
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+        <path d="M50% 30 L50% 70 L20% 70 L20% 130 M50% 70 L40% 70 L40% 130 M50% 70 L60% 70 L60% 130 M50% 70 L80% 70 L80% 130"
+              stroke="var(--ink-3)" strokeWidth="1" fill="none" />
+      </svg>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
+        <div className="mono" style={{
+          padding: "6px 14px", background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+          borderRadius: 99, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
+          color: "var(--paper-dim)",
+        }}>
+          The Khan Family · Est. 2017
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${CLONES.length}, 1fr)`, gap: 20 }}>
+        {CLONES.map(v => (
+          <div key={v.id} style={{
+            background: "var(--ink-2)", border: `1px solid ${v.status === "ready" ? "var(--ink-3)" : "rgba(244,184,96,0.3)"}`,
+            borderRadius: 18, padding: 18, position: "relative",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <Avatar name={v.name} color={v.color} size={42} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--paper)" }}>{v.name}</div>
+                <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 }}>
+                  {v.relation}
                 </div>
-                <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                  100% Private & Protected
-                </h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">
-                  Your family's voice and face profiles are completely private, encrypted, and only accessible to people you invite. We never share, sell, or reuse personal data.
-                </p>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* How It Works Section */}
-        <section className="py-20 max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-xl mx-auto space-y-3 mb-16">
-            <span className="text-xs font-bold uppercase tracking-wider text-brand-green">
-              Easy 3-Step Process
-            </span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-brand-charcoal dark:text-foreground">
-              How VoxTree Works
-            </h2>
-            <p className="text-muted-foreground">
-              Bring family reading sessions to life in under five minutes.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {/* Step 1 */}
-            <div className="text-center space-y-4 relative">
-              <div className="text-6xl md:text-8xl font-black text-brand-sage/20 select-none">
-                01
-              </div>
-              <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                Create a Clone Profile
-              </h3>
-              <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-                Grandma or Dad reads a short, simple paragraph on their phone to capture their voice (and soon, they can add a photo for face cloning!).
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="text-center space-y-4 relative">
-              <div className="text-6xl md:text-8xl font-black text-brand-sage/20 select-none">
-                02
-              </div>
-              <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                Pick a Story
-              </h3>
-              <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-                Select from our library of illustrated children's storybooks, fairy tales, or animated educational videos.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="text-center space-y-4 relative">
-              <div className="text-6xl md:text-8xl font-black text-brand-sage/20 select-none">
-                03
-              </div>
-              <h3 className="text-xl font-bold text-brand-charcoal dark:text-foreground">
-                Press Play & Enjoy
-              </h3>
-              <p className="text-muted-foreground text-sm max-w-xs mx-auto leading-relaxed">
-                Stream the storybook with visual animations, narrated instantly in their comforting family voice (and soon, their smiling face!).
-              </p>
+            <Waveform playing={false} count={20} height={20} color={v.color} />
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--paper-mute)" }}>
+              {v.status === "ready" ? <span>{v.stories} reads</span> : <span style={{ color: "var(--lamp)" }}>● Training…</span>}
+              <span>{v.lastUsed}</span>
             </div>
           </div>
-        </section>
-
-        {/* CTA Banner Section */}
-        <section className="max-w-5xl mx-auto px-6 mb-24">
-          <div className="bg-gradient-to-br from-brand-green to-emerald-900 text-white rounded-3xl p-10 md:p-16 text-center shadow-xl relative overflow-hidden">
-            {/* Subtle background abstract shapes */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.1),transparent_50%)]" />
-            <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-white/5 rounded-full blur-xl" />
-            
-            <div className="relative z-10 space-y-6 max-w-2xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-extrabold leading-tight">
-                Keep the Bedtime Story Tradition Alive
-              </h2>
-              <p className="text-emerald-100 max-w-xl mx-auto text-sm md:text-base leading-relaxed">
-                Help your kids fall asleep with their favorite stories read in the comforting voice of Grandma, Grandpa, or Mom — even if they are miles away.
-              </p>
-              
-              <div className="pt-4">
-                <Link
-                  href="/signup"
-                  className="bg-white hover:bg-emerald-50 text-brand-green hover:shadow-lg font-bold px-8 py-4 rounded-xl shadow-md transition-all inline-flex items-center gap-2"
-                >
-                  Start Reading for Free
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-brand-sage/10 bg-white/50 dark:bg-card/50 py-12">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="space-y-1">
-            <BrandLogo />
-            <p className="text-xs text-muted-foreground font-semibold">
-              Hear Grandma read, anytime. Bedtime made cozy.
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-6 text-xs font-semibold text-muted-foreground">
-            <Link href="/privacy" className="hover:text-brand-green transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="hover:text-brand-green transition-colors">
-              Terms of Service
-            </Link>
-            <Link href="/contact" className="hover:text-brand-green transition-colors">
-              Contact Support
-            </Link>
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-6 mt-8 text-center text-[10px] font-medium text-muted-foreground/60">
-          © {new Date().getFullYear()} VoxTree. All rights reserved. Voice cloning technologies are protected and subject to user consent requirements.
-        </div>
-      </footer>
+        ))}
+      </div>
     </div>
   );
 }

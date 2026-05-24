@@ -147,7 +147,7 @@ export function DashboardScreen({ navigation: tabNav }: Props) {
                 fontWeight: typography.weights.semibold,
               }}
             >
-              Voice profile limit reached
+              Clone profile limit reached
             </Text>
             <Text
               style={{ color: palette.mutedForeground, fontSize: typography.sizes.sm }}
@@ -234,7 +234,7 @@ export function DashboardScreen({ navigation: tabNav }: Props) {
         ) : (
           <EmptyState
             icon={<Mic size={22} color={brand.green + "AA"} />}
-            title="No voices yet"
+            title="No clones yet"
             description="Add a family member's voice to get started."
             action={
               <Button

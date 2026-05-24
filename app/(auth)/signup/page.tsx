@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TwilightShell } from "@/components/twilight-layout";
+import { Section } from "@/components/twilight-ui";
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -32,86 +34,100 @@ export default function SignUpPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/onboarding");
+      router.push("/");
       router.refresh();
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-brand-green">VoxTree</h1>
-          <p className="text-muted-foreground">Create your account</p>
-        </div>
+    <TwilightShell>
+      <div style={{ maxWidth: 440, margin: "64px auto", padding: "0 24px" }}>
+        <Section title="Create your account">
+          <form onSubmit={handleSignUp} style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label htmlFor="name" className="mono" style={{ fontSize: 11, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={{
+                  background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+                  borderRadius: 12, padding: "12px 16px", color: "var(--paper)",
+                  outline: "none", fontSize: 15
+                }}
+                placeholder="Your name"
+              />
+            </div>
 
-        <form onSubmit={handleSignUp} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">
-              Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="Your name"
-            />
-          </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label htmlFor="email" className="mono" style={{ fontSize: 11, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                style={{
+                  background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+                  borderRadius: 12, padding: "12px 16px", color: "var(--paper)",
+                  outline: "none", fontSize: 15
+                }}
+                placeholder="you@example.com"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="you@example.com"
-            />
-          </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label htmlFor="password" className="mono" style={{ fontSize: 11, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                style={{
+                  background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+                  borderRadius: 12, padding: "12px 16px", color: "var(--paper)",
+                  outline: "none", fontSize: 15
+                }}
+                placeholder="••••••••"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="••••••••"
-            />
-          </div>
+            {error && (
+              <p style={{ color: "var(--rose)", fontSize: 13, background: "rgba(255,100,100,0.1)", padding: 12, borderRadius: 8 }}>{error}</p>
+            )}
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                background: "var(--lamp)", color: "var(--ink-0)",
+                border: "none", borderRadius: 12, padding: "12px 16px",
+                fontSize: 15, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1, marginTop: 8
+              }}
+            >
+              {loading ? "Creating account..." : "Sign up"}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
-          >
-            {loading ? "Creating account..." : "Sign up"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/login" className="text-primary underline-offset-4 hover:underline">
-            Sign in
-          </Link>
-        </p>
+          <p style={{ textAlign: "center", marginTop: 32, fontSize: 14, color: "var(--paper-dim)" }}>
+            Already have an account?{" "}
+            <Link href="/login" style={{ color: "var(--lamp)", textDecoration: "none" }}>
+              Sign in
+            </Link>
+          </p>
+        </Section>
       </div>
-    </div>
+    </TwilightShell>
   );
 }

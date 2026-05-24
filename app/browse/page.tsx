@@ -1,11 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft, BookOpen, Play, Clock, Sparkles } from "lucide-react";
-import { DarkModeToggle } from "@/components/dark-mode-toggle";
-import { BrandLogo } from "@/components/brand-logo";
+import { TwilightShell } from "@/components/twilight-layout";
+import { StoryArt, Section, TextLink } from "@/components/twilight-ui";
 
-// Define the type for our content
 type ContentItem = {
   id: string;
   title: string;
@@ -16,7 +13,26 @@ type ContentItem = {
   age_range: string | null;
   tags: string[];
   is_premium: boolean;
+  content_type: string;
 };
+
+// Map content type/tags to an art kind
+function getArtKind(c: ContentItem) {
+  if (c.title.toLowerCase().includes("moon")) return "moon";
+  if (c.title.toLowerCase().includes("owl")) return "owl";
+  if (c.title.toLowerCase().includes("snow")) return "snow";
+  if (c.title.toLowerCase().includes("earth")) return "forest";
+  if (c.title.toLowerCase().includes("river")) return "river";
+  if (c.title.toLowerCase().includes("star")) return "stars";
+  if (c.title.toLowerCase().includes("cloud")) return "cloud";
+  return "lantern";
+}
+
+function getColor(c: ContentItem) {
+  const hash = c.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8", "#A3A7C9"];
+  return colors[hash % colors.length];
+}
 
 export default async function BrowsePage() {
   const supabase = createClient();
@@ -28,168 +44,109 @@ export default async function BrowsePage() {
 
   const content = (rawContent ?? []) as ContentItem[];
 
-  // Group content for Netflix-style rows
-  // 1. By Series
-  const seriesContent = content.filter((c) => c.series !== null);
-  const seriesGroups = seriesContent.reduce((acc, curr) => {
-    const s = curr.series!;
-    if (!acc[s]) acc[s] = [];
-    acc[s].push(curr);
-    return acc;
-  }, {} as Record<string, ContentItem[]>);
-
-  // 2. Standalone Stories (no series)
-  const standaloneContent = content.filter((c) => !c.series);
-
-  // 3. New Arrivals (top 5 newest)
-  const newArrivals = [...content].slice(0, 5);
-
   return (
-    <div className="min-h-screen bg-brand-cream/40 dark:bg-background">
-      <header className="border-b bg-white/80 dark:bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </Link>
-            <div className="h-5 w-px bg-border hidden sm:block" />
-            <BrandLogo href="/dashboard" hideTextOnMobile />
+    <TwilightShell>
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
+        <div className="fadeUp" style={{ marginBottom: 40 }}>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp)", marginBottom: 12 }}>
+            The Library
           </div>
-          <DarkModeToggle />
-        </div>
-      </header>
-
-      <main className="py-8 sm:py-12 space-y-12">
-        <div className="container space-y-2 text-center sm:text-left animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h1 className="text-3xl font-bold text-brand-charcoal dark:text-foreground">
-            Library
+          <h1 className="serif" style={{ fontSize: "clamp(40px, 5vw, 64px)", margin: 0, letterSpacing: "-0.02em", maxWidth: 900 }}>
+            {content.length} stories,<br/>
+            <span className="serif-italic" style={{ color: "var(--lamp)" }}>narrated by the people who love them most.</span>
           </h1>
-          <p className="text-muted-foreground max-w-lg">
-            Pick a story and hear it narrated in your family&apos;s voice.
-          </p>
         </div>
 
-        {content.length === 0 ? (
-          <div className="container animate-in fade-in duration-700 delay-150">
-            <div className="rounded-2xl border bg-white/50 dark:bg-card/50 p-12 text-center flex flex-col items-center justify-center">
-              <div className="mx-auto w-16 h-16 rounded-full bg-brand-sage/20 flex items-center justify-center mb-4">
-                <BookOpen className="h-8 w-8 text-brand-green/50" />
-              </div>
-              <p className="text-lg font-semibold text-brand-charcoal dark:text-foreground">
-                Library is expanding
-              </p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                New personalized stories and educational content are being added right now. Check back soon!
-              </p>
-            </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 32, alignItems: "center" }}>
+          {["All stories", "Goodnight Tales", "Earth Songs", "Under 10 min"].map((lbl, i) => (
+            <button key={i} style={{
+              padding: "9px 16px",
+              background: i === 0 ? "var(--paper)" : "transparent",
+              color: i === 0 ? "var(--ink-0)" : "var(--paper-dim)",
+              border: `1px solid ${i === 0 ? "var(--paper)" : "var(--ink-3)"}`,
+              borderRadius: 99, fontSize: 13, fontWeight: 500, cursor: "pointer",
+            }}>{lbl}</button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <div className="mono" style={{ fontSize: 11, color: "var(--paper-mute)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Ready to read
           </div>
-        ) : (
-          <div className="space-y-10 pb-20">
-            {/* Row 1: New Arrivals */}
-            {newArrivals.length > 0 && (
-              <ContentRow title="New Arrivals" icon={<Sparkles className="h-5 w-5 text-brand-gold" />} items={newArrivals} />
-            )}
+        </div>
 
-            {/* Row 2: Standalone Stories */}
-            {standaloneContent.length > 0 && (
-              <ContentRow title="Short Stories" items={standaloneContent} />
-            )}
-
-            {/* Series Rows */}
-            {Object.entries(seriesGroups).map(([seriesName, items]) => (
-              <ContentRow key={seriesName} title={seriesName} items={items} />
-            ))}
-          </div>
+        {content.length > 0 && (
+          <FeaturedRow story={content[0]} />
         )}
-      </main>
-    </div>
-  );
-}
 
-// Component for the horizontal carousel
-function ContentRow({ title, items, icon }: { title: string, items: ContentItem[], icon?: React.ReactNode }) {
-  return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="container flex items-center gap-2">
-        {icon}
-        <h2 className="text-xl font-bold text-brand-charcoal dark:text-foreground">{title}</h2>
-      </div>
-      
-      {/* Horizontal Scroller */}
-      <div className="w-full overflow-x-auto pb-4 pt-2 px-4 sm:px-8 hide-scrollbar snap-x snap-mandatory">
-        <div className="flex gap-4 sm:gap-6 w-max">
-          {items.map((item) => (
-            <Link
-              key={item.id}
-              href={`/watch/${item.id}`}
-              className="group relative w-[280px] sm:w-[320px] shrink-0 snap-start rounded-2xl bg-white dark:bg-card border overflow-hidden shadow-sm hover:shadow-xl hover:shadow-brand-green/10 hover:ring-2 hover:ring-brand-green/50 transition-all duration-300 hover:-translate-y-2 z-0 hover:z-10"
-            >
-              {/* Thumbnail */}
-              <div className="aspect-[16/10] bg-gradient-to-br from-brand-sage/30 to-brand-green/10 relative overflow-hidden">
-                {item.thumbnail_url ? (
-                  <Image
-                    src={item.thumbnail_url}
-                    alt={item.title}
-                    fill
-                    className="object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <BookOpen className="h-12 w-12 text-brand-green/25" />
-                  </div>
-                )}
-
-                {/* Animated Pulsing Overlay simulating a live preview on hover */}
-                <div className="absolute inset-0 bg-brand-charcoal/0 group-hover:bg-brand-charcoal/20 transition-colors duration-500 flex items-center justify-center">
-                  <div className="h-16 w-16 rounded-full bg-white/95 dark:bg-white flex items-center justify-center shadow-2xl opacity-0 group-hover:opacity-100 scale-50 group-hover:scale-100 transition-all duration-300 ease-out">
-                    <Play className="h-7 w-7 text-brand-green ml-1" />
-                  </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 20, marginTop: 40 }}>
+          {content.slice(1).map(s => (
+            <Link key={s.id} href={`/watch/${s.id}`} style={{
+              textAlign: "left", display: "block", width: "100%", textDecoration: "none",
+              background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+              borderRadius: 20, overflow: "hidden", padding: 0,
+              transition: "transform .25s ease, border-color .2s",
+            }}>
+              <StoryArt kind={getArtKind(s)} color={getColor(s)} height={170} />
+              <div style={{ padding: 18 }}>
+                <div className="mono" style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--paper-mute)", marginBottom: 8 }}>
+                  {s.series || "Standalone"} {s.episode_number ? `· Ep ${s.episode_number}` : ""}
                 </div>
-
-                {/* Badges */}
-                <div className="absolute top-3 right-3 flex gap-2">
-                  {item.is_premium && (
-                    <span className="rounded-full bg-brand-gold px-2.5 py-0.5 text-xs font-bold text-white shadow-sm">
+                <h3 className="serif" style={{ fontSize: 22, margin: 0, lineHeight: 1.15, letterSpacing: "-0.01em", color: "var(--paper)" }}>
+                  {s.title}
+                </h3>
+                <div style={{ display: "flex", gap: 10, marginTop: 14, fontSize: 12, color: "var(--paper-dim)" }}>
+                  <span style={{ padding: "3px 10px", borderRadius: 99, background: "rgba(244,236,219,0.06)", border: "1px solid transparent", color: "var(--paper-dim)" }}>
+                    {s.duration_seconds ? Math.ceil(s.duration_seconds / 60) : 10} min
+                  </span>
+                  {s.age_range && (
+                    <span style={{ padding: "3px 10px", borderRadius: 99, background: "rgba(244,236,219,0.06)", border: "1px solid transparent", color: "var(--paper-dim)" }}>
+                      Ages {s.age_range}
+                    </span>
+                  )}
+                  {s.is_premium && (
+                    <span style={{ padding: "3px 10px", borderRadius: 99, background: "transparent", border: "1px solid var(--ink-3)", color: "var(--paper-dim)" }}>
                       Premium
                     </span>
-                  )}
-                </div>
-
-                {item.duration_seconds && (
-                  <div className="absolute bottom-3 right-3 rounded-md bg-black/70 backdrop-blur-sm px-2 py-1 text-xs text-white font-medium flex items-center gap-1.5 opacity-100 group-hover:opacity-0 transition-opacity">
-                    <Clock className="h-3 w-3" />
-                    {Math.ceil(item.duration_seconds / 60)} min
-                  </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="p-4 space-y-1.5 relative bg-white dark:bg-card">
-                <h3 className="font-semibold text-brand-charcoal dark:text-foreground group-hover:text-brand-green transition-colors truncate">
-                  {item.title}
-                </h3>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {item.episode_number != null && (
-                    <span className="font-medium text-brand-coral">
-                      Episode {item.episode_number}
-                    </span>
-                  )}
-                  {item.age_range && (
-                    <>
-                      {item.episode_number != null && <span>•</span>}
-                      <span className="inline-flex items-center rounded-full bg-brand-sage/20 px-2 py-0.5 text-xs font-medium text-brand-green">
-                        Ages {item.age_range}
-                      </span>
-                    </>
                   )}
                 </div>
               </div>
             </Link>
           ))}
+        </div>
+      </div>
+    </TwilightShell>
+  );
+}
+
+function FeaturedRow({ story }: { story: ContentItem }) {
+  if (!story) return null;
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "1.1fr 1fr",
+      background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+      borderRadius: 28, overflow: "hidden", minHeight: 360,
+    }}>
+      <div style={{ position: "relative" }}>
+        <StoryArt kind={getArtKind(story)} color={getColor(story)} height="100%" />
+      </div>
+      <div style={{ padding: "44px 44px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp)", marginBottom: 14 }}>
+          Featured
+        </div>
+        <h2 className="serif" style={{ fontSize: 44, lineHeight: 1.05, margin: 0, letterSpacing: "-0.02em", color: "var(--paper)" }}>
+          {story.title}
+        </h2>
+        <p style={{ marginTop: 16, color: "var(--paper-dim)", lineHeight: 1.6, maxWidth: 460, fontSize: 15 }}>
+          A drowsy moon refuses to set, and the children of the village must coax it gently back to sleep with old lullabies — the kind only grandmothers remember.
+        </p>
+        <div style={{ display: "flex", gap: 12, marginTop: 28, alignItems: "center" }}>
+          <Link href={`/watch/${story.id}`} style={{
+            padding: "14px 22px", background: "var(--lamp)", color: "var(--ink-0)",
+            border: 0, borderRadius: 99, fontWeight: 600, fontSize: 14, cursor: "pointer", textDecoration: "none"
+          }}>▸ &nbsp; Read now</Link>
+          <button style={{
+            padding: "14px 22px", background: "transparent", color: "var(--paper)",
+            border: "1px solid var(--ink-3)", borderRadius: 99, fontSize: 14, cursor: "pointer",
+          }}>Save for later</button>
         </div>
       </div>
     </div>

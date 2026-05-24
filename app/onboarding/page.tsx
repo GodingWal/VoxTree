@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lightbulb, Loader2, CheckCircle2, Mic, StopCircle, ArrowRight, Upload } from "lucide-react";
+import { TwilightShell } from "@/components/twilight-layout";
 
 type Step = 1 | 2 | 3;
 
@@ -36,31 +37,31 @@ const SCRIPT_CARDS = [
   {
     emotion: "Calm Narrator",
     text: "Once upon a time, in a quiet little forest...",
-    color: "bg-brand-sage/20 text-brand-green",
+    color: "rgba(127,196,164,0.1)", textColor: "var(--lamp)",
     emoji: "📖",
   },
   {
     emotion: "Excited",
     text: "...a tiny bunny discovered a giant, shiny, magical carrot!",
-    color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    color: "rgba(244,184,96,0.1)", textColor: "var(--lamp)",
     emoji: "✨",
   },
   {
     emotion: "Whispering",
     text: "He had to be very, very quiet, so the sleeping bear wouldn't wake up.",
-    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    color: "rgba(163,167,201,0.1)", textColor: "var(--lamp)",
     emoji: "🤫",
   },
   {
     emotion: "Surprised",
     text: "But then—SNAP! A loud branch broke right behind him!",
-    color: "bg-brand-coral/20 text-brand-coral",
+    color: "rgba(232,133,108,0.1)", textColor: "var(--rose)",
     emoji: "😲",
   },
   {
     emotion: "Grumpy",
     text: "'Who wakes me from my slumber?!' grumbled the bear.",
-    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    color: "rgba(197,143,184,0.1)", textColor: "var(--lamp)",
     emoji: "😠",
   },
 ];
@@ -85,7 +86,6 @@ export default function OnboardingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // Rotate tips when processing
   useEffect(() => {
     if (step === 3 && status === "processing") {
       const interval = setInterval(() => {
@@ -95,7 +95,6 @@ export default function OnboardingPage() {
     }
   }, [step, status]);
 
-  // Cleanup media recorder on unmount
   useEffect(() => {
     return () => {
       if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -127,8 +126,6 @@ export default function OnboardingPage() {
         const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
         const newFile = new File([audioBlob], "teleprompter_recording.webm", { type: "audio/webm" });
         setFile(newFile);
-        
-        // Stop all tracks to turn off microphone indicator
         stream.getTracks().forEach((track) => track.stop());
       };
 
@@ -226,39 +223,40 @@ export default function OnboardingPage() {
   const currentCard = SCRIPT_CARDS[currentCardIndex];
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-brand-cream/30 dark:bg-background py-12">
-      <div className="w-full max-w-lg space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* Progress indicator */}
-        <div className="flex items-center justify-center gap-2">
+    <TwilightShell>
+      <div style={{ maxWidth: 540, margin: "64px auto", padding: "0 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 32 }}>
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className={`h-2.5 w-16 rounded-full transition-colors duration-500 ${
-                s <= step ? "bg-brand-green" : "bg-muted"
-              }`}
+              style={{
+                height: 6, width: 48, borderRadius: 99,
+                background: s <= step ? "var(--lamp)" : "var(--ink-2)",
+                transition: "background 0.5s ease"
+              }}
             />
           ))}
         </div>
 
-        {/* Step 1: Name */}
         {step === 1 && (
-          <div className="space-y-6 text-center bg-white dark:bg-card p-8 sm:p-10 rounded-3xl shadow-xl border">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                Who will be reading to your kids?
-              </h1>
-              <p className="text-muted-foreground">
-                Enter the name of the family member whose voice you&apos;d like
-                to clone.
-              </p>
-            </div>
+          <div className="fadeUp" style={{ background: "var(--ink-1)", padding: 48, borderRadius: 24, border: "1px solid var(--ink-3)", textAlign: "center" }}>
+            <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>
+              Who will be reading to your kids?
+            </h1>
+            <p style={{ color: "var(--paper-dim)", marginTop: 12, marginBottom: 32, fontSize: 15 }}>
+              Enter the name of the family member whose voice you&apos;d like to clone.
+            </p>
 
             <input
               type="text"
               value={voiceName}
               onChange={(e) => setVoiceName(e.target.value)}
               placeholder='e.g. "Grandma Sue"'
-              className="flex h-14 w-full rounded-xl border border-input bg-background px-4 py-2 text-lg ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+              style={{
+                width: "100%", padding: "16px 20px", fontSize: 18, borderRadius: 16,
+                background: "var(--ink-2)", border: "1px solid var(--ink-3)",
+                color: "var(--paper)", outline: "none", marginBottom: 24
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && voiceName.trim()) {
                   handleStep1();
@@ -266,30 +264,15 @@ export default function OnboardingPage() {
               }}
             />
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p style={{ color: "var(--rose)", fontSize: 13, marginBottom: 16 }}>{error}</p>}
 
-            {/* Voice limit upsell modal */}
             {upgradePrompt && (
-              <div className="rounded-xl border border-brand-gold/30 bg-gradient-to-r from-brand-gold/10 via-brand-gold/5 to-transparent p-5 space-y-4 text-left">
-                <div className="space-y-1">
-                  <p className="font-semibold text-brand-charcoal dark:text-foreground">
-                    Clone limit reached
-                  </p>
-                  <p className="text-sm text-muted-foreground">{upgradePrompt}</p>
-                </div>
-                <div className="flex gap-3">
-                  <Link
-                    href="/pricing"
-                    className="flex-1 inline-flex h-10 items-center justify-center rounded-lg bg-brand-gold px-4 text-sm font-medium text-white hover:bg-brand-gold/90 transition-colors"
-                  >
-                    Upgrade Plan
-                  </Link>
-                  <button
-                    onClick={() => setUpgradePrompt(null)}
-                    className="flex-1 inline-flex h-10 items-center justify-center rounded-lg border border-input bg-background px-4 text-sm font-medium hover:bg-accent transition-colors"
-                  >
-                    Dismiss
-                  </button>
+              <div style={{ background: "rgba(244,184,96,0.1)", border: "1px solid rgba(244,184,96,0.3)", borderRadius: 16, padding: 20, textAlign: "left", marginBottom: 24 }}>
+                <p style={{ fontWeight: 600, color: "var(--paper)", margin: 0 }}>Clone limit reached</p>
+                <p style={{ fontSize: 14, color: "var(--paper-dim)", marginTop: 4 }}>{upgradePrompt}</p>
+                <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+                  <Link href="/pricing" style={{ flex: 1, padding: 12, background: "var(--lamp)", color: "var(--ink-0)", textAlign: "center", borderRadius: 12, textDecoration: "none", fontWeight: 600, fontSize: 14 }}>Upgrade Plan</Link>
+                  <button onClick={() => setUpgradePrompt(null)} style={{ flex: 1, padding: 12, background: "transparent", color: "var(--paper)", border: "1px solid var(--ink-3)", borderRadius: 12, fontWeight: 500, fontSize: 14, cursor: "pointer" }}>Dismiss</button>
                 </div>
               </div>
             )}
@@ -298,7 +281,12 @@ export default function OnboardingPage() {
               <button
                 onClick={handleStep1}
                 disabled={!voiceName.trim()}
-                className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-brand-green px-4 py-2 text-base font-semibold text-white hover:bg-brand-green/90 transition-all disabled:pointer-events-none disabled:opacity-50 hover:shadow-lg hover:-translate-y-0.5"
+                style={{
+                  width: "100%", padding: 16, borderRadius: 16, border: 0,
+                  background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600,
+                  cursor: !voiceName.trim() ? "not-allowed" : "pointer",
+                  opacity: !voiceName.trim() ? 0.5 : 1
+                }}
               >
                 Continue
               </button>
@@ -306,280 +294,186 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 2: Upload or Teleprompter */}
         {step === 2 && (
-          <div className="space-y-6 text-center bg-white dark:bg-card p-8 sm:p-10 rounded-3xl shadow-xl border relative overflow-hidden transition-all duration-500">
+          <div className="fadeUp" style={{ background: "var(--ink-1)", padding: 48, borderRadius: 24, border: "1px solid var(--ink-3)", textAlign: "center" }}>
             {useTeleprompter ? (
-              // --- TELEPROMPTER UI ---
-              <div className="space-y-8">
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 {recordingStatus === "idle" && (
-                  <div className="space-y-6 animate-in fade-in zoom-in-95">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-brand-sage/20 flex items-center justify-center">
-                      <Mic className="h-8 w-8 text-brand-green" />
+                  <>
+                    <div style={{ width: 64, height: 64, borderRadius: 99, background: "rgba(244,184,96,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      <Mic size={32} color="var(--lamp)" />
                     </div>
-                    <div className="space-y-2">
-                      <h1 className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                        Capture {voiceName}&apos;s Emotion
-                      </h1>
-                      <p className="text-muted-foreground">
+                    <div>
+                      <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Capture {voiceName}&apos;s Emotion</h1>
+                      <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
                         To build the perfect storyteller voice, we need to capture your emotional range. We&apos;ll guide you through a short 5-part script.
                       </p>
                     </div>
-                    <button
-                      onClick={startRecording}
-                      className="w-full inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-brand-coral px-4 py-2 text-base font-semibold text-white hover:bg-brand-coral/90 transition-all shadow-lg shadow-brand-coral/20 hover:-translate-y-0.5"
-                    >
-                      <Mic className="h-5 w-5" />
-                      Start Teleprompter
+                    <button onClick={startRecording} style={{ width: "100%", padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                      <Mic size={20} /> Start Teleprompter
                     </button>
-                  </div>
+                  </>
                 )}
 
                 {recordingStatus === "recording" && (
-                  <div className="space-y-6">
-                    {/* Live Indicator */}
-                    <div className="flex items-center justify-between px-2">
-                      <div className="flex items-center gap-2 text-brand-coral font-semibold">
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand-coral animate-pulse" />
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px" }}>
+                      <div className="mono" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--rose)", fontSize: 12, fontWeight: 600, letterSpacing: "0.1em" }}>
+                        <div style={{ width: 10, height: 10, borderRadius: 99, background: "var(--rose)", animation: "lampPulse 1.5s infinite" }} />
                         RECORDING
                       </div>
-                      <div className="text-sm font-medium text-muted-foreground">
+                      <div className="mono" style={{ fontSize: 12, color: "var(--paper-mute)", letterSpacing: "0.1em" }}>
                         Card {currentCardIndex + 1} of {SCRIPT_CARDS.length}
                       </div>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div 
-                        className="h-full bg-brand-green transition-all duration-500" 
-                        style={{ width: `${((currentCardIndex) / SCRIPT_CARDS.length) * 100}%` }}
-                      />
+                    <div style={{ height: 6, borderRadius: 99, background: "var(--ink-2)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", background: "var(--lamp)", width: `${((currentCardIndex) / SCRIPT_CARDS.length) * 100}%`, transition: "width 0.5s ease" }} />
                     </div>
 
-                    {/* Emotion Card */}
-                    <div key={currentCardIndex} className="animate-in slide-in-from-right-8 fade-in duration-300">
-                      <div className={`p-8 rounded-2xl border text-left shadow-inner ${currentCard.color} bg-opacity-10 transition-colors duration-500`}>
-                        <div className="flex items-center gap-2 mb-4">
-                          <span className="text-2xl">{currentCard.emoji}</span>
-                          <span className="font-bold uppercase tracking-wider text-sm opacity-90">Read as: {currentCard.emotion}</span>
-                        </div>
-                        <p className="text-2xl font-medium leading-relaxed">
-                          &quot;{currentCard.text}&quot;
-                        </p>
+                    <div style={{ padding: 32, borderRadius: 20, background: currentCard.color, textAlign: "left", border: "1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                        <span style={{ fontSize: 24 }}>{currentCard.emoji}</span>
+                        <span className="mono" style={{ fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: currentCard.textColor, fontWeight: 600 }}>Read as: {currentCard.emotion}</span>
                       </div>
+                      <p className="serif" style={{ fontSize: 28, margin: 0, lineHeight: 1.4, color: "var(--paper)" }}>
+                        &quot;{currentCard.text}&quot;
+                      </p>
                     </div>
 
-                    <button
-                      onClick={nextCard}
-                      className="w-full inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-brand-green px-4 py-2 text-base font-semibold text-white hover:bg-brand-green/90 transition-all shadow-lg shadow-brand-green/20"
-                    >
+                    <button onClick={nextCard} style={{ width: "100%", padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                       {currentCardIndex < SCRIPT_CARDS.length - 1 ? (
-                        <>Next Line <ArrowRight className="h-5 w-5" /></>
+                        <>Next Line <ArrowRight size={20} /></>
                       ) : (
-                        <>Finish Recording <StopCircle className="h-5 w-5" /></>
+                        <>Finish Recording <StopCircle size={20} /></>
                       )}
                     </button>
-                  </div>
+                  </>
                 )}
 
                 {recordingStatus === "finished" && (
-                  <div className="space-y-6 animate-in fade-in zoom-in-95">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-brand-green/20 flex items-center justify-center text-brand-green">
-                      <CheckCircle2 className="h-8 w-8" />
+                  <>
+                    <div style={{ width: 64, height: 64, borderRadius: 99, background: "rgba(127,196,164,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto" }}>
+                      <CheckCircle2 size={32} color="var(--paper)" />
                     </div>
-                    <div className="space-y-2">
-                      <h1 className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                        Beautifully done!
-                      </h1>
-                      <p className="text-muted-foreground">
+                    <div>
+                      <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Beautifully done!</h1>
+                      <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
                         We captured incredible dynamic range for {voiceName}. Ready to create the clone?
                       </p>
                     </div>
 
-                    {error && <p className="text-sm text-destructive">{error}</p>}
+                    {error && <p style={{ color: "var(--rose)", fontSize: 13 }}>{error}</p>}
 
-                    <div className="space-y-3">
-                      <button
-                        onClick={handleStep2}
-                        disabled={submitting}
-                        className="w-full inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-brand-green px-4 py-2 text-base font-semibold text-white hover:bg-brand-green/90 transition-all shadow-lg shadow-brand-green/20 disabled:opacity-50"
-                      >
-                        {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <button onClick={handleStep2} disabled={submitting} style={{ width: "100%", padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                        {submitting && <Loader2 size={20} className="animate-spin" />}
                         {submitting ? "Uploading Voice..." : "Create Voice Clone"}
                       </button>
-                      <button
-                        onClick={resetRecording}
-                        disabled={submitting}
-                        className="w-full inline-flex h-12 items-center justify-center rounded-xl border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
-                      >
+                      <button onClick={resetRecording} disabled={submitting} style={{ width: "100%", padding: 16, borderRadius: 16, border: "1px solid var(--ink-3)", background: "transparent", color: "var(--paper)", fontSize: 16, fontWeight: 500, cursor: submitting ? "not-allowed" : "pointer" }}>
                         Retake Recording
                       </button>
                     </div>
-                  </div>
+                  </>
                 )}
 
-                {/* Toggle to Standard Upload */}
                 {recordingStatus === "idle" && (
-                  <button 
-                    onClick={() => {
-                      setUseTeleprompter(false);
-                      setError(null);
-                    }}
-                    className="text-sm text-muted-foreground hover:text-brand-green transition-colors mt-4 inline-flex items-center gap-1.5"
-                  >
-                    <Upload className="h-3.5 w-3.5" /> Prefer to upload an existing file?
+                  <button onClick={() => { setUseTeleprompter(false); setError(null); }} style={{ background: "none", border: 0, color: "var(--paper-mute)", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 16 }}>
+                    <Upload size={16} /> Prefer to upload an existing file?
                   </button>
                 )}
               </div>
             ) : (
-              // --- STANDARD FILE UPLOAD UI ---
-              <div className="space-y-6 animate-in fade-in zoom-in-95">
-                <div className="space-y-2">
-                  <h1 className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                    Upload a voice sample
-                  </h1>
-                  <p className="text-muted-foreground">
-                    Upload a 30-60 second audio recording of {voiceName} speaking
-                    naturally. 
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                <div>
+                  <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Upload a voice sample</h1>
+                  <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
+                    Upload a 30-60 second audio recording of {voiceName} speaking naturally. 
                   </p>
                 </div>
 
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="cursor-pointer rounded-2xl border-2 border-dashed border-brand-sage p-8 transition-colors hover:border-brand-green bg-brand-sage/5 hover:bg-brand-sage/10 group relative overflow-hidden"
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="audio/*"
-                    className="hidden"
-                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  />
+                <div onClick={() => fileInputRef.current?.click()} style={{ border: "2px dashed var(--ink-3)", borderRadius: 20, padding: 40, cursor: "pointer", background: "var(--ink-2)", transition: "border-color 0.2s" }}>
+                  <input ref={fileInputRef} type="file" accept="audio/*" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                   {file ? (
-                    <div className="space-y-1 relative z-10">
-                      <div className="w-12 h-12 rounded-full bg-brand-green/20 text-brand-green flex items-center justify-center mx-auto mb-3">
-                        <CheckCircle2 className="h-6 w-6" />
+                    <div>
+                      <div style={{ width: 48, height: 48, borderRadius: 99, background: "rgba(127,196,164,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                        <CheckCircle2 size={24} color="var(--paper)" />
                       </div>
-                      <p className="font-medium text-brand-charcoal dark:text-foreground">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {(file.size / (1024 * 1024)).toFixed(1)} MB
-                      </p>
+                      <p style={{ fontWeight: 500, color: "var(--paper)", margin: 0 }}>{file.name}</p>
+                      <p style={{ fontSize: 13, color: "var(--paper-mute)", marginTop: 4 }}>{(file.size / (1024 * 1024)).toFixed(1)} MB</p>
                     </div>
                   ) : (
-                    <div className="space-y-2 relative z-10">
-                      <div className="w-12 h-12 rounded-full bg-white dark:bg-card shadow-sm flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                        <Lightbulb className="h-5 w-5 text-brand-green" />
+                    <div>
+                      <div style={{ width: 48, height: 48, borderRadius: 99, background: "rgba(244,184,96,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                        <Lightbulb size={24} color="var(--lamp)" />
                       </div>
-                      <p className="font-semibold text-brand-charcoal dark:text-foreground">Click to upload audio</p>
-                      <p className="text-sm text-muted-foreground">
-                        MP3, WAV, or M4A — max 10MB
-                      </p>
+                      <p style={{ fontWeight: 600, color: "var(--paper)", margin: 0 }}>Click to upload audio</p>
+                      <p style={{ fontSize: 13, color: "var(--paper-mute)", marginTop: 4 }}>MP3, WAV, or M4A — max 10MB</p>
                     </div>
                   )}
                 </div>
 
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                {error && <p style={{ color: "var(--rose)", fontSize: 13 }}>{error}</p>}
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={() => setStep(1)}
-                    className="inline-flex h-12 items-center justify-center rounded-xl border bg-background px-6 py-2 text-sm font-medium hover:bg-muted transition-colors"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleStep2}
-                    disabled={!file || submitting}
-                    className="flex-1 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-brand-green px-4 py-2 text-base font-semibold text-white hover:bg-brand-green/90 transition-all disabled:pointer-events-none disabled:opacity-50 hover:shadow-lg hover:-translate-y-0.5"
-                  >
-                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                <div style={{ display: "flex", gap: 12 }}>
+                  <button onClick={() => setStep(1)} style={{ padding: 16, borderRadius: 16, border: "1px solid var(--ink-3)", background: "transparent", color: "var(--paper)", fontSize: 16, fontWeight: 500, cursor: "pointer", width: 100 }}>Back</button>
+                  <button onClick={handleStep2} disabled={!file || submitting} style={{ flex: 1, padding: 16, borderRadius: 16, border: 0, background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600, cursor: !file || submitting ? "not-allowed" : "pointer", opacity: !file || submitting ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    {submitting && <Loader2 size={20} className="animate-spin" />}
                     {submitting ? "Uploading…" : "Upload & Process"}
                   </button>
                 </div>
 
-                <button 
-                  onClick={() => {
-                    setUseTeleprompter(true);
-                    setFile(null);
-                    setError(null);
-                  }}
-                  className="text-sm text-muted-foreground hover:text-brand-green transition-colors mt-2 inline-flex items-center gap-1.5"
-                >
-                  <Mic className="h-3.5 w-3.5" /> Try the interactive Teleprompter instead
+                <button onClick={() => { setUseTeleprompter(true); setFile(null); setError(null); }} style={{ background: "none", border: 0, color: "var(--paper-mute)", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 }}>
+                  <Mic size={16} /> Try the interactive Teleprompter instead
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* Step 3: Processing */}
         {step === 3 && (
-          <div className="space-y-8 text-center bg-white dark:bg-card p-8 sm:p-10 rounded-3xl shadow-xl border overflow-hidden relative">
-            {status === "processing" && (
-              <div className="absolute inset-0 bg-gradient-to-br from-brand-gold/10 via-white to-brand-green/10 dark:from-brand-gold/5 dark:via-background dark:to-brand-green/5 animate-pulse" style={{ animationDuration: '3s' }} />
-            )}
-            
-            <div className="relative z-10 space-y-4">
-              {status === "processing" ? (
-                <div className="mx-auto w-16 h-16 rounded-full bg-brand-gold/20 flex items-center justify-center mb-6">
-                  <Loader2 className="h-8 w-8 text-brand-gold animate-spin" />
-                </div>
-              ) : status === "ready" ? (
-                <div className="mx-auto w-16 h-16 rounded-full bg-brand-green/20 flex items-center justify-center mb-6 animate-in zoom-in-50">
-                  <CheckCircle2 className="h-8 w-8 text-brand-green" />
-                </div>
-              ) : null}
-
-              <div className="space-y-2">
-                <h1 className="text-2xl font-bold text-brand-charcoal dark:text-foreground">
-                  {status === "ready"
-                    ? "Clone Complete!"
-                    : status === "failed"
-                      ? "Something went wrong"
-                      : `Cloning ${voiceName}...`}
-                </h1>
-                <p className="text-muted-foreground text-sm">
-                  {status === "ready"
-                    ? `Heading to your clones library...`
-                    : status === "failed"
-                      ? "Voice cloning failed. Please try again with a different audio sample."
-                      : `Our AI is learning ${voiceName}'s unique tone and cadence.`}
-                </p>
+          <div className="fadeUp" style={{ background: "var(--ink-1)", padding: 48, borderRadius: 24, border: "1px solid var(--ink-3)", textAlign: "center", position: "relative", overflow: "hidden" }}>
+            {status === "processing" ? (
+              <div style={{ width: 64, height: 64, borderRadius: 99, background: "rgba(244,184,96,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+                <Loader2 size={32} color="var(--lamp)" className="animate-spin" />
               </div>
+            ) : status === "ready" ? (
+              <div style={{ width: 64, height: 64, borderRadius: 99, background: "rgba(127,196,164,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}>
+                <CheckCircle2 size={32} color="var(--paper)" />
+              </div>
+            ) : null}
 
-              {status === "processing" && (
-                <div className="pt-8">
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden relative">
-                    <div className="absolute inset-y-0 left-0 bg-brand-gold w-full origin-left animate-[progress_2s_ease-in-out_infinite]" />
-                  </div>
-                  
-                  {/* Rotating Gamified Tips */}
-                  <div className="mt-8 p-4 rounded-xl bg-brand-sage/10 border border-brand-sage/20 min-h-[100px] flex items-center justify-center">
-                    <p 
-                      key={tipIndex} 
-                      className="text-sm font-medium text-brand-charcoal dark:text-foreground animate-in fade-in zoom-in-95 duration-500 text-center"
-                    >
-                      {TIPS[tipIndex]}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {status === "failed" && (
-                <button
-                  onClick={() => {
-                    setStep(2);
-                    resetRecording();
-                  }}
-                  className="mt-6 inline-flex h-12 items-center justify-center rounded-xl border border-input bg-background px-8 py-2 text-sm font-medium hover:bg-accent transition-colors"
-                >
-                  Try again
-                </button>
-              )}
+            <div>
+              <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>
+                {status === "ready" ? "Clone Complete!" : status === "failed" ? "Something went wrong" : `Cloning ${voiceName}...`}
+              </h1>
+              <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
+                {status === "ready" ? `Heading to your clones library...` : status === "failed" ? "Voice cloning failed. Please try again with a different audio sample." : `Our AI is learning ${voiceName}'s unique tone and cadence.`}
+              </p>
             </div>
+
+            {status === "processing" && (
+              <div style={{ marginTop: 32 }}>
+                <div style={{ height: 6, width: "100%", borderRadius: 99, background: "var(--ink-2)", overflow: "hidden", position: "relative" }}>
+                  <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: "50%", background: "var(--lamp)", animation: "progress 2s ease-in-out infinite" }} />
+                </div>
+                
+                <div style={{ marginTop: 32, padding: 24, borderRadius: 16, background: "var(--ink-2)", border: "1px solid var(--ink-3)", minHeight: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <p key={tipIndex} style={{ margin: 0, fontSize: 14, color: "var(--paper)", lineHeight: 1.5, animation: "fadeUp 0.5s ease-out" }}>
+                    {TIPS[tipIndex]}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {status === "failed" && (
+              <button onClick={() => { setStep(2); resetRecording(); }} style={{ marginTop: 24, padding: "12px 32px", borderRadius: 12, border: "1px solid var(--ink-3)", background: "transparent", color: "var(--paper)", fontSize: 15, fontWeight: 500, cursor: "pointer" }}>
+                Try again
+              </button>
+            )}
           </div>
         )}
       </div>
-    </div>
+    </TwilightShell>
   );
 }

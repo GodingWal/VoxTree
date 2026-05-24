@@ -71,6 +71,10 @@ export function AddContentButton() {
       age_range: (formData.get("age_range") as string) || null,
       tags: tags,
       is_premium: formData.get("is_premium") === "on",
+      content_mode: 'tts',
+      text_script: null,
+      isolated_vocals_url: null,
+      instrumental_url: null,
     };
 
     const result = await addContent(data);

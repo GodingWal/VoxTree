@@ -1,6 +1,6 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { checkLimit } from "@/lib/limits";
-import { getPresignedUploadUrl, S3_PATHS } from "@/lib/aws";
+import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -95,11 +95,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Generate presigned upload URL — the client must PUT with the same
   // Content-Type, so accept the client's content type when provided.
-  const s3Key = S3_PATHS.voiceSample(user.id, voice.id);
+  const gcpKey = GCP_PATHS.voiceSample(user.id, voice.id);
   const contentType = parsed.data.contentType ?? "audio/mpeg";
-  const uploadUrl = await getPresignedUploadUrl(s3Key, contentType);
+  const uploadUrl = await getPresignedUploadUrl(gcpKey, contentType);
 
   // Increment voice slots used
   await supabase.rpc("increment_voice_slots", { user_id: user.id });
@@ -107,6 +106,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     voiceId: voice.id,
     uploadUrl,
-    s3Key,
+    gcpKey,
   });
 }
