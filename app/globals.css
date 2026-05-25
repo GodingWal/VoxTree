@@ -161,3 +161,20 @@ body[data-starfield="on"]::after {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+.hover-lamp {
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+.hover-lamp:hover {
+  color: var(--lamp) !important;
+}
+
+/* Story card play overlay on hover */
+.story-card-play-overlay {
+  opacity: 0 !important;
+  transition: opacity 0.2s ease !important;
+}
+*:hover > .story-card-play-overlay,
+*:hover > div > .story-card-play-overlay {
+  opacity: 1 !important;
+}
