@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
+import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -111,12 +112,61 @@ export async function POST(
 
       // Pixar avatar generation (non-blocking, updates DB when complete)
       try {
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-        await fetch(`${siteUrl}/api/avatar/generate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voiceId: params.id, imageUrl: publicImageUrl }),
-        });
+        if (replicate) {
+          // Read face frame and convert to base64 data URI for Replicate
+          const frameData = await fs.readFile(jpgPath);
+          const dataUri = `data:image/jpeg;base64,${frameData.toString("base64")}`;
+
+          const output = await replicate.run(
+            "fofr/face-to-many:a07f252abbbd832009640b27f7a90d0a6b9e4f68f129b3571f3fa75a6b04f5c1",
+            {
+              input: {
+                image: dataUri,
+                style: "3d",
+                prompt: "A Pixar 3D animated character, Disney Pixar movie style, smooth rounded features, big expressive eyes, warm soft studio lighting, high quality 3D render, friendly welcoming expression, subtle smile, clean solid dark background, cinematic character portrait, same person same face same features",
+                negative_prompt: "realistic, photograph, ugly, deformed, noisy, blurry, low quality, text, watermark, nsfw, scary, horror, different person, wrong face",
+                lora_scale: 0.9,
+                prompt_strength: 4.5,
+                denoising_strength: 0.65,
+                instant_id_strength: 0.8,
+                control_depth_strength: 0.8,
+              },
+            }
+          ) as any;
+
+          // Extract output URL
+          let outputUrl: string;
+          if (Array.isArray(output)) outputUrl = String(output[0]);
+          else if (typeof output === "string") outputUrl = output;
+          else outputUrl = String(output);
+
+          if (outputUrl && outputUrl !== "undefined" && outputUrl !== "[object Object]") {
+            // Download and save the Pixar avatar
+            const pixarRes = await fetch(outputUrl);
+            if (pixarRes.ok) {
+              const pixarBuffer = Buffer.from(await pixarRes.arrayBuffer());
+              const pixarFilename = `pixar_avatar_${params.id}.png`;
+              const pixarPath = path.join(tempDir, pixarFilename);
+              await fs.writeFile(pixarPath, pixarBuffer);
+
+              const pixarUrl = `/uploads/${pixarFilename}`;
+              await admin
+                .from("family_voices")
+                .update({
+                  avatar_url: pixarUrl,
+                  idle_video_url: pixarUrl,
+                  talking_video_url: pixarUrl,
+                })
+                .eq("id", params.id);
+
+              // Update user profile avatar too
+              await admin
+                .from("users")
+                .update({ avatar_url: pixarUrl })
+                .eq("id", user.id);
+            }
+          }
+        }
       } catch (err) {
         console.error("Pixar avatar generation failed (non-fatal):", err);
         // Keep the raw captured frame as fallback
