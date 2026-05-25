@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
 
 // Decorative story "art"
@@ -198,11 +199,12 @@ export function TextLink({ children, onClick, href }: { children: React.ReactNod
 export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
   const router = useRouter();
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const ready = clone.status === "ready";
 
-  const handlePlaySample = (e: React.MouseEvent) => {
+  const handlePlaySample = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -213,19 +215,56 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
       return;
     }
 
-    const audioUrl = `/api/voices/download?voiceId=${clone.id}`;
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
-    
-    audio.play().then(() => {
-      setPlaying(true);
-    }).catch(err => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/voices/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId: clone.id }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to generate voice sample");
+      }
+
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.simulated) {
+          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled)");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      
+      audio.onplay = () => {
+        setPlaying(true);
+        setLoading(false);
+      };
+      
+      audio.onended = () => {
+        setPlaying(false);
+        URL.revokeObjectURL(url);
+      };
+
+      audio.onerror = () => {
+        setPlaying(false);
+        setLoading(false);
+        URL.revokeObjectURL(url);
+      };
+
+      await audio.play();
+    } catch (err) {
       console.error("Failed to play voice sample:", err);
+      alert("Error playing sample voice. Please try again.");
       setPlaying(false);
-    });
-    
-    audio.onended = () => setPlaying(false);
-    audio.onerror = () => setPlaying(false);
+      setLoading(false);
+    }
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -268,14 +307,29 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button 
               onClick={handlePlaySample}
+              disabled={loading}
               style={{
                 flex: 1, padding: "9px 12px",
                 background: "rgba(244,184,96,0.12)", color: "var(--lamp-soft)",
                 border: "1px solid rgba(244,184,96,0.35)", borderRadius: 99,
                 fontSize: 12, cursor: "pointer", fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                opacity: loading ? 0.7 : 1,
               }}
             >
-              {playing ? "■ Stop sample" : "▸ Hear sample"}
+              {loading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Generating...
+                </>
+              ) : playing ? (
+                "■ Stop sample"
+              ) : (
+                "▸ Hear sample"
+              )}
             </button>
             <button style={{
               padding: "9px 12px",
