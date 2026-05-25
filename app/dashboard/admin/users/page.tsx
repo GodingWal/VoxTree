@@ -78,7 +78,7 @@ export default async function AdminUsersPage() {
                     </div>
                   </td>
                   <td style={{ padding: "16px 24px", textAlign: "right" }}>
-                    <UserActions userId={u.id} userEmail={u.email} />
+                    <UserActions user={u} />
                   </td>
                 </tr>
               ))}
