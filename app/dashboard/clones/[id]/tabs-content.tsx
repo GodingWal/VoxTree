@@ -2,13 +2,14 @@
 
 import React, { useState, useRef } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Mic, Music, User as UserIcon, Activity, Sparkles, Camera, Play, Square, Loader2 } from "lucide-react";
+import { Mic, Music, User as UserIcon, Activity, Sparkles, Camera, Play, Square, Loader2, ArrowLeft } from "lucide-react";
 import { TrainSingingButton } from "@/components/train-singing-button";
 import { DeleteCloneButton } from "@/components/delete-clone-button";
 import { TestVoiceButton } from "@/components/test-voice-button";
 import { Avatar, Waveform, Pill } from "@/components/twilight-ui";
 import { VisualCloneCapture } from "@/components/visual-clone-capture";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface CloneDetailsTabsProps {
   voice: any;
@@ -113,6 +114,47 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
 
   return (
     <>
+      {/* Back navigation */}
+      <Link href="/dashboard/clones" className="inline-flex items-center gap-2 text-sm text-[var(--paper-dim)] hover:text-white transition-colors mb-2">
+        <ArrowLeft className="h-4 w-4" />
+        Back to Clone Tree
+      </Link>
+
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-[var(--ink-3)] pb-8 mb-6 mt-4">
+        <div className="flex items-center gap-6">
+          {avatarUrl ? (
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: 99,
+              border: "3px solid #f4b860",
+              overflow: "hidden",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+            }} className="flex-shrink-0">
+              <img src="/mock_avatar.png" alt={voice.name} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <Avatar name={voice.name} color={cloneColor} size={80} ring />
+          )}
+          <div>
+            <h1 className="text-5xl font-serif text-[var(--paper)] tracking-tight">
+              {voice.name}
+            </h1>
+            <div className="flex items-center gap-3 mt-3">
+              <Pill>Family Clone Model</Pill>
+              <span className="text-sm text-[var(--paper-dim)] flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-[var(--moss)]"></div>
+                Connected
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="w-32 md:w-48 opacity-60">
+          <Waveform playing={isTalking} count={24} color={cloneColor} height={40} />
+        </div>
+      </div>
+
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-8">
         <Tabs.List className="flex shrink-0 gap-2 overflow-x-auto pb-2 scrollbar-hide">
           <Tabs.Trigger
