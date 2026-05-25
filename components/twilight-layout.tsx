@@ -49,16 +49,12 @@ function TopBar() {
               setAvatarUrl(profile.avatar_url);
             } else {
               const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
-              if (simulated) {
-                setAvatarUrl(simulated);
-              }
+              setAvatarUrl(simulated || "/mock_avatar.png");
             }
           } catch (err) {
             console.warn("Failed to fetch user avatar in TopBar", err);
             const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
-            if (simulated) {
-              setAvatarUrl(simulated);
-            }
+            setAvatarUrl(simulated || "/mock_avatar.png");
           }
         };
         fetchAvatar();
