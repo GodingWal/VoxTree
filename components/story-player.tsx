@@ -405,7 +405,7 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
               })}
               {voices.length === 0 && (
                 <div style={{ gridColumn: "1/-1", padding: 24, textAlign: "center", border: "1px dashed var(--ink-3)", borderRadius: 16, color: "var(--paper-mute)", fontSize: 13 }}>
-                  No voices ready. <Link href="/onboarding" style={{ color: "var(--lamp)", textDecoration: "none" }}>Add a voice →</Link>
+                  No clones ready. <Link href="/onboarding" style={{ color: "var(--lamp)", textDecoration: "none" }}>Add a clone →</Link>
                 </div>
               )}
             </div>
