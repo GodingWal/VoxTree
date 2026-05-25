@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Camera } from 'lucide-react';
 
 
 // Decorative story "art"
@@ -201,6 +201,17 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(clone.avatar_url || null);
+
+  useEffect(() => {
+    if (!clone.avatar_url) {
+      const simulated = localStorage.getItem(`sim_avatar_${clone.id}`);
+      if (simulated) {
+        setAvatarUrl(simulated);
+      }
+    }
+  }, [clone.avatar_url, clone.id]);
 
   const ready = clone.status === "ready";
 
@@ -231,8 +242,10 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (data.simulated) {
-          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled)");
+          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled, speaking simulated for 3 seconds)");
           setLoading(false);
+          setPlaying(true);
+          setTimeout(() => setPlaying(false), 3000);
           return;
         }
       }
@@ -281,74 +294,229 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
     <div 
       onClick={handleCardClick}
       style={{
-        background: "var(--ink-2)",
-        border: `1px solid ${ready ? "var(--ink-3)" : "rgba(244,184,96,0.35)"}`,
-        borderRadius: 20, padding: 22,
+        background: "#161b33",
+        border: "1px solid rgba(244, 236, 219, 0.05)",
+        borderRadius: 24,
+        padding: 24,
         position: "relative",
         cursor: href ? "pointer" : "default",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
       }}
+      className="group"
     >
-      <Avatar name={clone.name} color={clone.color} size={56} ring />
-      <div style={{ marginTop: 16 }}>
-        <div className="serif" style={{ fontSize: 24, lineHeight: 1.1 }}>{clone.name}</div>
-        <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 6 }}>
-          {clone.relation || 'Relative'} · added {clone.recorded || 'Recently'}
+      {/* 3D Viewport Box with Breathing/Talking CSS Animation */}
+      <div 
+        style={{
+          width: "100%",
+          aspectRatio: "4/5",
+          background: "#0a0e1f",
+          borderRadius: 20,
+          overflow: "hidden",
+          position: "relative",
+          border: "1px solid rgba(244, 236, 219, 0.03)",
+        }}
+      >
+        <img 
+          src={avatarUrl ? "/mock_pixar_character.png" : "/mock_avatar.png"} 
+          alt={clone.name} 
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transformOrigin: "bottom center",
+            animation: playing 
+              ? "characterTalk 0.5s ease-in-out infinite alternate" 
+              : "characterBreathe 4s ease-in-out infinite",
+            opacity: avatarUrl ? 1 : 0.45,
+            filter: avatarUrl ? "none" : "grayscale(30%)",
+          }}
+        />
+
+        {/* Dynamic Gradient rim-light overlay on talk */}
+        {playing && (
+          <div 
+            className="absolute inset-0 pointer-events-none" 
+            style={{
+              boxShadow: "inset 0 0 20px rgba(244,184,96,0.25)",
+              background: "radial-gradient(circle, transparent 60%, rgba(244,184,96,0.1) 100%)"
+            }}
+          />
+        )}
+
+        {/* Active Waveform Overlay when talking */}
+        {playing && (
+          <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg p-2 border border-white/10 flex items-center justify-center gap-2">
+            <div className="flex items-center gap-1 h-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="w-0.5 bg-[var(--lamp)] rounded-full animate-[barWave_0.5s_ease-in-out_infinite_alternate]"
+                  style={{
+                    height: "100%",
+                    animationDelay: `${i * 0.08}s`
+                  }}
+                />
+              ))}
+            </div>
+            <span className="mono" style={{ fontSize: 8, color: "var(--paper-dim)", letterSpacing: "0.05em" }}>TALKING</span>
+          </div>
+        )}
+
+        {/* If no avatarUrl, show an overlay indicator to Add Visual Clone */}
+        {!avatarUrl && (
+          <div 
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(10, 14, 31, 0.6)",
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <Camera size={24} style={{ color: "var(--lamp-soft)", marginBottom: 8 }} />
+            <span className="mono" style={{ fontSize: 10, color: "var(--paper-dim)", letterSpacing: "0.05em" }}>NO VISUAL CLONE</span>
+          </div>
+        )}
+      </div>
+
+      {/* Meta Specs */}
+      <div>
+        <h3 className="serif" style={{ fontSize: 24, color: "var(--paper)", margin: 0, letterSpacing: "-0.01em", fontWeight: "bold" }}>
+          {clone.name}
+        </h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+          <span className="mono" style={{ fontSize: 9, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+            {clone.relation || 'Relative'}
+          </span>
+          <span style={{ color: "var(--paper-mute)", fontSize: 9 }}>•</span>
+          <span className="mono" style={{ fontSize: 9, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 600 }}>
+            Cloned
+          </span>
+          <span style={{ color: "var(--paper-mute)", fontSize: 9 }}>•</span>
+          {clone.status === "failed" ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: "#E8856C", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }} className="mono">
+              <span style={{ width: 5, height: 5, borderRadius: 99, background: "#E8856C" }} />
+              Failed
+            </span>
+          ) : clone.status === "processing" ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: "#F4B860", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }} className="mono">
+              <span style={{ width: 5, height: 5, borderRadius: 99, background: "#F4B860" }} className="animate-pulse" />
+              Processing
+            </span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, color: "#7FC4A4", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em" }} className="mono">
+              <span style={{ width: 5, height: 5, borderRadius: 99, background: "#7FC4A4" }} />
+              Active
+            </span>
+          )}
         </div>
       </div>
-      <div style={{ margin: "18px 0" }}>
-        <Waveform playing={playing} count={28} height={28} color={clone.color} />
-      </div>
-      {ready ? (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--paper-dim)" }}>
-            <span>{clone.stories || 0} reads</span>
-            <span>{clone.lastUsed || 'Never'}</span>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button 
-              onClick={handlePlaySample}
-              disabled={loading}
-              style={{
-                flex: 1, padding: "9px 12px",
-                background: "rgba(244,184,96,0.12)", color: "var(--lamp-soft)",
-                border: "1px solid rgba(244,184,96,0.35)", borderRadius: 99,
-                fontSize: 12, cursor: "pointer", fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                opacity: loading ? 0.7 : 1,
-              }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Generating...
-                </>
-              ) : playing ? (
-                "■ Stop sample"
-              ) : (
-                "▸ Hear sample"
-              )}
-            </button>
-            <button style={{
-              padding: "9px 12px",
-              background: "transparent", color: "var(--paper-dim)",
-              border: "1px solid var(--ink-3)", borderRadius: 99,
-              fontSize: 12, cursor: "pointer",
-            }}>⋯</button>
-          </div>
-        </>
+
+      {/* Play Button */}
+      {clone.status === "failed" ? (
+        <button 
+          disabled
+          style={{
+            width: "100%",
+            padding: "14px",
+            background: "rgba(232, 133, 108, 0.08)",
+            color: "#E8856C",
+            border: "1px solid rgba(232, 133, 108, 0.2)",
+            borderRadius: 16,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "not-allowed",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          ⚠️ Creation Failed
+        </button>
+      ) : clone.status === "processing" ? (
+        <button 
+          disabled
+          style={{
+            width: "100%",
+            padding: "14px",
+            background: "rgba(244, 184, 96, 0.08)",
+            color: "#F4B860",
+            border: "1px solid rgba(244, 184, 96, 0.2)",
+            borderRadius: 16,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "not-allowed",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Generating Clone...
+        </button>
       ) : (
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--lamp)", marginBottom: 8 }}>
-            <span>● Training</span><span>Processing...</span>
-          </div>
-          <div style={{ height: 4, background: "var(--ink-1)", borderRadius: 99, overflow: "hidden" }}>
-            <div style={{ width: "62%", height: "100%", background: "var(--lamp)" }} />
-          </div>
-        </div>
+        <button 
+          onClick={handlePlaySample}
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "14px",
+            background: "#f4b860",
+            color: "#0a0e1f",
+            border: "none",
+            borderRadius: 16,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            transition: "transform 0.15s ease, opacity 0.15s ease",
+          }}
+          className="hover:opacity-90 active:scale-95"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
+            </>
+          ) : playing ? (
+            "■ Stop Sample"
+          ) : (
+            <>
+              <span style={{ fontSize: 10 }}>▶</span> Hear Sample
+            </>
+          )}
+        </button>
       )}
+
+      {/* Breathing and talking CSS animations */}
+      <style jsx global>{`
+        @keyframes characterBreathe {
+          0% { transform: scale(1.0); }
+          50% { transform: scale(1.018) translateY(-1px); }
+          100% { transform: scale(1.0); }
+        }
+        @keyframes characterTalk {
+          0% { transform: scale(1.0) rotate(0deg); }
+          25% { transform: scale(1.015) rotate(0.3deg) translateY(-2px); }
+          75% { transform: scale(1.025) rotate(-0.3deg) translateY(-1px); }
+          100% { transform: scale(1.0) rotate(0deg); }
+        }
+        @keyframes barWave {
+          0% { height: 15%; }
+          100% { height: 100%; }
+        }
+      `}</style>
     </div>
   );
 }

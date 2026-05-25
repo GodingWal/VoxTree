@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 function TopBar() {
   const pathname = usePathname();
   const [initials, setInitials] = React.useState("U");
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
   const [session, setSession] = React.useState<any>(null);
   const supabase = createClient();
 
@@ -35,6 +36,32 @@ function TopBar() {
         const email = data.session.user.email || "";
         const name = data.session.user.user_metadata?.full_name || email.split("@")[0] || "User";
         setInitials(name.substring(0, 2).toUpperCase());
+
+        // Fetch avatar_url from public.users table
+        const fetchAvatar = async () => {
+          try {
+            const { data: profile } = await supabase
+              .from("users")
+              .select("avatar_url")
+              .eq("id", data.session.user.id)
+              .single();
+            if (profile?.avatar_url) {
+              setAvatarUrl(profile.avatar_url);
+            } else {
+              const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
+              if (simulated) {
+                setAvatarUrl(simulated);
+              }
+            }
+          } catch (err) {
+            console.warn("Failed to fetch user avatar in TopBar", err);
+            const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
+            if (simulated) {
+              setAvatarUrl(simulated);
+            }
+          }
+        };
+        fetchAvatar();
       }
     });
   }, []);
@@ -102,13 +129,34 @@ function TopBar() {
                 Connected
               </button>
               <Link href="/dashboard/settings" style={{
-                width: 36, height: 36, borderRadius: 99,
-                background: "linear-gradient(135deg, var(--rose), var(--lamp))",
-                border: 0, color: "var(--ink-0)", fontWeight: 600,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                textDecoration: "none", fontSize: 13,
+                width: 36,
+                height: 36,
+                borderRadius: 99,
+                border: "2px solid #e29578",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+                fontSize: 13,
+                overflow: "hidden",
+                boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15)",
               }}>
-                {initials}
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{
+                    width: "100%",
+                    height: "100%",
+                    background: "linear-gradient(135deg, var(--rose), var(--lamp))",
+                    color: "var(--ink-0)",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}>
+                    {initials}
+                  </div>
+                )}
               </Link>
               <Link href="/dashboard/admin" style={{
                 padding: "8px 14px",
