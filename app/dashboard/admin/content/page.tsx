@@ -97,7 +97,7 @@ export default async function AdminContentPage() {
                     </div>
                   </td>
                   <td style={{ padding: "16px 24px", textAlign: "right" }}>
-                    <ContentActions contentId={c.id} />
+                    <ContentActions content={c} />
                   </td>
                 </tr>
               ))}

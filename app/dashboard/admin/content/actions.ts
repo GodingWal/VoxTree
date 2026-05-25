@@ -58,3 +58,31 @@ export async function deleteContent(id: string) {
   revalidatePath("/browse");
   return { success: true };
 }
+
+export async function updateContent(id: string, data: Partial<Omit<ContentItem, "id" | "created_at">>) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !(await isAdmin(user.email))) {
+    return { error: "Unauthorized" };
+  }
+
+  const adminClient = createAdminClient();
+
+  const { error } = await adminClient
+    .from("content_library")
+    .update(data)
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error updating content:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/admin/content");
+  revalidatePath("/browse");
+  return { success: true };
+}
+
