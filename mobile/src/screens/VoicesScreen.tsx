@@ -96,7 +96,7 @@ export function VoicesScreen(_props: Props) {
   );
 
   return (
-    <Screen refreshing={refreshing} onRefresh={load} noPaddingX>
+    <Screen refreshing={refreshing} onRefresh={load} padded={false}>
       <View style={{ paddingHorizontal: spacing.md }}>
         <View
           style={{
