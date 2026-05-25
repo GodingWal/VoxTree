@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
+import { TwilightShell } from "@/components/twilight-layout";
 
 type BillingPeriod = "monthly" | "annual";
 
@@ -12,8 +14,8 @@ const plans = [
     annualPrice: "$0",
     period: "forever",
     features: [
-      "1 voice profile",
-      "2 videos",
+      "1 voice & visual profile",
+      "2 story clips",
       "4 stories",
       "No time expiration",
     ],
@@ -29,9 +31,9 @@ const plans = [
     annualMonthly: "$8.25",
     period: "/month",
     features: [
-      "2 voice profiles",
-      "Full content library",
-      "Unlimited videos & stories",
+      "2 family clones",
+      "Full story content library",
+      "Unlimited video generations",
     ],
     cta: "Upgrade to Family",
     plan: "family" as const,
@@ -44,12 +46,12 @@ const plans = [
     annualMonthly: "$14.92",
     period: "/month",
     features: [
-      "Unlimited voice profiles",
-      "Full content library",
-      "Unlimited videos & stories",
-      "Priority processing",
-      "Early access to new content",
-      "Offline downloads",
+      "Unlimited family clones",
+      "Full story content library",
+      "Unlimited video generations",
+      "Priority AI processing queue",
+      "Early access to new features",
+      "Offline story downloads",
     ],
     cta: "Upgrade to Premium",
     plan: "premium" as const,
@@ -87,148 +89,263 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container flex h-16 items-center">
-          <Link href="/" className="text-xl font-bold text-brand-green">
-            VoxTree
-          </Link>
-        </div>
-      </header>
-
-      <main className="container py-16 space-y-12">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold">Simple, Transparent Pricing</h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Start free and upgrade as your family grows. Every plan includes
-            our core voice cloning technology.
+    <TwilightShell>
+      <div style={{ maxWidth: 1040, margin: "64px auto 80px", padding: "0 24px" }}>
+        
+        {/* Main header block */}
+        <div style={{ textAlign: "center", marginBottom: 56 }} className="fadeUp">
+          <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp)", marginBottom: 12 }}>
+            Plans & Pricing
+          </div>
+          <h1 className="serif" style={{ fontSize: "clamp(36px, 5vw, 56px)", margin: "0 0 16px 0", color: "var(--paper)", letterSpacing: "-0.02em" }}>
+            Simple, Transparent Pricing
+          </h1>
+          <p style={{ color: "var(--paper-dim)", fontSize: 15, maxWidth: 540, margin: "0 auto", lineHeight: 1.5 }}>
+            Start free and upgrade as your family grows. Every plan includes our core voice & visual cloning technology.
           </p>
         </div>
 
         {error && (
-          <div className="rounded-md bg-destructive/15 p-4 text-sm text-destructive border border-destructive/20 text-center max-w-lg mx-auto">
-            {error}
+          <div style={{
+            background: "rgba(232, 133, 108, 0.08)",
+            border: "1px solid rgba(232, 133, 108, 0.3)",
+            borderRadius: 16,
+            padding: 16,
+            color: "var(--rose)",
+            fontSize: 13,
+            textAlign: "center",
+            maxWidth: 480,
+            margin: "0 auto 32px",
+          }}>
+            ⚠️ {error}
           </div>
         )}
 
         {/* Billing toggle */}
-        <div className="flex items-center justify-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 48 }} className="fadeUp">
           <span
-            className={`text-sm font-medium ${billing === "monthly" ? "text-foreground" : "text-muted-foreground"}`}
+            onClick={() => setBilling("monthly")}
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              color: billing === "monthly" ? "var(--paper)" : "var(--paper-dim)",
+              transition: "color 0.2s"
+            }}
           >
             Monthly
           </span>
+          
           <button
-            onClick={() =>
-              setBilling(billing === "monthly" ? "annual" : "monthly")
-            }
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-              billing === "annual" ? "bg-primary" : "bg-muted"
-            }`}
+            onClick={() => setBilling(billing === "monthly" ? "annual" : "monthly")}
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              height: 24,
+              width: 48,
+              alignItems: "center",
+              borderRadius: 99,
+              background: "var(--ink-3)",
+              border: "none",
+              cursor: "pointer",
+              transition: "background 0.2s",
+              padding: 0
+            }}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                billing === "annual" ? "translate-x-6" : "translate-x-1"
-              }`}
+              style={{
+                display: "inline-block",
+                height: 18,
+                width: 18,
+                borderRadius: "50%",
+                background: "var(--lamp)",
+                transition: "transform 0.2s",
+                transform: billing === "annual" ? "translateX(26px)" : "translateX(4px)"
+              }}
             />
           </button>
+          
           <span
-            className={`text-sm font-medium ${billing === "annual" ? "text-foreground" : "text-muted-foreground"}`}
+            onClick={() => setBilling("annual")}
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              color: billing === "annual" ? "var(--paper)" : "var(--paper-dim)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "color 0.2s"
+            }}
           >
             Annual
-            <span className="ml-1.5 rounded-full bg-brand-green/10 px-2 py-0.5 text-xs font-semibold text-brand-green">
+            <span style={{
+              borderRadius: 99,
+              background: "rgba(244,184,96,0.12)",
+              color: "var(--lamp-soft)",
+              padding: "2px 8px",
+              fontSize: 10,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em"
+            }}>
               Save up to 36%
             </span>
           </span>
         </div>
 
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={`rounded-xl border p-6 space-y-6 ${
-                plan.highlighted
-                  ? "border-primary shadow-lg ring-1 ring-primary relative"
-                  : ""
-              }`}
-            >
-              {plan.highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                  Most Popular
-                </span>
-              )}
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold">{plan.name}</h2>
-                <div className="flex items-baseline gap-1">
-                  {plan.plan === null ? (
-                    <>
-                      <span className="text-3xl font-bold">{plan.monthlyPrice}</span>
-                      <span className="text-muted-foreground">{plan.period}</span>
-                    </>
-                  ) : billing === "monthly" ? (
-                    <>
-                      <span className="text-3xl font-bold">{plan.monthlyPrice}</span>
-                      <span className="text-muted-foreground">{plan.period}</span>
-                    </>
-                  ) : (
-                    <div className="space-y-0.5">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-3xl font-bold">{plan.annualPrice}</span>
-                        <span className="text-muted-foreground">/year</span>
+        {/* Plan Cards Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 32, maxWidth: 1040, margin: "0 auto" }} className="fadeUp">
+          {plans.map((plan) => {
+            const isHighlighted = plan.highlighted;
+            return (
+              <div
+                key={plan.name}
+                style={{
+                  background: "var(--ink-2)",
+                  border: isHighlighted ? "1px solid var(--lamp)" : "1px solid var(--ink-3)",
+                  borderRadius: 24,
+                  padding: 32,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  gap: 28,
+                  position: "relative",
+                  boxShadow: isHighlighted 
+                    ? "0 20px 40px rgba(244,184,96,0.08), 0 1px 2px rgba(244,184,96,0.05)" 
+                    : "0 10px 30px rgba(0,0,0,0.2)"
+                }}
+              >
+                {isHighlighted && (
+                  <span style={{
+                    position: "absolute",
+                    top: -12,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    borderRadius: 99,
+                    background: "var(--lamp)",
+                    color: "var(--ink-0)",
+                    padding: "4px 12px",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em"
+                  }}>
+                    Most Popular
+                  </span>
+                )}
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div>
+                    <h2 className="serif" style={{ fontSize: 24, color: "var(--paper)", margin: 0, fontWeight: "bold" }}>
+                      {plan.name}
+                    </h2>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                    {plan.plan === null ? (
+                      <>
+                        <span style={{ fontSize: 40, fontWeight: 700, color: "var(--paper)" }}>{plan.monthlyPrice}</span>
+                        <span style={{ fontSize: 14, color: "var(--paper-dim)" }}>{plan.period}</span>
+                      </>
+                    ) : billing === "monthly" ? (
+                      <>
+                        <span style={{ fontSize: 40, fontWeight: 700, color: "var(--paper)" }}>{plan.monthlyPrice}</span>
+                        <span style={{ fontSize: 14, color: "var(--paper-dim)" }}>{plan.period}</span>
+                      </>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                          <span style={{ fontSize: 40, fontWeight: 700, color: "var(--paper)" }}>{plan.annualPrice}</span>
+                          <span style={{ fontSize: 14, color: "var(--paper-dim)" }}>/year</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: "var(--paper-mute)", margin: "4px 0 0 0" }} className="mono">
+                          ({plan.annualMonthly}/mo equivalent)
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        ({plan.annualMonthly}/mo)
-                      </p>
-                    </div>
+                    )}
+                  </div>
+                </div>
+
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+                  {plan.features.map((feature) => (
+                    <li key={feature} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: "var(--paper-dim)" }}>
+                      <svg
+                        style={{ width: 16, height: 16, color: "var(--lamp-soft)", flexShrink: 0 }}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={3}
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
+                      </svg>
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <div>
+                  {plan.plan ? (
+                    <button
+                      onClick={() => handleCheckout(plan.plan!)}
+                      disabled={loading === plan.plan}
+                      style={{
+                        width: "100%",
+                        padding: "14px",
+                        background: isHighlighted ? "var(--lamp)" : "transparent",
+                        color: isHighlighted ? "var(--ink-0)" : "var(--paper)",
+                        border: isHighlighted ? "none" : "1px solid var(--ink-3)",
+                        borderRadius: 16,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 8,
+                        transition: "all 0.2s"
+                      }}
+                      className="hover:opacity-90 active:scale-95"
+                    >
+                      {loading === plan.plan ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" /> Redirecting...
+                        </>
+                      ) : plan.cta}
+                    </button>
+                  ) : (
+                    <Link
+                      href={plan.href!}
+                      style={{
+                        width: "100%",
+                        padding: "14px",
+                        background: "transparent",
+                        color: "var(--paper)",
+                        border: "1px solid var(--ink-3)",
+                        borderRadius: 16,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        textAlign: "center",
+                        textDecoration: "none",
+                        display: "block",
+                        transition: "all 0.2s"
+                      }}
+                      className="hover:bg-white/5 active:scale-95"
+                    >
+                      {plan.cta}
+                    </Link>
                   )}
                 </div>
               </div>
-
-              <ul className="space-y-2">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2 text-sm">
-                    <svg
-                      className="h-4 w-4 text-brand-green shrink-0"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      strokeWidth={2}
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M4.5 12.75l6 6 9-13.5"
-                      />
-                    </svg>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
-              {plan.plan ? (
-                <button
-                  onClick={() => handleCheckout(plan.plan!)}
-                  disabled={loading === plan.plan}
-                  className={`inline-flex h-10 w-full items-center justify-center rounded-md px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 ${
-                    plan.highlighted
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                  }`}
-                >
-                  {loading === plan.plan ? "Redirecting..." : plan.cta}
-                </button>
-              ) : (
-                <Link
-                  href={plan.href!}
-                  className="inline-flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  {plan.cta}
-                </Link>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </main>
-    </div>
+
+      </div>
+    </TwilightShell>
   );
 }
