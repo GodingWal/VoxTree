@@ -132,7 +132,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
               overflow: "hidden",
               boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
             }} className="flex-shrink-0">
-              <img src="/mock_avatar.png" alt={voice.name} className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt={voice.name} className="w-full h-full object-cover" />
             </div>
           ) : (
             <Avatar name={voice.name} color={cloneColor} size={80} ring />
@@ -305,7 +305,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                   <div className="space-y-3">
                     <span className="mono text-xs text-[var(--paper-mute)] tracking-wider block uppercase">Pixar Avatar Headshot</span>
                     <div className="aspect-square w-full max-w-[280px] rounded-2xl overflow-hidden border border-[var(--lamp)]/30 bg-[var(--ink-2)] relative group">
-                      <img src="/mock_avatar.png" alt="Pixar Headshot" className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt="Pixar Headshot" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="mono text-xs text-white border border-white/30 rounded-full px-3 py-1.5 bg-black/20">3D ASSET ACTIVE</span>
                       </div>
@@ -360,7 +360,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                 {/* 3D Viewport Box with Breathing/Talking CSS Animation */}
                 <div className="w-full aspect-[4/5] bg-[var(--ink-1)] rounded-2xl overflow-hidden mb-5 relative border border-[var(--ink-3)] flex items-center justify-center">
                   <img
-                    src="/mock_pixar_character.png"
+                    src={avatarUrl}
                     alt="Pixar Character"
                     className="w-full h-full object-cover transition-all duration-300"
                     style={{
