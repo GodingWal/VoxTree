@@ -1,4 +1,8 @@
-import React, { useMemo } from 'react';
+"use client";
+
+import React, { useMemo, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+
 
 // Decorative story "art"
 export function StoryArt({ kind, color, height = 180 }: { kind: string, color: string, height?: number | string }) {
@@ -191,15 +195,60 @@ export function TextLink({ children, onClick, href }: { children: React.ReactNod
   return <button onClick={onClick} style={style}>{children}</button>;
 }
 
-export function CloneFullCard({ clone }: { clone: any }) {
+export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
+  const router = useRouter();
+  const [playing, setPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const ready = clone.status === "ready";
+
+  const handlePlaySample = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (playing && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlaying(false);
+      return;
+    }
+
+    const audioUrl = `/api/voices/download?voiceId=${clone.id}`;
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    
+    audio.play().then(() => {
+      setPlaying(true);
+    }).catch(err => {
+      console.error("Failed to play voice sample:", err);
+      setPlaying(false);
+    });
+    
+    audio.onended = () => setPlaying(false);
+    audio.onerror = () => setPlaying(false);
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (href) {
+      // Don't navigate if clicking on buttons
+      if ((e.target as HTMLElement).closest('button')) {
+        return;
+      }
+      router.push(href);
+    }
+  };
+
   return (
-    <div style={{
-      background: "var(--ink-2)",
-      border: `1px solid ${ready ? "var(--ink-3)" : "rgba(244,184,96,0.35)"}`,
-      borderRadius: 20, padding: 22,
-      position: "relative",
-    }}>
+    <div 
+      onClick={handleCardClick}
+      style={{
+        background: "var(--ink-2)",
+        border: `1px solid ${ready ? "var(--ink-3)" : "rgba(244,184,96,0.35)"}`,
+        borderRadius: 20, padding: 22,
+        position: "relative",
+        cursor: href ? "pointer" : "default",
+      }}
+    >
       <Avatar name={clone.name} color={clone.color} size={56} ring />
       <div style={{ marginTop: 16 }}>
         <div className="serif" style={{ fontSize: 24, lineHeight: 1.1 }}>{clone.name}</div>
@@ -208,7 +257,7 @@ export function CloneFullCard({ clone }: { clone: any }) {
         </div>
       </div>
       <div style={{ margin: "18px 0" }}>
-        <Waveform playing={false} count={28} height={28} color={clone.color} />
+        <Waveform playing={playing} count={28} height={28} color={clone.color} />
       </div>
       {ready ? (
         <>
@@ -217,12 +266,17 @@ export function CloneFullCard({ clone }: { clone: any }) {
             <span>{clone.lastUsed || 'Never'}</span>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button style={{
-              flex: 1, padding: "9px 12px",
-              background: "rgba(244,184,96,0.12)", color: "var(--lamp-soft)",
-              border: "1px solid rgba(244,184,96,0.35)", borderRadius: 99,
-              fontSize: 12, cursor: "pointer", fontWeight: 500,
-            }}>▸ Hear sample</button>
+            <button 
+              onClick={handlePlaySample}
+              style={{
+                flex: 1, padding: "9px 12px",
+                background: "rgba(244,184,96,0.12)", color: "var(--lamp-soft)",
+                border: "1px solid rgba(244,184,96,0.35)", borderRadius: 99,
+                fontSize: 12, cursor: "pointer", fontWeight: 500,
+              }}
+            >
+              {playing ? "■ Stop sample" : "▸ Hear sample"}
+            </button>
             <button style={{
               padding: "9px 12px",
               background: "transparent", color: "var(--paper-dim)",
