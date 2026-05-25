@@ -29,40 +29,44 @@ export async function POST(
     // 2. Save the file locally
     const filename = `visual_clone_${params.id}_${Date.now()}.png`;
     const uploadDir = path.join(process.cwd(), "public", "uploads");
-    
-    // Ensure uploads directory exists
     await fs.mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, filename);
     await fs.writeFile(filePath, buffer);
 
     const publicUrl = `/uploads/${filename}`;
 
-    // 3. Attempt to update family_voices database record
+    // 3. Update family_voices with captured frame immediately
     const { error: dbError } = await supabase
       .from("family_voices")
       .update({
         avatar_url: publicUrl,
-        idle_video_url: "/mock_pixar_character.png", // Mock visual asset for previews
-        talking_video_url: "/mock_pixar_character.png", // Mock visual asset for previews
+        idle_video_url: publicUrl,
+        talking_video_url: publicUrl,
       })
       .eq("id", params.id);
 
-    // 4. Attempt to update current user's profile avatar_url as well
+    // 4. Update current user's profile avatar_url
     const { error: userDbError } = await supabase
       .from("users")
-      .update({
-        avatar_url: publicUrl,
-      })
+      .update({ avatar_url: publicUrl })
       .eq("id", user.id);
 
+    // 5. Trigger Pixar avatar generation in background (non-blocking)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    fetch(`${siteUrl}/api/avatar/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voiceId: params.id, imageUrl: publicUrl }),
+    }).catch(err => console.error("Pixar avatar generation failed (non-fatal):", err));
+
     if (dbError || userDbError) {
-      console.warn("Database failed to update visual clone columns. Continuing in simulation mode.", { dbError, userDbError });
+      console.warn("Database failed to update visual clone columns.", { dbError, userDbError });
       return NextResponse.json({
         success: true,
         simulated: true,
         avatarUrl: publicUrl,
-        idleVideoUrl: "/mock_pixar_character.png",
-        talkingVideoUrl: "/mock_pixar_character.png",
+        idleVideoUrl: publicUrl,
+        talkingVideoUrl: publicUrl,
         message: "Visual clone captured (Simulation mode: Database columns not created)."
       });
     }
@@ -70,8 +74,8 @@ export async function POST(
     return NextResponse.json({
       success: true,
       avatarUrl: publicUrl,
-      idleVideoUrl: "/mock_pixar_character.png",
-      talkingVideoUrl: "/mock_pixar_character.png",
+      idleVideoUrl: publicUrl,
+      talkingVideoUrl: publicUrl,
     });
   } catch (error: any) {
     console.error("Visual capture error:", error);

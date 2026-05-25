@@ -21,6 +21,8 @@ export function TwilightShell({ children }: { children: React.ReactNode }) {
 }
 
 import { createClient } from "@/lib/supabase/client";
+import { getAmbientSynth } from "@/lib/ambient-synth";
+import { Volume2, VolumeX } from "lucide-react";
 
 function TopBar() {
   const pathname = usePathname();
@@ -29,6 +31,77 @@ function TopBar() {
   const [session, setSession] = React.useState<any>(null);
   const supabase = createClient();
 
+  // Bedtime reactive states
+  const [bedtimeAudio, setBedtimeAudio] = React.useState<string>("none");
+  const [isAmbientPlaying, setIsAmbientPlaying] = React.useState(false);
+
+  const applyAutodim = (cfg: { time: string; autodim: boolean; audio: string }) => {
+    if (!cfg.autodim) {
+      document.body.style.filter = "";
+      document.body.style.transition = "";
+      return;
+    }
+    const [bh, bm] = cfg.time.split(":").map(Number);
+    const now = new Date();
+    const currentMin = now.getHours() * 60 + now.getMinutes();
+    const bedtimeMin = bh * 60 + bm;
+
+    // Bedtime is active from bedtime hour until 6:00 AM
+    const isBedtimeActive = currentMin >= bedtimeMin || currentMin < 6 * 60;
+
+    document.body.style.transition = "filter 1.5s ease-in-out";
+    if (isBedtimeActive) {
+      document.body.style.filter = "brightness(0.7) contrast(1.05) saturate(0.9)";
+    } else {
+      document.body.style.filter = "";
+    }
+  };
+
+  const fetchBedtimeSettings = async (userId: string) => {
+    const localKey = `sim_bedtime_user_${userId}`;
+    const stored = localStorage.getItem(localKey);
+    let config = { time: "21:00", autodim: true, audio: "soft_rain" };
+
+    if (stored) {
+      config = JSON.parse(stored);
+    } else {
+      try {
+        const { data } = await supabase
+          .from("users")
+          .select("bedtime_time, bedtime_autodim, default_background_audio")
+          .eq("id", userId)
+          .single();
+        if (data) {
+          config = {
+            time: data.bedtime_time || "21:00",
+            autodim: data.bedtime_autodim !== false,
+            audio: data.default_background_audio || "soft_rain"
+          };
+          localStorage.setItem(localKey, JSON.stringify(config));
+        }
+      } catch (err) {}
+    }
+
+    setBedtimeAudio(config.audio);
+    applyAutodim(config);
+
+    // Auto-play ambient sound past bedtime hours if enabled
+    const [bh, bm] = config.time.split(":").map(Number);
+    const now = new Date();
+    const currentMin = now.getHours() * 60 + now.getMinutes();
+    const bedtimeMin = bh * 60 + bm;
+    const isPastBedtime = currentMin >= bedtimeMin || currentMin < 6 * 60;
+
+    if (isPastBedtime && config.audio !== "none") {
+      try {
+        const synth = getAmbientSynth();
+        synth.setSound(config.audio as any);
+        synth.setVolume(0.3); // soft volume for active reading
+        setIsAmbientPlaying(true);
+      } catch (err) {}
+    }
+  };
+
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -36,6 +109,9 @@ function TopBar() {
         const email = data.session.user.email || "";
         const name = data.session.user.user_metadata?.full_name || email.split("@")[0] || "User";
         setInitials(name.substring(0, 2).toUpperCase());
+
+        // Load bedtime configurations
+        fetchBedtimeSettings(data.session.user.id);
 
         // Fetch avatar_url from public.users table
         const fetchAvatar = async () => {
@@ -49,26 +125,65 @@ function TopBar() {
               setAvatarUrl(profile.avatar_url);
             } else {
               const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
-              setAvatarUrl(simulated || "/mock_avatar.png");
+              if (simulated) setAvatarUrl(simulated);
             }
           } catch (err) {
             console.warn("Failed to fetch user avatar in TopBar", err);
             const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
-            setAvatarUrl(simulated || "/mock_avatar.png");
+            if (simulated) setAvatarUrl(simulated);
           }
         };
         fetchAvatar();
       }
     });
   }, []);
-  
+
+  // Listen to custom settings update events to dynamically adapt UI
+  React.useEffect(() => {
+    const handleUpdate = (e: any) => {
+      const config = e.detail;
+      if (config) {
+        setBedtimeAudio(config.audio);
+        if (config.audio === "none") {
+          getAmbientSynth().stop();
+          setIsAmbientPlaying(false);
+        }
+        applyAutodim(config);
+      }
+    };
+    window.addEventListener("bedtime-settings-updated", handleUpdate);
+    return () => window.removeEventListener("bedtime-settings-updated", handleUpdate);
+  }, []);
+
+  // Periodically check auto-dim status every 30 seconds
+  React.useEffect(() => {
+    if (!session?.user) return;
+    const localKey = `sim_bedtime_user_${session.user.id}`;
+    const interval = setInterval(() => {
+      const stored = localStorage.getItem(localKey);
+      if (stored) {
+        applyAutodim(JSON.parse(stored));
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [session]);
+
   const items = [
     { id: "home",    label: "Home", href: "/" },
     { id: "library", label: "Library", href: "/browse" },
     { id: "stories", label: "Stories", href: "/dashboard/stories" },
+    { id: "videos",  label: "Videos", href: "/videos" },
     { id: "clone",   label: "Clone", href: "/dashboard/clones" },
     { id: "family",  label: "Family", href: "/dashboard/family" },
   ];
+
+  const soundLabels: Record<string, string> = {
+    none: "Silent",
+    white_noise: "Brown Noise",
+    soft_rain: "Rain",
+    ocean_waves: "Ocean",
+    forest_night: "Crickets"
+  };
 
   return (
     <header style={{
@@ -111,6 +226,36 @@ function TopBar() {
         </nav>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {/* Ambient sound controller */}
+          {session && bedtimeAudio !== "none" && (
+            <button
+              onClick={async () => {
+                const synth = getAmbientSynth();
+                if (isAmbientPlaying) {
+                  synth.stop();
+                  setIsAmbientPlaying(false);
+                } else {
+                  await synth.setSound(bedtimeAudio as any);
+                  synth.setVolume(0.3);
+                  setIsAmbientPlaying(true);
+                }
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "8px 14px",
+                background: isAmbientPlaying ? "rgba(127,196,164,0.1)" : "transparent",
+                color: isAmbientPlaying ? "var(--moss)" : "var(--paper-dim)",
+                border: isAmbientPlaying ? "1px solid rgba(127,196,164,0.3)" : "1px solid var(--ink-3)",
+                borderRadius: 99, fontSize: 13, cursor: "pointer",
+                transition: "all 0.2s"
+              }}
+              title={isAmbientPlaying ? "Pause ambient sound" : "Play ambient sound"}
+            >
+              {isAmbientPlaying ? <Volume2 size={14} className="animate-pulse" /> : <VolumeX size={14} />}
+              <span className="mono" style={{ fontSize: 11 }}>Ambient: {soundLabels[bedtimeAudio]}</span>
+            </button>
+          )}
+
           {session ? (
             <>
               <button style={{
@@ -138,7 +283,7 @@ function TopBar() {
                 boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15)",
               }}>
                 {avatarUrl ? (
-                  <img src="/mock_avatar.png" alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src={avatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <div style={{
                     width: "100%",
@@ -198,7 +343,10 @@ export function Footer() {
           <span style={{ marginLeft: 12 }}>Carrying clones through generations.</span>
         </div>
         <div style={{ display: "flex", gap: 24 }}>
-          <span>Privacy</span><span>Consent</span><span>Help</span><span>© 2026</span>
+          <Link href="/privacy" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Privacy</Link>
+          <Link href="/consent" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Consent</Link>
+          <Link href="/help" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Help</Link>
+          <span>© 2026</span>
         </div>
       </div>
     </footer>

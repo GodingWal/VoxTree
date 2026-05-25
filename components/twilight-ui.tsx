@@ -201,6 +201,7 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const simulatedTimerRef = useRef<any>(null);
   
   const [avatarUrl, setAvatarUrl] = useState<string | null>(clone.avatar_url || null);
 
@@ -213,20 +214,46 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
     }
   }, [clone.avatar_url, clone.id]);
 
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("clone-sample-state", {
+        detail: { voiceId: clone.id, name: clone.name, playing },
+      })
+    );
+  }, [playing, clone.id, clone.name]);
+
   const ready = clone.status === "ready";
 
   const handlePlaySample = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (playing && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    if (playing) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      if (simulatedTimerRef.current) {
+        clearTimeout(simulatedTimerRef.current);
+        simulatedTimerRef.current = null;
+      }
       setPlaying(false);
       return;
     }
 
     setLoading(true);
+
+    if (!clone.id.includes("-") || clone.id.startsWith("c") || clone.id.startsWith("mock")) {
+      setLoading(false);
+      setPlaying(true);
+      if (simulatedTimerRef.current) clearTimeout(simulatedTimerRef.current);
+      simulatedTimerRef.current = setTimeout(() => {
+        setPlaying(false);
+        simulatedTimerRef.current = null;
+      }, 3000);
+      return;
+    }
+
     try {
       const res = await fetch("/api/voices/test", {
         method: "POST",
@@ -245,7 +272,11 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
           alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled, speaking simulated for 3 seconds)");
           setLoading(false);
           setPlaying(true);
-          setTimeout(() => setPlaying(false), 3000);
+          if (simulatedTimerRef.current) clearTimeout(simulatedTimerRef.current);
+          simulatedTimerRef.current = setTimeout(() => {
+            setPlaying(false);
+            simulatedTimerRef.current = null;
+          }, 3000);
           return;
         }
       }
@@ -320,7 +351,7 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
         }}
       >
         <img 
-          src={avatarUrl ? "/mock_pixar_character.png" : "/mock_avatar.png"} 
+          src={avatarUrl || "/mock_avatar.png"}
           alt={clone.name} 
           style={{
             width: "100%",

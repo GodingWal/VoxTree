@@ -82,13 +82,14 @@ export async function POST(
 
     // 4. Update local storage simulation paths
     // Return paths immediately so client can cache locally
-    // Trigger ElevenLabs Voice Cloning in background using admin client
+    // Trigger ElevenLabs Voice Cloning + Pixar Avatar generation in background
     const admin = createAdminClient();
     const voiceName = formData.get("voiceName") as string || "Family Member";
 
-    // Run cloning process in background
+    // Run cloning process in background (voice + avatar)
     (async () => {
       try {
+        // Voice cloning via ElevenLabs
         const audioData = await fs.readFile(wavPath);
         const elevenlabsVoiceId = await cloneVoice(audioData, voiceName);
 
@@ -97,9 +98,6 @@ export async function POST(
           .update({
             elevenlabs_voice_id: elevenlabsVoiceId,
             sample_audio_url: publicAudioUrl,
-            avatar_url: publicImageUrl,
-            idle_video_url: "/mock_pixar_character.png",
-            talking_video_url: "/mock_pixar_character.png",
             status: "ready",
           })
           .eq("id", params.id);
@@ -110,16 +108,29 @@ export async function POST(
           .update({ status: "failed" })
           .eq("id", params.id);
       }
+
+      // Pixar avatar generation (non-blocking, updates DB when complete)
+      try {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+        await fetch(`${siteUrl}/api/avatar/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId: params.id, imageUrl: publicImageUrl }),
+        });
+      } catch (err) {
+        console.error("Pixar avatar generation failed (non-fatal):", err);
+        // Keep the raw captured frame as fallback
+      }
     })();
 
-    // 5. Update database record status to ready
+    // 5. Update database record with captured frame immediately (Pixar version comes later)
     const { error: dbError } = await supabase
       .from("family_voices")
       .update({
         avatar_url: publicImageUrl,
         sample_audio_url: publicAudioUrl,
-        idle_video_url: "/mock_pixar_character.png",
-        talking_video_url: "/mock_pixar_character.png",
+        idle_video_url: publicImageUrl,
+        talking_video_url: publicImageUrl,
         status: "ready",
       })
       .eq("id", params.id);
