@@ -60,7 +60,7 @@ export default async function ClonesPage() {
           background: "var(--lamp)", color: "var(--ink-0)",
           border: 0, borderRadius: 99, textDecoration: "none",
           fontSize: 14, fontWeight: 600, cursor: "pointer",
-        }}>＋ &nbsp;Add a voice</Link>
+        }}>＋ &nbsp;Add a clone</Link>
       </div>
 
       {/* Family-tree diagram */}
@@ -104,7 +104,7 @@ export default async function ClonesPage() {
           </div>
         ) : (
           <div style={{ textAlign: "center", color: "var(--paper-dim)", marginTop: 40 }}>
-            No voices added yet. <Link href="/onboarding" style={{ color: "var(--lamp)" }}>Add your first voice →</Link>
+            No clones added yet. <Link href="/onboarding" style={{ color: "var(--lamp)" }}>Add your first clone →</Link>
           </div>
         )}
       </div>
