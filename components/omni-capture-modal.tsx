@@ -10,6 +10,14 @@ interface OmniCaptureModalProps {
   onCaptureComplete: (avatarUrl: string, audioUrl: string) => void;
 }
 
+const TELEPROMPTER_SCRIPT = `Welcome to VoxTree! Let's build a timeline of family stories together.
+
+By recording this script, I am creating a secure digital clone of my voice and visual features. This clone will be used to narrate bedtime stories, share history, and preserve family memories for my children and loved ones.
+
+As I speak, the engine is capturing the unique warmth, tone, and cadence of my voice. I will continue reading this text naturally to provide enough voice data for high-fidelity generation, allowing my family to share in these moments forever. 
+
+Bedtime stories are more than just words; they are shared moments of comfort, imagination, and learning. VoxTree helps carry these voices through generations, keeping our stories alive.`;
+
 export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplete }: OmniCaptureModalProps) {
   const [recording, setRecording] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,7 +32,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
 
   // States: permissions -> record -> submitting
   const [step, setStep] = useState<"permissions" | "record" | "submitting">("permissions");
-  const [countdown, setCountdown] = useState(5);
+  const [recordingTime, setRecordingTime] = useState(0);
 
   const startMediaStream = async () => {
     setError(null);
@@ -54,7 +62,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
     if (!stream) return;
     setError(null);
     chunksRef.current = [];
-    setCountdown(5);
+    setRecordingTime(0);
     setRecordingStarted(true);
 
     // Attempt standard webm video recording
@@ -79,12 +87,12 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
       mediaRecorder.start();
       setRecording(true);
 
-      // Start 5-second countdown timer
-      let timeLeft = 5;
+      // Start recording timer up to 90 seconds (1.5 minutes)
+      let timeElapsed = 0;
       timerRef.current = setInterval(() => {
-        timeLeft -= 1;
-        setCountdown(timeLeft);
-        if (timeLeft <= 0) {
+        timeElapsed += 1;
+        setRecordingTime(timeElapsed);
+        if (timeElapsed >= 90) {
           if (timerRef.current) clearInterval(timerRef.current);
           stopRecording();
         }
@@ -152,6 +160,16 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
       }
     };
   }, [stream]);
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${m}:${ss.toString().padStart(2, "0")}`;
+  };
+
+  const isFaceScanPhase = recording && recordingTime < 7;
+  const isVoiceCheckPhase = recording && recordingTime >= 7;
+  const canSubmit = recordingTime >= 15;
 
   return (
     <div
@@ -252,12 +270,12 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                 stroke="url(#omni-grad)" 
                 strokeWidth="3.5" 
                 fill="none" 
-                strokeDasharray="12 8"
+                strokeDasharray={isFaceScanPhase ? "8 4" : "12 8"}
                 className="omni-glow-circle"
                 style={{
                   transformOrigin: "center",
                   animation: recording 
-                    ? "omni-spin 12s linear infinite, omni-pulse 2s ease-in-out infinite" 
+                    ? `omni-spin ${isFaceScanPhase ? "6s" : "20s"} linear infinite, omni-pulse 1.5s ease-in-out infinite` 
                     : "omni-spin 25s linear infinite"
                 }}
               />
@@ -292,7 +310,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                 position: "absolute",
                 top: 20,
                 right: 20,
-                background: "rgba(224, 83, 60, 0.85)",
+                background: isFaceScanPhase ? "rgba(224, 83, 60, 0.85)" : "rgba(127, 196, 164, 0.85)",
                 color: "white",
                 padding: "6px 14px",
                 borderRadius: 99,
@@ -302,10 +320,11 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                 alignItems: "center",
                 gap: 8,
                 backdropFilter: "blur(4px)",
-                border: "1px solid rgba(255, 255, 255, 0.2)"
+                border: "1px solid rgba(255, 255, 255, 0.2)",
+                transition: "background 0.3s ease"
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "white", display: "inline-block" }} className="animate-pulse" />
-                LIVE CAPTURE • {countdown}s
+                {isFaceScanPhase ? "VISUAL SCAN" : "VOICE RECORD"} • {fmtTime(recordingTime)} / 1:30
               </div>
             )}
           </div>
@@ -316,7 +335,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
               <h4 className="serif" style={{ fontSize: 18, color: "var(--paper)", margin: "0 0 16px 0" }}>Onboarding Tracker</h4>
               
               {/* Step-by-Step Interactive Hook List */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 24 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 20 }}>
                 
                 {/* Step 1: Permissions */}
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -333,7 +352,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: step !== "permissions" ? "var(--paper-dim)" : "var(--paper)" }}>
                       Hardware Access
                     </div>
-                    <div style={{ fontSize: 11.5, color: "rgba(244, 236, 219, 0.45)" }}>
+                    <div style={{ fontSize: 11, color: "rgba(244, 236, 219, 0.45)" }}>
                       {step !== "permissions" ? "Camera and mic connected" : "Combined system permissions"}
                     </div>
                   </div>
@@ -354,7 +373,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: step === "permissions" ? "rgba(255,255,255,0.2)" : (recordingStarted || step === "submitting" ? "var(--paper-dim)" : "var(--paper)") }}>
                       Webcam Framing
                     </div>
-                    <div style={{ fontSize: 11.5, color: "rgba(244, 236, 219, 0.45)" }}>
+                    <div style={{ fontSize: 11, color: "rgba(244, 236, 219, 0.45)" }}>
                       {step === "permissions" ? "Locked" : (recordingStarted || step === "submitting" ? "Frame confirmed" : "Center face in the circle")}
                     </div>
                   </div>
@@ -373,10 +392,10 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                   </div>
                   <div>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: !recordingStarted ? "rgba(255,255,255,0.2)" : (step === "submitting" ? "var(--paper-dim)" : "var(--paper)") }}>
-                      Multi-Modal Record
+                      Multi-Modal Capture
                     </div>
-                    <div style={{ fontSize: 11.5, color: "rgba(244, 236, 219, 0.45)" }}>
-                      {!recordingStarted ? "Locked" : (step === "submitting" ? "Unified media captured" : `Record: ${countdown}s left`)}
+                    <div style={{ fontSize: 11, color: "rgba(244, 236, 219, 0.45)" }}>
+                      {!recordingStarted ? "Locked" : (step === "submitting" ? "Unified media captured" : `Capture: ${fmtTime(recordingTime)} / 1:30`)}
                     </div>
                   </div>
                 </div>
@@ -396,7 +415,7 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: step !== "submitting" ? "rgba(255,255,255,0.2)" : "var(--paper)" }}>
                       Secure Binding
                     </div>
-                    <div style={{ fontSize: 11.5, color: "rgba(244, 236, 219, 0.45)" }}>
+                    <div style={{ fontSize: 11, color: "rgba(244, 236, 219, 0.45)" }}>
                       {step !== "submitting" ? "Locked" : "Splitting audio/video streams"}
                     </div>
                   </div>
@@ -404,35 +423,63 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
 
               </div>
 
-              {/* Teleprompter Script */}
+              {/* Dynamic Interactive Phase Guides */}
               {step === "record" && (
-                <div style={{
-                  background: recording ? "rgba(244, 184, 96, 0.06)" : "rgba(255, 255, 255, 0.02)",
-                  border: recording ? "1px solid rgba(244, 184, 96, 0.25)" : "1px solid var(--ink-3)",
-                  borderRadius: 16,
-                  padding: 16,
-                  transition: "all 0.3s ease",
-                  marginBottom: 16
-                }}>
-                  <div style={{ fontSize: 10, color: "var(--paper-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontWeight: 600 }}>
-                    {recording ? "🔴 SPEAK NOW (Script)" : "TELEPROMPTER"}
-                  </div>
-                  <p style={{
-                    margin: 0,
-                    fontSize: 14.5,
-                    color: recording ? "var(--lamp)" : "var(--paper)",
-                    lineHeight: 1.5,
-                    fontWeight: 500,
-                    fontStyle: recording ? "normal" : "italic"
-                  }}>
-                    &ldquo;Welcome to VoxTree. Let&apos;s build a timeline of stories together.&rdquo;
-                  </p>
-                  {recording && (
-                    <div style={{ fontSize: 11, color: "rgba(244, 236, 219, 0.5)", marginTop: 10, lineHeight: 1.3 }}>
-                      💡 Action: Look at the camera, blink, and turn your head slightly left and right.
+                <>
+                  {/* Phase 1: Face Scan */}
+                  {(!recording || isFaceScanPhase) && (
+                    <div style={{
+                      background: isFaceScanPhase ? "rgba(244, 184, 96, 0.08)" : "rgba(255, 255, 255, 0.02)",
+                      border: isFaceScanPhase ? "1px solid rgba(244, 184, 96, 0.3)" : "1px solid var(--ink-3)",
+                      borderRadius: 16,
+                      padding: 16,
+                      transition: "all 0.3s ease",
+                      marginBottom: 12
+                    }} className={isFaceScanPhase ? "animate-pulse" : ""}>
+                      <div style={{ fontSize: 10, color: isFaceScanPhase ? "var(--lamp)" : "var(--paper-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontWeight: 700 }}>
+                        {isFaceScanPhase ? "⏳ Phase 1: Face Capture Active" : "Phase 1: Face Capture"}
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13.5, color: isFaceScanPhase ? "var(--lamp-soft)" : "var(--paper)", lineHeight: 1.4 }}>
+                        Once started, look directly at the camera, turn your head slightly left and right, and blink naturally for the first 7 seconds.
+                      </p>
                     </div>
                   )}
-                </div>
+
+                  {/* Phase 2: Voice Check */}
+                  {(!recording || isVoiceCheckPhase) && (
+                    <div style={{
+                      background: isVoiceCheckPhase ? "rgba(127, 196, 164, 0.06)" : "rgba(255, 255, 255, 0.01)",
+                      border: isVoiceCheckPhase ? "1px solid rgba(127, 196, 164, 0.25)" : "1px solid var(--ink-3)",
+                      borderRadius: 16,
+                      padding: 16,
+                      transition: "all 0.3s ease",
+                      marginBottom: 12
+                    }}>
+                      <div style={{ fontSize: 10, color: isVoiceCheckPhase ? "#7fc4a4" : "var(--paper-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, fontWeight: 700 }}>
+                        {isVoiceCheckPhase ? "🎙️ Phase 2: Voice Check Active" : "Phase 2: Voice Check"}
+                      </div>
+                      <div 
+                        style={{ 
+                          maxHeight: 130, 
+                          overflowY: "auto", 
+                          fontSize: 13.5, 
+                          color: isVoiceCheckPhase ? "var(--paper)" : "var(--paper-dim)", 
+                          lineHeight: 1.5,
+                          fontStyle: isVoiceCheckPhase ? "normal" : "italic",
+                          whiteSpace: "pre-line",
+                          paddingRight: 4
+                        }}
+                      >
+                        {TELEPROMPTER_SCRIPT}
+                      </div>
+                      {isVoiceCheckPhase && !canSubmit && (
+                        <div style={{ fontSize: 11, color: "var(--paper-mute)", marginTop: 8 }}>
+                          ⏱️ Read text above. Minimum recording: 15 seconds ({15 - recordingTime}s left)
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -483,28 +530,38 @@ export function OmniCaptureModal({ voiceId, voiceName, onClose, onCaptureComplet
                     gap: 8
                   }}
                 >
-                  <Play size={16} /> Start 5s Capture
+                  <Play size={16} /> Start Capture
                 </button>
               ) : step === "record" && recording ? (
                 <button
                   onClick={stopRecording}
+                  disabled={!canSubmit}
                   style={{
                     flex: 1,
                     padding: "14px",
-                    background: "var(--rose)",
-                    color: "white",
+                    background: canSubmit ? "var(--rose)" : "var(--ink-3)",
+                    color: canSubmit ? "white" : "var(--paper-mute)",
                     border: "none",
                     borderRadius: 16,
                     fontWeight: 600,
-                    cursor: "pointer",
+                    cursor: canSubmit ? "pointer" : "not-allowed",
                     fontSize: 14,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 8
+                    gap: 8,
+                    transition: "all 0.2s"
                   }}
                 >
-                  <Loader2 size={16} className="animate-spin" /> Finish & Submit
+                  {canSubmit ? (
+                    <>
+                      <Check size={16} /> Finish & Submit
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Recording ({recordingTime}s)
+                    </>
+                  )}
                 </button>
               ) : (
                 <button
