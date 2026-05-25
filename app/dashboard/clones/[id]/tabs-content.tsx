@@ -33,6 +33,33 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
     }
   }, [voice.avatar_url, voice.id]);
 
+  // Poll for Pixar avatar update (generation happens async in background)
+  React.useEffect(() => {
+    if (!voice.id) return;
+    // Check if the current avatar is still a raw frame (not yet Pixar-generated)
+    const isRawFrame = avatarUrl && (avatarUrl.includes("avatar_frame_") || avatarUrl.includes("visual_clone_"));
+    if (!isRawFrame) return;
+
+    let attempts = 0;
+    const maxAttempts = 20; // Poll for up to 60 seconds
+    const interval = setInterval(async () => {
+      attempts++;
+      if (attempts >= maxAttempts) { clearInterval(interval); return; }
+      try {
+        const res = await fetch(`/api/avatar/status?voiceId=${voice.id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.avatarUrl && data.avatarUrl.includes("pixar_avatar_")) {
+          setAvatarUrl(data.avatarUrl);
+          localStorage.setItem(`sim_avatar_${voice.id}`, data.avatarUrl);
+          clearInterval(interval);
+        }
+      } catch {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [voice.id, avatarUrl]);
+
   const [isCaptureOpen, setIsCaptureOpen] = useState(false);
 
   // Pixar Card Play State
