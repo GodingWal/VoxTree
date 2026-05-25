@@ -98,11 +98,7 @@ export default async function ClonesPage() {
         {clones.length > 0 ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 20 }}>
             {clones.map(v => (
-              <Link key={v.id} href={`/dashboard/clones/${v.id}`} style={{ textDecoration: 'none' }} title="Click to manage clones (Voice, Singing, Face, Body)">
-                <div style={{ pointerEvents: 'none' }}>
-                  <CloneFullCard clone={v} />
-                </div>
-              </Link>
+              <CloneFullCard key={v.id} clone={v} href={`/dashboard/clones/${v.id}`} />
             ))}
           </div>
         ) : (
