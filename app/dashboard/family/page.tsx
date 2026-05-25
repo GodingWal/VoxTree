@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Section, CloneFullCard } from "@/components/twilight-ui";
 import { VoxMark } from "@/components/voxtree-logo";
-import { BookOpen, Clock, Users } from "lucide-react";
+import { BookOpen, Clock, Users, Mail, Clock4 } from "lucide-react";
+import { InviteMemberButton } from "./invite-button";
 
 export default async function FamilyPage() {
   const supabase = createClient();
@@ -15,11 +16,36 @@ export default async function FamilyPage() {
     redirect("/login");
   }
 
+  // 1. Fetch user profile to check subscription plan
+  const { data: profile } = await supabase
+    .from("users")
+    .select("plan")
+    .eq("id", user.id)
+    .single();
+
+  const isPremium = profile?.plan === "premium";
+
+  // 2. Fetch voices
   const { data: voices } = await supabase
     .from("family_voices")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+
+  // 3. Fetch family invitations
+  let invitations: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("family_invitations")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    if (!error && data) {
+      invitations = data;
+    }
+  } catch (e) {
+    console.warn("Could not query family_invitations table.", e);
+  }
 
   // Map supabase voices to Twilight format
   const clones = voices?.map((v, i) => {
@@ -29,10 +55,11 @@ export default async function FamilyPage() {
       name: v.name,
       relation: "Relative", // Mock or retrieve from DB
       recorded: new Date(v.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      status: v.rvc_training_status === "ready" ? "ready" : (v.rvc_training_status || "ready"),
+      status: v.status || "processing",
       lastUsed: "—",
       stories: 0,
-      color: colors[i % colors.length]
+      color: colors[i % colors.length],
+      avatar_url: v.avatar_url
     };
   }) || [];
 
@@ -47,12 +74,7 @@ export default async function FamilyPage() {
             The Family Tree
           </h1>
         </div>
-        <Link href="/onboarding" style={{
-          padding: "14px 22px",
-          background: "var(--lamp)", color: "var(--ink-0)",
-          border: 0, borderRadius: 99, textDecoration: "none",
-          fontSize: 14, fontWeight: 600, cursor: "pointer",
-        }}>＋ &nbsp;Invite member</Link>
+        <InviteMemberButton isPremium={isPremium} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24, marginBottom: 48 }}>
@@ -116,6 +138,66 @@ export default async function FamilyPage() {
           </div>
         )}
       </div>
+
+      {/* Sent Invitations */}
+      {invitations.length > 0 && (
+        <div style={{
+          background: "var(--ink-1)",
+          border: "1px solid var(--ink-3)",
+          borderRadius: 28,
+          padding: "32px 40px",
+          marginBottom: 40,
+        }}
+        className="fadeUp"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24 }}>
+            <Mail style={{ color: "var(--lamp)" }} size={20} />
+            <h2 className="serif" style={{ fontSize: 24, color: "var(--paper)", margin: 0 }}>Pending Invitations</h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+            {invitations.map((inv) => (
+              <div
+                key={inv.id}
+                style={{
+                  background: "var(--ink-2)",
+                  border: "1px solid var(--ink-3)",
+                  borderRadius: 16,
+                  padding: "16px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div style={{ overflow: "hidden" }}>
+                  <div style={{ color: "var(--paper)", fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {inv.email}
+                  </div>
+                  <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.05em", marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                    <Clock4 size={10} />
+                    Sent {new Date(inv.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    background: "rgba(244, 184, 96, 0.12)",
+                    color: "var(--lamp-soft)",
+                    border: "1px solid rgba(244, 184, 96, 0.2)",
+                  }}
+                >
+                  {inv.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
 
       {/* Family Settings Section */}
       <div className="fadeUp" style={{ marginTop: 80, marginBottom: 32 }}>

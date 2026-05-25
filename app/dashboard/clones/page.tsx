@@ -36,10 +36,11 @@ export default async function ClonesPage() {
       name: v.name,
       relation: "Family Member",
       recorded: new Date(v.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      status: v.rvc_training_status === "ready" ? "ready" : (v.rvc_training_status || "ready"),
+      status: v.status || "processing",
       lastUsed: "—",
       stories: 0,
-      color: colors[i % colors.length]
+      color: colors[i % colors.length],
+      avatar_url: v.avatar_url
     };
   }) || [];
 
