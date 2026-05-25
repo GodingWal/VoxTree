@@ -51,17 +51,17 @@ export async function POST(request: NextRequest) {
       // This model preserves the person's actual face (eyes, nose, jaw, skin tone,
       // hair style/color) while transforming them into a 3D animated character.
       const output = await replicate.run(
-        "fofr/face-to-many:a07f252abbbd832009640b27f7a90d0a6b9e4f68f129b3571f3fa75a6b04f5c1",
+        "fofr/face-to-many:a07f252abbbd832009640b27f063ea52d87d7a23a185ca165bec23b5adc8deaf",
         {
           input: {
             image: imageInput,
-            style: "3d",
+            style: "3D",
             prompt: "A Pixar 3D animated character, Disney Pixar movie style, smooth rounded features, big expressive eyes, warm soft studio lighting, high quality 3D render, friendly welcoming expression, subtle smile, clean solid dark background, cinematic character portrait, same person same face same features",
             negative_prompt: "realistic, photograph, ugly, deformed, noisy, blurry, low quality, text, watermark, nsfw, scary, horror, different person, wrong face",
             lora_scale: 0.9,
             prompt_strength: 4.5,
             denoising_strength: 0.65,
-            instant_id_strength: 0.8,
+            instant_id_strength: 1.0,
             control_depth_strength: 0.8,
           },
         }
