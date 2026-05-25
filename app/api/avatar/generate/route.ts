@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { replicate } from "@/lib/replicate";
-import { getPresignedUploadUrl, getPresignedDownloadUrl } from "@/lib/gcp";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -12,11 +11,8 @@ import path from "path";
  * Uses Replicate's "fofr/face-to-many" model which converts real face photos
  * into stylized 3D/Pixar portraits while preserving facial identity and likeness.
  *
- * Flow:
- * 1. Read the captured face frame from local /uploads/
- * 2. Upload it to GCS so Replicate can access it via public URL
- * 3. Run the face-to-many model with style="3d" (Pixar look)
- * 4. Download the generated avatar, save locally + update DB
+ * The source image is read from the local filesystem and passed as a base64
+ * data URI directly to Replicate — no GCS/cloud storage required.
  */
 export async function POST(request: NextRequest) {
   const supabase = getRouteClient();
@@ -35,48 +31,30 @@ export async function POST(request: NextRequest) {
       console.warn("No REPLICATE_API_TOKEN. Using captured frame as avatar (no Pixar transform).");
       pixarUrl = imageUrl;
     } else {
-      // Step 1: Get the source image as a publicly accessible URL
-      let sourceImageUrl: string;
+      // Step 1: Read the local image file and convert to base64 data URI
+      // Replicate accepts data URIs as image input directly.
+      let imageInput: string;
 
       if (imageUrl.startsWith("http")) {
-        sourceImageUrl = imageUrl;
+        // Already a public URL, use directly
+        imageInput = imageUrl;
       } else {
-        // Read the local file and upload to GCS for public access
+        // Local file — read it and encode as data URI
         const localPath = path.join(process.cwd(), "public", imageUrl);
-        const fileExists = await fs.stat(localPath).catch(() => null);
-
-        if (fileExists) {
-          const gcsKey = `avatars/${user.id}/${voiceId}/source.jpg`;
-
-          try {
-            // Upload to GCS
-            const uploadUrl = await getPresignedUploadUrl(gcsKey, "image/jpeg");
-            const fileData = await fs.readFile(localPath);
-            await fetch(uploadUrl, {
-              method: "PUT",
-              headers: { "Content-Type": "image/jpeg" },
-              body: fileData,
-            });
-            // Get a readable URL
-            sourceImageUrl = await getPresignedDownloadUrl(gcsKey);
-          } catch (gcsErr) {
-            // If GCS isn't configured, try using the site URL directly
-            console.warn("GCS upload failed, trying direct site URL:", gcsErr);
-            sourceImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}${imageUrl}`;
-          }
-        } else {
-          sourceImageUrl = `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}${imageUrl}`;
-        }
+        const fileData = await fs.readFile(localPath);
+        const ext = path.extname(localPath).toLowerCase();
+        const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
+        imageInput = `data:${mimeType};base64,${fileData.toString("base64")}`;
       }
 
-      // Step 2: Run "fofr/face-to-many" with style="3d" for Pixar look
-      // This model specifically preserves the person's face identity (eyes, nose, jaw,
-      // skin tone, hair) while transforming them into a 3D animated character style.
+      // Step 2: Run "fofr/face-to-many" with style="3d" for Pixar/Disney look.
+      // This model preserves the person's actual face (eyes, nose, jaw, skin tone,
+      // hair style/color) while transforming them into a 3D animated character.
       const output = await replicate.run(
         "fofr/face-to-many:a07f252abbbd832009640b27f7a90d0a6b9e4f68f129b3571f3fa75a6b04f5c1",
         {
           input: {
-            image: sourceImageUrl,
+            image: imageInput,
             style: "3d",
             prompt: "A Pixar 3D animated character, Disney Pixar movie style, smooth rounded features, big expressive eyes, warm soft studio lighting, high quality 3D render, friendly welcoming expression, subtle smile, clean solid dark background, cinematic character portrait, same person same face same features",
             negative_prompt: "realistic, photograph, ugly, deformed, noisy, blurry, low quality, text, watermark, nsfw, scary, horror, different person, wrong face",
@@ -89,7 +67,7 @@ export async function POST(request: NextRequest) {
         }
       ) as any;
 
-      // Output can be a FileOutput, string URL, or array
+      // Step 3: Extract the output URL from Replicate response
       let outputUrl: string;
       if (Array.isArray(output)) {
         outputUrl = typeof output[0] === "string" ? output[0] : String(output[0]);
@@ -97,20 +75,21 @@ export async function POST(request: NextRequest) {
         outputUrl = output;
       } else if (output && typeof output.url === "function") {
         outputUrl = output.url();
+      } else if (output && output.toString && output.toString() !== "[object Object]") {
+        outputUrl = output.toString();
       } else {
-        outputUrl = String(output);
+        throw new Error("Replicate returned no valid output");
       }
 
-      if (!outputUrl || outputUrl === "undefined") {
-        throw new Error("Replicate returned no valid output URL");
+      if (!outputUrl || outputUrl === "undefined" || outputUrl === "[object Object]") {
+        throw new Error("Replicate returned invalid output: " + JSON.stringify(output));
       }
 
-      // Step 3: Download the generated Pixar avatar
+      // Step 4: Download the generated Pixar avatar and save locally
       const response = await fetch(outputUrl);
       if (!response.ok) throw new Error(`Failed to download avatar: ${response.status}`);
       const buffer = Buffer.from(await response.arrayBuffer());
 
-      // Step 4: Save locally
       const uploadsDir = path.join(process.cwd(), "public", "uploads");
       await fs.mkdir(uploadsDir, { recursive: true });
 
@@ -121,7 +100,7 @@ export async function POST(request: NextRequest) {
       pixarUrl = `/uploads/${filename}`;
     }
 
-    // Step 5: Update the voice record with the generated Pixar avatar
+    // Step 5: Update the database with the Pixar avatar
     const admin = createAdminClient();
     await admin
       .from("family_voices")
