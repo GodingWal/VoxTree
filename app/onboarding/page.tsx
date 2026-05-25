@@ -122,7 +122,7 @@ export default function OnboardingPage() {
               Who will be reading to your kids?
             </h1>
             <p style={{ color: "var(--paper-dim)", marginTop: 12, marginBottom: 32, fontSize: 15 }}>
-              Enter the name of the family member whose voice you&apos;d like to clone.
+              Enter the name of the family member you&apos;d like to clone.
             </p>
 
             <input
@@ -232,7 +232,7 @@ export default function OnboardingPage() {
                 {status === "ready" ? "Clone Complete!" : status === "failed" ? "Something went wrong" : `Cloning ${voiceName}...`}
               </h1>
               <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
-                {status === "ready" ? `Heading to your clones library...` : status === "failed" ? "Voice cloning failed. Please try again." : `Our AI is learning ${voiceName}'s unique tone, cadence, and features.`}
+                {status === "ready" ? `Heading to your clones library...` : status === "failed" ? "Cloning failed. Please try again." : `Our AI is learning ${voiceName}'s unique tone, cadence, and features.`}
               </p>
             </div>
 
