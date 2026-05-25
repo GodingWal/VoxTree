@@ -7,38 +7,38 @@ import { Platform } from "react-native";
 
 export const colors = {
   brand: {
-    green: "#2D8B70",
-    gold: "#F5A623",
-    cream: "#FFF8F0",
-    charcoal: "#2A2A2A",
-    coral: "#E8735A",
-    sage: "#A8D5BA",
+    green: "#7FC4A4",     // Moss green (--moss)
+    gold: "#F4B860",      // Gold lamp (--lamp)
+    cream: "#F4ECDB",     // Warm paper (--paper)
+    charcoal: "#0A0E1F",  // Midnight ink (--ink-0)
+    coral: "#E8856C",     // Rose (--rose)
+    sage: "#BFB6A2",      // Faded paper (--paper-dim)
   },
-  // Light-mode tokens
+  // Light-mode tokens (warm paper theme)
   light: {
-    background: "#FFF8F0",
+    background: "#F4ECDB",      // Warm paper
     card: "#FFFFFF",
-    foreground: "#2A2A2A",
-    mutedForeground: "#6B7280",
-    muted: "#F3F4F6",
-    border: "#E5E7EB",
-    primary: "#2D8B70",
-    primaryForeground: "#FFFFFF",
-    destructive: "#DC2626",
-    success: "#16A34A",
+    foreground: "#0A0E1F",      // Midnight ink text
+    mutedForeground: "#7C7763",  // Paper mute
+    muted: "#BFB6A2",           // Paper dim
+    border: "#E5DCC6",
+    primary: "#F4B860",         // Gold lamp
+    primaryForeground: "#0A0E1F",
+    destructive: "#E8856C",     // Rose
+    success: "#7FC4A4",         // Moss
   },
-  // Dark-mode tokens
+  // Dark-mode tokens (Twilight prototype theme)
   dark: {
-    background: "#0F1613",
-    card: "#18211D",
-    foreground: "#F5F5F5",
-    mutedForeground: "#9CA3AF",
-    muted: "#232B28",
-    border: "#2A3431",
-    primary: "#3FA98A",
-    primaryForeground: "#0F1613",
-    destructive: "#F87171",
-    success: "#22C55E",
+    background: "#0A0E1F",      // Midnight ink (--ink-0)
+    card: "#11172B",            // Deep blue ink (--ink-1)
+    foreground: "#F4ECDB",      // Warm paper (--paper)
+    mutedForeground: "#BFB6A2",  // Faded paper (--paper-dim)
+    muted: "#1A2240",           // Middle ink (--ink-2)
+    border: "#232C50",          // Dark ink border (--ink-3)
+    primary: "#F4B860",         // Gold lamp (--lamp)
+    primaryForeground: "#0A0E1F",
+    destructive: "#E8856C",     // Rose (--rose)
+    success: "#7FC4A4",         // Moss (--moss)
   },
 } as const;
 

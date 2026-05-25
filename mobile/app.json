@@ -10,7 +10,7 @@
     "splash": {
       "image": "./src/assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFF8F0"
+      "backgroundColor": "#F4ECDB"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -25,7 +25,7 @@
       "package": "com.voxtree.app",
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
-        "backgroundColor": "#2D8B70"
+        "backgroundColor": "#7FC4A4"
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",

@@ -1,4 +1,5 @@
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
 import {
   CheckCircle2,
   Clock,
@@ -8,7 +9,7 @@ import {
   XCircle,
 } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 
 import { useTheme } from "@/contexts/ThemeContext";
 import { radii, spacing, typography } from "@/lib/theme";
@@ -26,6 +27,7 @@ interface VoiceCardProps {
 export function VoiceCard({ voice, onPress }: VoiceCardProps) {
   const { brand, palette } = useTheme();
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
@@ -35,32 +37,80 @@ export function VoiceCard({ voice, onPress }: VoiceCardProps) {
   }, []);
 
   async function handleToggle() {
-    if (!voice.sample_audio_url) return;
-
     if (playing && soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch (err) {
+        console.warn("Error stopping sound:", err);
+      }
       soundRef.current = null;
       setPlaying(false);
       return;
     }
 
+    setLoading(true);
     try {
-      // Because mobile uses the same API, we need to provide full URL of API
-      const baseUrl = config.apiBaseUrl || "http://localhost:3000"; // Assuming dev, but in prod it uses config.apiUrl
+      const baseUrl = config.apiBaseUrl || "http://localhost:3000";
 
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token || "";
 
-      const { sound } = await Audio.Sound.createAsync(
-        {
-          uri: `${baseUrl}/api/voices/download?voiceId=${voice.id}`,
-          headers: { Authorization: `Bearer ${token}` }
+      const localUri = `${FileSystem.documentDirectory}${voice.id}-sample.mp3`;
+
+      // Download the synthesized voice sample (requires POST body)
+      const res = await fetch(`${baseUrl}/api/voices/test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
         },
+        body: JSON.stringify({ voiceId: voice.id })
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to generate voice sample");
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data.simulated) {
+          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled)");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Convert the binary response to base64
+      const blob = await res.blob();
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === "string") {
+            const base64 = reader.result.split(",")[1];
+            resolve(base64);
+          } else {
+            reject(new Error("Failed to convert blob to base64"));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+
+      await FileSystem.writeAsStringAsync(localUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: localUri },
         { shouldPlay: true }
       );
+
       soundRef.current = sound;
       setPlaying(true);
+      setLoading(false);
+
       sound.setOnPlaybackStatusUpdate((status) => {
         if (!status.isLoaded) return;
         if (status.didJustFinish) {
@@ -69,8 +119,10 @@ export function VoiceCard({ voice, onPress }: VoiceCardProps) {
           soundRef.current = null;
         }
       });
-    } catch {
+    } catch (err) {
+      console.error("Error playing mobile voice clone sample:", err);
       setPlaying(false);
+      setLoading(false);
     }
   }
 
@@ -120,18 +172,22 @@ export function VoiceCard({ voice, onPress }: VoiceCardProps) {
         </View>
       </Pressable>
 
-      {voice.status === "ready" && voice.sample_audio_url ? (
+      {voice.status === "ready" ? (
         <Pressable
           onPress={handleToggle}
+          disabled={loading}
           style={[
             styles.sampleBtn,
             {
               backgroundColor: brand.green + "14",
               borderColor: brand.green + "33",
+              opacity: loading ? 0.6 : 1,
             },
           ]}
         >
-          {playing ? (
+          {loading ? (
+            <ActivityIndicator size="small" color={brand.green} />
+          ) : playing ? (
             <Pause size={14} color={brand.green} />
           ) : (
             <Play size={14} color={brand.green} />
@@ -143,7 +199,7 @@ export function VoiceCard({ voice, onPress }: VoiceCardProps) {
               fontWeight: typography.weights.semibold,
             }}
           >
-            {playing ? "Stop sample" : "Listen to sample"}
+            {loading ? "Generating..." : playing ? "Stop sample" : "Listen to sample"}
           </Text>
         </Pressable>
       ) : null}
