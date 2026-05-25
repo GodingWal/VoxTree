@@ -138,7 +138,7 @@ function TopBar() {
                 boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15)",
               }}>
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img src="/mock_avatar.png" alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <div style={{
                     width: "100%",
