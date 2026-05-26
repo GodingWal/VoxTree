@@ -49,16 +49,40 @@ export async function updateUser(
 
   const adminClient = createAdminClient();
 
+  // 1. Update the public.users database table
   const { error } = await adminClient
     .from("users")
     .update(data)
     .eq("id", id);
 
   if (error) {
-    console.error("Error updating user:", error);
+    console.error("Error updating user table:", error);
     return { error: error.message };
   }
 
+  // 2. Synchronize user metadata and app metadata with auth.users
+  try {
+    const authUpdates: any = {};
+    if (data.name !== undefined) {
+      authUpdates.user_metadata = { full_name: data.name };
+    }
+    if (data.plan !== undefined) {
+      authUpdates.app_metadata = { plan: data.plan };
+    }
+
+    if (Object.keys(authUpdates).length > 0) {
+      const { error: authError } = await adminClient.auth.admin.updateUserById(id, authUpdates);
+      if (authError) {
+        console.warn("Failed to synchronize auth user metadata:", authError.message);
+      }
+    }
+  } catch (err) {
+    console.error("Auth metadata sync exception:", err);
+  }
+
+  // 3. Clear Next.js cache for the entire dashboard layout and admin page
+  revalidatePath("/dashboard", "layout");
   revalidatePath("/dashboard/admin/users");
+  
   return { success: true };
 }

@@ -38,6 +38,7 @@ export async function DashboardNav() {
     { href: "/dashboard/stories", label: "Stories" },
     { href: "/dashboard/clones", label: "Clones" },
     { href: "/browse", label: "Library" },
+    { href: "/videos", label: "Videos" },
     ...(showAdmin ? [{ href: "/dashboard/admin", label: "Admin" }] : []),
   ];
 

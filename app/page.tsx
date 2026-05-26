@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TwilightShell } from "@/components/twilight-layout";
-import { Avatar, Waveform, StoryArt, Section, TextLink } from "@/components/twilight-ui";
+import { Avatar, Waveform, StoryArt, Section, TextLink, CloneFullCard } from "@/components/twilight-ui";
 
 // Mock Data
 const CLONES = [
-  { id: "c1", name: "Grandma Rose", relation: "Grandmother", color: "#E8856C", status: "ready", stories: 83, lastUsed: "Tonight", recorded: "Sep 2017" },
-  { id: "c2", name: "Papa Theo", relation: "Grandfather", color: "#F4B860", status: "ready", stories: 41, lastUsed: "Tue", recorded: "Dec 2019" },
-  { id: "c3", name: "Mom", relation: "Mother", color: "#7FC4A4", status: "ready", stories: 12, lastUsed: "Last night", recorded: "Jan 2024" },
-  { id: "c4", name: "Aunt Sarah", relation: "Aunt", color: "#C58FB8", status: "training", stories: 0, lastUsed: "—", recorded: "Just now" },
+  { id: "c1", name: "Grandma Rose", relation: "Grandmother", color: "#E8856C", status: "ready", stories: 83, lastUsed: "Tonight", recorded: "Sep 2017", avatar_url: "/mock_pixar_character.png" },
+  { id: "c2", name: "Papa Theo", relation: "Grandfather", color: "#F4B860", status: "ready", stories: 41, lastUsed: "Tue", recorded: "Dec 2019", avatar_url: "/mock_pixar_character.png" },
+  { id: "c3", name: "Mom", relation: "Mother", color: "#7FC4A4", status: "ready", stories: 12, lastUsed: "Last night", recorded: "Jan 2024", avatar_url: "/mock_pixar_character.png" },
+  { id: "c4", name: "Aunt Sarah", relation: "Aunt", color: "#C58FB8", status: "processing", stories: 0, lastUsed: "—", recorded: "Just now", avatar_url: "/mock_pixar_character.png" },
 ];
 
 const STORIES = [
@@ -119,7 +119,7 @@ export default function Home() {
         </Section>
 
         {/* The Family Tree strip */}
-        <Section eyebrow="Your clone tree" title={<>Four <span className="serif-italic">familiar</span> clones, ready.</>} action={<Link href="/dashboard/clones" style={{ color: "var(--lamp-soft)", fontSize: 13, textDecoration: "none" }}>Manage clones →</Link>}>
+        <Section eyebrow="Your Family Tree" title={<>Four <span className="serif-italic">familiar</span> clones, ready.</>} action={<Link href="/dashboard/family" style={{ color: "var(--lamp-soft)", fontSize: 13, textDecoration: "none" }}>Manage family →</Link>}>
           <FamilyTreeStrip />
         </Section>
       </div>
@@ -241,16 +241,18 @@ function HeroLamp({ playing, onToggle, cloneIdx, setCloneIdx }: { playing: boole
 }
 
 function FamilyTreeStrip() {
+  const connectionPath = "M50 12 L50 35 L12 35 L12 55 M50 35 L37 35 L37 55 M50 35 L63 35 L63 55 M50 35 L88 35 L88 55";
+
   return (
     <div style={{
       position: "relative", background: "var(--ink-1)", border: "1px solid var(--ink-3)",
       borderRadius: 24, padding: "40px 36px 36px", overflow: "hidden",
     }}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-        <path d="M50% 30 L50% 70 L20% 70 L20% 130 M50% 70 L40% 70 L40% 130 M50% 70 L60% 70 L60% 130 M50% 70 L80% 70 L80% 130"
-              stroke="var(--ink-3)" strokeWidth="1" fill="none" />
+      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} preserveAspectRatio="none" viewBox="0 0 100 100">
+        <path d={connectionPath}
+              stroke="rgba(244,236,219,0.12)" strokeWidth="0.25" fill="none" vectorEffect="non-scaling-stroke" />
       </svg>
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 32, position: "relative", zIndex: 2 }}>
         <div className="mono" style={{
           padding: "6px 14px", background: "var(--ink-2)", border: "1px solid var(--ink-3)",
           borderRadius: 99, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
@@ -259,27 +261,9 @@ function FamilyTreeStrip() {
           The Khan Family · Est. 2017
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${CLONES.length}, 1fr)`, gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20, position: "relative", zIndex: 2 }}>
         {CLONES.map(v => (
-          <div key={v.id} style={{
-            background: "var(--ink-2)", border: `1px solid ${v.status === "ready" ? "var(--ink-3)" : "rgba(244,184,96,0.3)"}`,
-            borderRadius: 18, padding: 18, position: "relative",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-              <Avatar name={v.name} color={v.color} size={42} />
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: "var(--paper)" }}>{v.name}</div>
-                <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 2 }}>
-                  {v.relation}
-                </div>
-              </div>
-            </div>
-            <Waveform playing={false} count={20} height={20} color={v.color} />
-            <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--paper-mute)" }}>
-              {v.status === "ready" ? <span>{v.stories} reads</span> : <span style={{ color: "var(--lamp)" }}>● Training…</span>}
-              <span>{v.lastUsed}</span>
-            </div>
-          </div>
+          <CloneFullCard key={v.id} clone={v} href="/dashboard/family" />
         ))}
       </div>
     </div>
