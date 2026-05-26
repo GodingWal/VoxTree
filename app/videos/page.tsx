@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { TwilightShell } from "@/components/twilight-layout";
 import { Play, Sparkles, Clock, Cpu, Check, Mail, ArrowRight, Award } from "lucide-react";
 
@@ -91,12 +92,12 @@ export default function VideosComingSoonPage() {
               border: "1px solid rgba(244,236,219,0.03)",
             }}>
               {/* Background preview image */}
-              <img 
-                src="/mock_pixar_character.png" 
-                alt="Widescreen Preview" 
+              <Image
+                src="/mock_pixar_character.png"
+                alt="Widescreen Preview"
+                fill
+                sizes="(max-width: 768px) 100vw, 800px"
                 style={{
-                  width: "100%",
-                  height: "100%",
                   objectFit: "cover",
                   opacity: playingPreview ? 0.9 : 0.45,
                   filter: playingPreview ? "none" : "blur(2px) grayscale(20%)",

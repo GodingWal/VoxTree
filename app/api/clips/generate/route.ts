@@ -4,6 +4,8 @@ import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { generateSpeech } from "@/lib/elevenlabs";
 import { getPresignedUploadUrl, getPresignedDownloadUrl, GCP_PATHS } from "@/lib/gcp";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import Replicate from "replicate";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
@@ -22,15 +24,9 @@ const generateSchema = z.object({
   voiceId: z.string().uuid(),
 });
 
-import { RateLimit } from "@/lib/rate-limit";
-
-const rateLimiter = new RateLimit({ limit: 5, windowMs: 60000 });
-
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!rateLimiter.check(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -39,18 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (text) {
-      body = JSON.parse(text);
-    } else {
-      body = {};
-    }
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const parsed = generateSchema.safeParse(body);
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = generateSchema.safeParse(parsedJson.body);
 
   if (!parsed.success) {
     return NextResponse.json(
@@ -233,7 +220,13 @@ export async function POST(request: Request) {
       console.log(`[Clip Generation] Completed successfully for clip ${clip.id}`);
 
     } catch (err: any) {
-      console.error(`[Clip Generation] Failed for clip ${clip.id}:`, err);
+      logger.error("clip_generation_failed", {
+        clipId: clip.id,
+        userId: user.id,
+        contentId,
+        voiceId,
+        message: err?.message ?? "Unknown error",
+      });
       await admin
         .from("generated_clips")
         .update({ status: "failed" })
