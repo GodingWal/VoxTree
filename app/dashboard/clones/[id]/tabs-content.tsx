@@ -2,12 +2,14 @@
 
 import React, { useState, useRef } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Mic, Music, User as UserIcon, Activity, Sparkles, Camera, Play, Square, Loader2, ArrowLeft } from "lucide-react";
+import { Mic, Music, User as UserIcon, Activity, Sparkles, Camera, Play, Square, Loader2, ArrowLeft, Wand2 } from "lucide-react";
 import { TrainSingingButton } from "@/components/train-singing-button";
 import { DeleteCloneButton } from "@/components/delete-clone-button";
 import { TestVoiceButton } from "@/components/test-voice-button";
 import { Avatar, Waveform, Pill } from "@/components/twilight-ui";
 import { VisualCloneCapture } from "@/components/visual-clone-capture";
+import { LoraReferencesUploader } from "@/components/lora-references-uploader";
+import { TalkingVideoGenerator } from "@/components/talking-video-generator";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -209,6 +211,19 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
             )}
           </Tabs.Trigger>
           <Tabs.Trigger
+            value="identity"
+            className="flex items-center gap-2 px-6 h-[40px] rounded-full text-sm font-medium text-[var(--paper-dim)] bg-transparent border border-transparent transition-all hover:bg-[var(--ink-2)] data-[state=active]:bg-[var(--ink-2)] data-[state=active]:text-white data-[state=active]:border-[var(--ink-3)] outline-none whitespace-nowrap"
+          >
+            <Wand2 className="h-4 w-4" />
+            Identity LoRA
+            {voice.lora_status === "ready" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--moss)]" />
+            )}
+            {voice.lora_status === "training" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--lamp)] animate-pulse" />
+            )}
+          </Tabs.Trigger>
+          <Tabs.Trigger
             value="body"
             className="flex items-center gap-2 px-6 h-[40px] rounded-full text-sm font-medium text-[var(--paper-dim)] bg-transparent border border-transparent transition-all hover:bg-[var(--ink-2)] data-[state=active]:bg-[var(--ink-2)] data-[state=active]:text-white data-[state=active]:border-[var(--ink-3)] outline-none whitespace-nowrap"
           >
@@ -377,10 +392,22 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
           )}
         </Tabs.Content>
 
+        {/* IDENTITY LORA TAB */}
+        <Tabs.Content value="identity" className="outline-none animate-in fade-in duration-300">
+          <LoraReferencesUploader
+            voiceId={voice.id}
+            initialReferences={voice.character_reference_images ?? []}
+            initialStatus={voice.lora_status}
+            initialTriggerWord={voice.lora_trigger_word}
+            onReady={() => router.refresh()}
+          />
+        </Tabs.Content>
+
         {/* FULL BODY TAB */}
         <Tabs.Content value="body" className="outline-none animate-in fade-in duration-300">
           {avatarUrl ? (
             /* Display interactive PixarCloneCard */
+            <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
               {/* Left: Pixar Clone Card */}
               <div className="w-full max-w-xs bg-[var(--ink-2)] rounded-3xl p-6 border border-[var(--ink-3)] text-white shadow-xl flex flex-col mx-auto">
@@ -510,6 +537,17 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                   </div>
                 </div>
               </div>
+            </div>
+
+            <TalkingVideoGenerator
+              voiceId={voice.id}
+              disabled={!voice.elevenlabs_voice_id}
+              disabledReason={
+                !voice.elevenlabs_voice_id
+                  ? "Voice clone isn't ready yet. Finish onboarding first."
+                  : undefined
+              }
+            />
             </div>
           ) : (
             /* Warning that Visual Avatar is Required */
