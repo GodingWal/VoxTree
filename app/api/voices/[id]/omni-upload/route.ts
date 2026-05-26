@@ -58,7 +58,10 @@ export async function POST(
         .on("error", (err) => reject(new Error("FFmpeg audio extract failed: " + err.message)));
     });
 
-    // 3. Extract single frame via FFmpeg at 2-second mark
+    // 3. Extract the cover frame (used as the immediate avatar) and a small
+    // set of reference frames sampled across the recording. The reference
+    // frames seed the LoRA training set so the personal Pixar clone has
+    // varied angles/expressions to learn from.
     await new Promise<void>((resolve, reject) => {
       ffmpeg(webmPath)
         .screenshots({
@@ -69,6 +72,22 @@ export async function POST(
         })
         .on("end", () => resolve())
         .on("error", (err) => reject(new Error("FFmpeg video frame extract failed: " + err.message)));
+    });
+
+    const referenceFramesDir = path.join(tempDir, "lora", params.id);
+    await fs.mkdir(referenceFramesDir, { recursive: true });
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(webmPath)
+        .screenshots({
+          timestamps: ["10%", "30%", "50%", "70%", "90%"],
+          filename: "ref_%i.jpg",
+          folder: referenceFramesDir,
+          size: "768x768",
+        })
+        .on("end", () => resolve())
+        .on("error", (err) =>
+          reject(new Error("FFmpeg reference frame extract failed: " + err.message))
+        );
     });
 
     // Clean up raw webm file
@@ -173,6 +192,18 @@ export async function POST(
       }
     })();
 
+    // Build the public URL list for the LoRA reference frames extracted above.
+    let referenceFrameUrls: string[] = [];
+    try {
+      const refEntries = await fs.readdir(referenceFramesDir);
+      referenceFrameUrls = refEntries
+        .filter((n) => n.startsWith("ref_") && n.endsWith(".jpg"))
+        .sort()
+        .map((n) => `/uploads/lora/${params.id}/${n}`);
+    } catch (e) {
+      console.warn("Could not enumerate LoRA reference frames", e);
+    }
+
     // 5. Update database record with captured frame immediately (Pixar version comes later)
     const { error: dbError } = await supabase
       .from("family_voices")
@@ -182,6 +213,7 @@ export async function POST(
         idle_video_url: publicImageUrl,
         talking_video_url: publicImageUrl,
         status: "ready",
+        character_reference_images: referenceFrameUrls,
       })
       .eq("id", params.id);
 
