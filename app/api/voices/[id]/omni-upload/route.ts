@@ -123,13 +123,13 @@ export async function POST(
               input: {
                 image: dataUri,
                 style: "3D",
-                prompt: "A Pixar 3D animated character, Disney Pixar movie style, smooth rounded features, big expressive eyes, warm soft studio lighting, high quality 3D render, friendly welcoming expression, subtle smile, clean solid dark background, cinematic character portrait, same person same face same features",
-                negative_prompt: "realistic, photograph, ugly, deformed, noisy, blurry, low quality, text, watermark, nsfw, scary, horror, different person, wrong face",
-                lora_scale: 0.9,
-                prompt_strength: 4.5,
-                denoising_strength: 0.65,
-                instant_id_strength: 1.0,
-                control_depth_strength: 0.8,
+                prompt: "a pixar disney character, 3d animated movie character, big glossy round eyes, smooth plastic-like skin, exaggerated cute proportions, vibrant colorful lighting, pixar movie screenshot, toy story style, inside out style, coco style, rendered in unreal engine, studio portrait",
+                negative_prompt: "realistic photo photograph human skin pores wrinkles ugly deformed noisy blurry text watermark nsfw",
+                lora_scale: 1.0,
+                prompt_strength: 6.0,
+                denoising_strength: 0.8,
+                instant_id_strength: 0.7,
+                control_depth_strength: 0.5,
               },
             }
           ) as any;
