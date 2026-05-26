@@ -1367,7 +1367,7 @@ function SettingsView() {
         {[
           { e: "Children",     t: "2 little readers",   d: "Yusuf (5) · Aisha (7)" },
           { e: "Consent",      t: "All clones verified", d: "Re-confirmed Mar 30" },
-          { e: "Plan",         t: "Family · $19.99/mo",  d: "Renews May 24, 2026" },
+          { e: "Plan",         t: "Family · $12.99/mo",  d: "Renews May 24, 2026" },
           { e: "Bedtime",      t: "9:00 pm weekdays",    d: "Auto-dim app at 9:30" },
           { e: "Background",   t: "Soft rain by default", d: "Per story override" },
           { e: "Privacy",      t: "Clones stay yours",   d: "Never used to train models" },

@@ -16,14 +16,82 @@ export default async function FamilyPage() {
     redirect("/login");
   }
 
-  // 1. Fetch user profile to check subscription plan
+  // 1. Fetch user profile to check subscription plan and bedtime settings
   const { data: profile } = await supabase
     .from("users")
-    .select("plan")
+    .select("plan, name, bedtime_time, bedtime_autodim, default_background_audio")
     .eq("id", user.id)
     .single();
 
-  const isPremium = profile?.plan === "premium";
+  const userPlan = profile?.plan || "free";
+  const isPremium = userPlan === "premium";
+
+  // Plan visual description
+  let planTitle = "Free Plan · $0/mo";
+  let planSubtitle = "Basic limits apply";
+  if (userPlan === "premium") {
+    planTitle = "Premium Plan · $22.99/mo";
+    planSubtitle = "Renews next billing cycle";
+  } else if (userPlan === "family") {
+    planTitle = "Family Plan · $12.99/mo";
+    planSubtitle = "Renews next billing cycle";
+  }
+
+  // Fetch children list from database
+  let childrenList: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("family_children")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+    if (!error && data) {
+      childrenList = data;
+    }
+  } catch (e) {
+    console.warn("Could not query family_children table, running in fallback.", e);
+  }
+
+  // Fallback to default mock readers if none exist
+  if (childrenList.length === 0) {
+    childrenList = [
+      { id: "mock-1", name: "Yusuf", age: 5 },
+      { id: "mock-2", name: "Aisha", age: 7 }
+    ];
+  }
+
+  const childrenCountLabel = `${childrenList.length} little reader${childrenList.length === 1 ? "" : "s"}`;
+  const childrenNamesLabel = childrenList.map(c => `${c.name} (${c.age})`).join(" • ");
+
+  // Fetch bedtime settings from user profile
+  const bedtimeTime = profile?.bedtime_time || "21:00";
+  const bedtimeAutodim = profile?.bedtime_autodim !== false;
+  const defaultBackgroundAudio = profile?.default_background_audio || "soft_rain";
+
+  // Format bedtime display (e.g. 21:00 -> 9:00 pm)
+  const formatTime = (t: string) => {
+    try {
+      const [h, m] = t.split(":");
+      const hours = parseInt(h);
+      const ampm = hours >= 12 ? "pm" : "am";
+      const displayHours = hours % 12 || 12;
+      return `${displayHours}:${m} ${ampm}`;
+    } catch {
+      return "9:00 pm";
+    }
+  };
+
+  const bedtimeLabel = formatTime(bedtimeTime) + " weekdays";
+  const autodimLabel = bedtimeAutodim ? `Auto-dim app at ${formatTime(bedtimeTime)}` : "Auto-dim disabled";
+
+  const backgroundAudioLabels: Record<string, string> = {
+    none: "No sound by default",
+    white_noise: "White noise by default",
+    soft_rain: "Soft rain by default",
+    ocean_waves: "Ocean waves by default",
+    forest_night: "Forest night by default"
+  };
+  const backgroundAudioLabel = backgroundAudioLabels[defaultBackgroundAudio] || "Soft rain by default";
 
   // 2. Fetch voices
   const { data: voices } = await supabase
@@ -210,12 +278,12 @@ export default async function FamilyPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginBottom: 80 }}>
-        <SettingsCard eyebrow="CHILDREN" title="2 little readers" subtitle="Yusuf (5) • Aisha (7)" />
-        <SettingsCard eyebrow="CONSENT" title="All voices verified" subtitle="Re-confirmed Mar 30" />
-        <SettingsCard eyebrow="PLAN" title="Family - $19.99/mo" subtitle="Renews May 24, 2026" />
-        <SettingsCard eyebrow="BEDTIME" title="9:00 pm weekdays" subtitle="Auto-dim app at 9:30" />
-        <SettingsCard eyebrow="BACKGROUND" title="Soft rain by default" subtitle="Per story override" />
-        <SettingsCard eyebrow="PRIVACY" title="Voices stay yours" subtitle="Never used to train models" />
+        <SettingsCard eyebrow="CHILDREN" title={childrenCountLabel} subtitle={childrenNamesLabel} href="/dashboard/family/children" />
+        <SettingsCard eyebrow="CONSENT" title="All voices verified" subtitle="Re-confirmed Mar 30" href="/consent" />
+        <SettingsCard eyebrow="PLAN" title={planTitle} subtitle={planSubtitle} href="/pricing" />
+        <SettingsCard eyebrow="BEDTIME" title={bedtimeLabel} subtitle={autodimLabel} href="/dashboard/family/bedtime" />
+        <SettingsCard eyebrow="BACKGROUND" title={backgroundAudioLabel} subtitle="Ambient sound during readings" href="/dashboard/family/bedtime" />
+        <SettingsCard eyebrow="PRIVACY" title="Voices stay yours" subtitle="Review parental disclaimers" href="/privacy" />
       </div>
 
       <Section eyebrow="Recent Activity" title={<>Shared <span className="serif-italic">Moments</span></>}>
@@ -232,8 +300,8 @@ export default async function FamilyPage() {
   );
 }
 
-function SettingsCard({ eyebrow, title, subtitle }: { eyebrow: string, title: string, subtitle: string }) {
-  return (
+function SettingsCard({ eyebrow, title, subtitle, href }: { eyebrow: string, title: string, subtitle: string, href?: string }) {
+  const cardContent = (
     <div style={{
       background: "var(--ink-2)",
       border: "1px solid var(--ink-3)",
@@ -244,6 +312,7 @@ function SettingsCard({ eyebrow, title, subtitle }: { eyebrow: string, title: st
       justifyContent: "center",
       transition: "background 0.2s ease, border-color 0.2s ease",
       cursor: "pointer",
+      height: "100%",
     }}
     className="hover:bg-ink-3/50 hover:border-lamp/30 group"
     >
@@ -258,4 +327,14 @@ function SettingsCard({ eyebrow, title, subtitle }: { eyebrow: string, title: st
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} style={{ textDecoration: "none" }}>
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 }
