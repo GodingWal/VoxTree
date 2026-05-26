@@ -134,20 +134,25 @@ export async function generateSpeech(
  */
 export async function deleteVoice(voiceId: string): Promise<void> {
   const apiKey = getApiKey();
-  
+
   if (!apiKey || voiceId.startsWith("simulated_voice_id_")) {
     return; // Simulated deletion
   }
 
-  const response = await fetch(`${ELEVENLABS_BASE_URL}/voices/${voiceId}`, {
-    method: "DELETE",
-    headers: {
-      "xi-api-key": apiKey,
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`ElevenLabs voice deletion failed: ${error}`);
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(`${ELEVENLABS_BASE_URL}/voices/${voiceId}`, {
+      method: "DELETE",
+      headers: {
+        "xi-api-key": apiKey,
+      },
+    });
+    if (response.ok) return;
+    // ElevenLabs returns 404 if the voice was already deleted — don't retry that
+    if (response.status === 404) return;
+    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
   }
+
+  const error = await response?.text();
+  throw new Error(`ElevenLabs voice deletion failed: ${error}`);
 }
