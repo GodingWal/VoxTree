@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
 import path from "path";
@@ -9,6 +11,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const supabase = createClient();
     const {
@@ -19,10 +24,13 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { image } = await request.json();
-    if (!image) {
+    const parsedJson = await safeJson(request);
+    if ("error" in parsedJson) return parsedJson.error;
+    const body = parsedJson.body as { image?: unknown };
+    if (typeof body.image !== "string" || !body.image) {
       return NextResponse.json({ error: "Missing image data" }, { status: 400 });
     }
+    const image = body.image;
 
     // 1. Decode base64 image
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
@@ -103,7 +111,11 @@ export async function POST(
           }
         }
       } catch (err) {
-        console.error("Pixar avatar generation failed (non-fatal):", err);
+        logger.warn("pixar_avatar_generation_failed", {
+          voiceId: params.id,
+          userId: user.id,
+          message: err instanceof Error ? err.message : "Unknown error",
+        });
       }
     })();
 
@@ -126,7 +138,10 @@ export async function POST(
       talkingVideoUrl: publicUrl,
     });
   } catch (error: any) {
-    console.error("Visual capture error:", error);
+    logger.error("visual_capture_failed", {
+      voiceId: params.id,
+      message: error?.message ?? "Unknown error",
+    });
     return NextResponse.json({ error: error.message || "Failed to process visual capture" }, { status: 500 });
   }
 }

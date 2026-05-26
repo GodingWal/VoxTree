@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const body = parsedJson.body as {
+    id?: string;
+    status?: string;
+    version?: string;
+  };
+
   try {
-    const body = await request.json();
 
     // Replicate sends the completed training payload.
     // In production, we should verify the `webhook-signature` header using the REPLICATE_WEBHOOK_SECRET.
@@ -49,7 +58,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Replicate Webhook Error:", error);
+    logger.error("replicate_webhook_failed", {
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }

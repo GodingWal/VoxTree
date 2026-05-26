@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteVoice } from "@/lib/elevenlabs";
+import { safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import { z } from "zod";
 
 const deleteSchema = z.object({
@@ -14,14 +16,9 @@ export async function POST(request: Request) {
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = deleteSchema.safeParse(body);
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = deleteSchema.safeParse(parsedJson.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
@@ -47,7 +44,11 @@ export async function POST(request: Request) {
       try {
         await deleteVoice(voice.elevenlabs_voice_id);
       } catch (elError) {
-        console.error("Failed to delete voice from ElevenLabs, proceeding with local DB deletion:", elError);
+        logger.warn("elevenlabs_voice_delete_failed", {
+          elevenlabsVoiceId: voice.elevenlabs_voice_id,
+          voiceId,
+          message: elError instanceof Error ? elError.message : "Unknown error",
+        });
       }
     }
 
@@ -59,7 +60,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete voice error:", error);
+    logger.error("voice_delete_failed", {
+      voiceId,
+      userId: user.id,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
     return NextResponse.json({ error: "Failed to delete voice" }, { status: 500 });
   }
 }

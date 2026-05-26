@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
 import path from "path";
+import { z } from "zod";
+
+const generateSchema = z.object({
+  voiceId: z.string().uuid(),
+  imageUrl: z.string().min(1),
+});
 
 /**
  * Generate a Pixar/3D animated-style avatar from a captured face photo.
@@ -15,14 +23,23 @@ import path from "path";
  * data URI directly to Replicate — no GCS/cloud storage required.
  */
 export async function POST(request: NextRequest) {
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { voiceId, imageUrl } = await request.json();
-  if (!voiceId || !imageUrl) {
-    return NextResponse.json({ error: "voiceId and imageUrl required" }, { status: 400 });
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = generateSchema.safeParse(parsedJson.body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
+  const { voiceId, imageUrl } = parsed.data;
 
   try {
     let pixarUrl: string;
@@ -119,7 +136,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, avatarUrl: pixarUrl });
   } catch (error: any) {
-    console.error("Pixar avatar generation error:", error);
+    logger.error("avatar_generation_failed", {
+      voiceId,
+      userId: user.id,
+      message: error?.message ?? "Unknown error",
+    });
 
     // Fallback: keep the raw captured frame as avatar
     const admin = createAdminClient();

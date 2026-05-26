@@ -1,6 +1,7 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { checkLimit } from "@/lib/limits";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -26,16 +27,9 @@ const createVoiceSchema = z.object({
     .optional(),
 });
 
-import { RateLimit } from "@/lib/rate-limit"; // We will create this generic rate limiter
-
-const rateLimiter = new RateLimit({ limit: 10, windowMs: 60000 });
-
 export async function POST(request: Request) {
-  // Simple IP based rate limiting stub
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!rateLimiter.check(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-  }
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -44,18 +38,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (text) {
-      body = JSON.parse(text);
-    } else {
-      body = {};
-    }
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const parsed = createVoiceSchema.safeParse(body);
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = createVoiceSchema.safeParse(parsedJson.body);
 
   if (!parsed.success) {
     return NextResponse.json(

@@ -1,4 +1,5 @@
 import { getRouteClient } from "@/lib/supabase/auth";
+import { safeJson } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -6,8 +7,14 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { contentId, progressSeconds, completed } = await request.json();
-  if (!contentId || typeof progressSeconds !== "number") {
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const { contentId, progressSeconds, completed } = parsedJson.body as {
+    contentId?: unknown;
+    progressSeconds?: unknown;
+    completed?: unknown;
+  };
+  if (typeof contentId !== "string" || typeof progressSeconds !== "number") {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
