@@ -2,6 +2,8 @@ import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cloneVoice } from "@/lib/elevenlabs";
 import { getPresignedDownloadUrl, GCP_PATHS } from "@/lib/gcp";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -15,6 +17,9 @@ const processSchema = z.object({
  * a userId supplied in the body.
  */
 export async function POST(request: Request) {
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   const supabase = getRouteClient();
   const {
     data: { user },
@@ -24,18 +29,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (text) {
-      body = JSON.parse(text);
-    } else {
-      body = {};
-    }
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const parsed = processSchema.safeParse(body);
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = processSchema.safeParse(parsedJson.body);
 
   if (!parsed.success) {
     return NextResponse.json(
@@ -86,6 +82,11 @@ export async function POST(request: Request) {
       elevenlabsVoiceId,
     });
   } catch (error) {
+    logger.error("voice_clone_failed", {
+      voiceId,
+      userId,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
     await admin
       .from("family_voices")
       .update({ status: "failed" })

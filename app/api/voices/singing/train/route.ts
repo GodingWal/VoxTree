@@ -1,5 +1,7 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { trainSingingModel } from "@/lib/replicate";
@@ -10,6 +12,9 @@ const trainSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const rateLimited = enforcePaidRateLimit(request);
+  if (rateLimited) return rateLimited;
+
   const supabase = getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -17,14 +22,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = trainSchema.safeParse(body);
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const parsed = trainSchema.safeParse(parsedJson.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.format() }, { status: 400 });
   }
@@ -70,7 +70,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: "processing", trainingId: training.id });
   } catch (error) {
-    console.error("Training initiation error:", error);
+    logger.error("rvc_training_init_failed", {
+      voiceId,
+      userId: user.id,
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
     await admin.from("family_voices").update({ rvc_training_status: "failed" }).eq("id", voiceId);
     return NextResponse.json({ error: "Failed to initiate training" }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { getRouteClient } from "@/lib/supabase/auth";
+import { safeJson } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -6,9 +7,12 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { storyIds } = await request.json();
-  if (!Array.isArray(storyIds)) {
-    return NextResponse.json({ error: "storyIds must be an array" }, { status: 400 });
+  const parsedJson = await safeJson(request);
+  if ("error" in parsedJson) return parsedJson.error;
+  const body = parsedJson.body as { storyIds?: unknown };
+  const storyIds = body.storyIds;
+  if (!Array.isArray(storyIds) || !storyIds.every((id) => typeof id === "string")) {
+    return NextResponse.json({ error: "storyIds must be an array of strings" }, { status: 400 });
   }
 
   // Get current saved stories

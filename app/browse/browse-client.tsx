@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { TwilightShell } from "@/components/twilight-layout";
 import { StoryArt, Waveform } from "@/components/twilight-ui";
 import { Film, BookOpen, Clock, Sparkles, Trash2, Play, X, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
@@ -378,7 +379,13 @@ export function BrowseClient({ initialStories, voices = [] }: { initialStories: 
               {mockVideos.map(v => (
                 <div key={v.id} style={{ background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 24, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                   <div style={{ width: "100%", aspectRatio: "16/9", background: "#080b18", position: "relative", overflow: "hidden" }}>
-                    <img src="/mock_pixar_character.png" alt={v.title} style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.35, filter: "blur(1px) grayscale(30%)" }} />
+                    <Image
+                      src="/mock_pixar_character.png"
+                      alt={v.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 400px"
+                      style={{ objectFit: "cover", opacity: 0.35, filter: "blur(1px) grayscale(30%)" }}
+                    />
                     <div style={{ position: "absolute", top: 16, left: 16, background: "rgba(244,184,96,0.12)", border: "1px solid rgba(244,184,96,0.35)", color: "var(--lamp-soft)", padding: "4px 10px", borderRadius: 99, fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>Coming Soon</div>
                   </div>
                   <div style={{ padding: 24, display: "flex", flexDirection: "column", justifyContent: "space-between", flex: 1 }}>
