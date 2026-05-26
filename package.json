@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "archiver": "^7.0.1",
     "@google-cloud/storage": "^7.19.0",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "^1.2.2",
@@ -52,6 +53,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/archiver": "^6.0.2",
     "@types/fluent-ffmpeg": "^2.1.28",
     "@types/node": "^20.17.10",
     "@types/react": "^18.3.14",
