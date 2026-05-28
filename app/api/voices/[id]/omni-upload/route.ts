@@ -106,21 +106,46 @@ export async function POST(
     const admin = createAdminClient();
     const voiceName = formData.get("voiceName") as string || "Family Member";
 
-    // Run cloning process in background (voice + avatar)
+    // Run cloning process in background (voice + avatar). Validates the
+    // extracted audio first so a near-silent or absurdly long recording
+    // is rejected before we burn an ElevenLabs voice slot.
     (async () => {
+      let elevenlabsVoiceIdCreated: string | null = null;
       try {
-        // Voice cloning via ElevenLabs
+        const { probeAudio, assertAudioWithinLimits } = await import(
+          "@/lib/audio-validation"
+        );
+        const { deleteVoice } = await import("@/lib/elevenlabs");
         const audioData = await fs.readFile(wavPath);
-        const elevenlabsVoiceId = await cloneVoice(audioData, voiceName);
 
-        await admin
+        const probe = await probeAudio(audioData);
+        assertAudioWithinLimits(probe);
+
+        elevenlabsVoiceIdCreated = await cloneVoice(audioData, voiceName);
+
+        const { error: updateError } = await admin
           .from("family_voices")
           .update({
-            elevenlabs_voice_id: elevenlabsVoiceId,
+            elevenlabs_voice_id: elevenlabsVoiceIdCreated,
             sample_audio_url: publicAudioUrl,
+            sample_sha256: probe.sha256,
+            sample_duration_seconds: probe.durationSeconds,
+            sample_bytes: probe.bytes,
             status: "ready",
           })
           .eq("id", params.id);
+
+        if (updateError) {
+          // Saga cleanup: drop the paid ElevenLabs voice we can't link.
+          if (elevenlabsVoiceIdCreated) {
+            try {
+              await deleteVoice(elevenlabsVoiceIdCreated);
+            } catch (_cleanupErr) {
+              /* logged via console below */
+            }
+          }
+          throw new Error(`DB update failed: ${updateError.message}`);
+        }
       } catch (err) {
         console.error("Background voice cloning failed:", err);
         await admin

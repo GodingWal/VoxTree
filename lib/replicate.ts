@@ -1,8 +1,29 @@
 import Replicate from "replicate";
+import { withRetry } from "./retry";
 
-export const replicate = process.env.REPLICATE_API_TOKEN 
+export const replicate = process.env.REPLICATE_API_TOKEN
   ? new Replicate({ auth: process.env.REPLICATE_API_TOKEN })
   : null;
+
+/**
+ * Cancel a Replicate training. Safe to call on already-finished jobs
+ * (returns false instead of throwing).
+ */
+export async function cancelTraining(trainingId: string): Promise<boolean> {
+  if (trainingId.startsWith("simulated_training_") || trainingId.startsWith("simulated_lora_training_")) {
+    return true;
+  }
+  if (!replicate) return false;
+  try {
+    await withRetry(() => replicate.trainings.cancel(trainingId), {
+      attempts: 3,
+      baseDelayMs: 1000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Triggers a Replicate training job for an RVC (Singing) model.
@@ -16,16 +37,20 @@ export async function trainSingingModel(datasetUrl: string, webhookUrl: string) 
 
   try {
     // In production, the destination would be your Replicate account's model, e.g., "godingwal/custom-voice"
-    const training = await replicate.trainings.create(
-      "zsxkib",
-      "realistic-voice-cloning",
-      "0a9c7c558af4c0f20667c1bd1260ce32a2879944a0b9e44e1398660c077b1550",
-      {
-        destination: "voxtree-internal/temp-model", // This will throw an error if not owned by the API key
-        input: { dataset: datasetUrl, epochs: 200, batch_size: 7 },
-        webhook: webhookUrl,
-        webhook_events_filter: ["completed"],
-      }
+    const training = await withRetry(
+      () =>
+        replicate.trainings.create(
+          "zsxkib",
+          "realistic-voice-cloning",
+          "0a9c7c558af4c0f20667c1bd1260ce32a2879944a0b9e44e1398660c077b1550",
+          {
+            destination: "voxtree-internal/temp-model", // This will throw an error if not owned by the API key
+            input: { dataset: datasetUrl, epochs: 200, batch_size: 7 },
+            webhook: webhookUrl,
+            webhook_events_filter: ["completed"],
+          }
+        ),
+      { attempts: 3, baseDelayMs: 1500 }
     );
     return training;
   } catch (error) {
