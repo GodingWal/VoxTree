@@ -1,24 +1,37 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { safeJson } from "@/lib/api-helpers";
+import { verifyReplicateWebhook } from "@/lib/webhook-signature";
 import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
-  const parsedJson = await safeJson(request);
-  if ("error" in parsedJson) return parsedJson.error;
-  const body = parsedJson.body as {
-    id?: string;
-    status?: string;
-    version?: string;
-  };
+  // Read the raw body once for signature verification — JSON.parse would
+  // re-serialize and break the HMAC.
+  const rawBody = await request.text();
+
+  const verification = verifyReplicateWebhook({
+    rawBody,
+    headers: request.headers,
+  });
+
+  if (!verification.ok) {
+    logger.warn("replicate_webhook_rejected", { reason: verification.reason });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+  if (verification.simulated) {
+    logger.info("replicate_webhook_unsigned", {
+      note: "REPLICATE_WEBHOOK_SECRET not configured; accepted without verification",
+    });
+  }
+
+  let body: { id?: string; status?: string; version?: string };
+  try {
+    body = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
   try {
-
-    // Replicate sends the completed training payload.
-    // In production, we should verify the `webhook-signature` header using the REPLICATE_WEBHOOK_SECRET.
-    
     const trainingId = body.id;
-
     if (!trainingId) {
       return NextResponse.json({ error: "Missing training id" }, { status: 400 });
     }
@@ -36,8 +49,7 @@ export async function POST(request: Request) {
 
       if (voices && voices.length > 0) {
         const voiceId = voices[0].id;
-        
-        // Update to the finalized model version id and mark as ready
+
         await admin
           .from("family_voices")
           .update({
@@ -47,11 +59,10 @@ export async function POST(request: Request) {
           .eq("id", voiceId);
       }
     } else if (body.status === "failed" || body.status === "canceled") {
-      // Revert the status to failed so the user can try again
       await admin
         .from("family_voices")
         .update({
-          rvc_training_status: "failed",
+          rvc_training_status: body.status === "canceled" ? "cancelled" : "failed",
         })
         .eq("rvc_model_id", trainingId);
     }
