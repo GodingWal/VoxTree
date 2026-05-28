@@ -58,6 +58,9 @@ export async function POST(request: Request) {
     // Delete the voice record
     await admin.from("family_voices").delete().eq("id", voiceId);
 
+    // Release the voice slot back to the user's quota.
+    await admin.rpc("decrement_voice_slots", { user_id: user.id });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     logger.error("voice_delete_failed", {

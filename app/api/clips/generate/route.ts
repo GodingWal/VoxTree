@@ -3,8 +3,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { generateSpeech } from "@/lib/elevenlabs";
-import { getPresignedUploadUrl, getPresignedDownloadUrl, GCP_PATHS } from "@/lib/gcp";
-import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
+import {
+  enforcePaidRateLimit,
+  enforceUserRateLimit,
+  safeJson,
+} from "@/lib/api-helpers";
+import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
 import { logger } from "@/lib/logger";
 import Replicate from "replicate";
 import ffmpeg from "fluent-ffmpeg";
@@ -47,6 +52,16 @@ export async function POST(request: Request) {
   }
 
   const { contentId, voiceId } = parsed.data;
+
+  // Per-user durable cap: 20 clip-generates per hour. Prevents a buggy
+  // client from burning through the monthly cap in one runaway loop.
+  const userLimited = await enforceUserRateLimit({
+    userId: user.id,
+    bucket: "clip_generate",
+    limit: 20,
+    windowSeconds: 60 * 60,
+  });
+  if (userLimited) return userLimited;
 
   // Check clip generation limit (clips count against the videos limit)
   const limitCheck = await checkLimit(user.id, "add_video");
@@ -132,10 +147,23 @@ export async function POST(request: Request) {
 
       if (content.content_mode === "tts") {
         if (!voice.elevenlabs_voice_id) throw new Error("TTS voice not set up");
+        const charCount = content.text_script.length;
+        const costCheck = await checkCostCap(user.id, {
+          kind: "elevenlabs_chars",
+          chars: charCount,
+        });
+        if (!costCheck.allowed) {
+          throw new Error(costCheck.reason ?? "Cost cap reached");
+        }
         console.log(`[Clip Generation] Generating speech via ElevenLabs for clip ${clip.id}`);
         rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
+        await recordUsage(user.id, { kind: "elevenlabs_chars", chars: charCount });
       } else if (content.content_mode === "v2v") {
         if (!voice.rvc_model_id) throw new Error("V2V singing voice not set up");
+        const costCheck = await checkCostCap(user.id, { kind: "replicate_inference" });
+        if (!costCheck.allowed) {
+          throw new Error(costCheck.reason ?? "Cost cap reached");
+        }
         console.log(`[Clip Generation] Triggering Replicate V2V workflow for clip ${clip.id}`);
         
         // Replicate RVC inference
@@ -153,6 +181,7 @@ export async function POST(request: Request) {
         // Download the output from Replicate
         const repRes = await fetch(output);
         rawVocalsBuffer = Buffer.from(await repRes.arrayBuffer());
+        await recordUsage(user.id, { kind: "replicate_inference" });
       } else {
         throw new Error("Unsupported content mode");
       }
