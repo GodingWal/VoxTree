@@ -41,11 +41,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: "ready" });
   } else if (replicateStatus.status === "failed" || replicateStatus.status === "canceled") {
     const admin = createAdminClient();
+    const next = replicateStatus.status === "canceled" ? "cancelled" : "failed";
     await admin
       .from("family_voices")
-      .update({ rvc_training_status: "failed" })
+      .update({ rvc_training_status: next })
       .eq("id", voiceId);
-    return NextResponse.json({ status: "failed" });
+    return NextResponse.json({ status: next });
   }
 
   return NextResponse.json({ status: "processing" });

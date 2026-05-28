@@ -1,7 +1,12 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { checkLimit } from "@/lib/limits";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
-import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import {
+  enforcePaidRateLimit,
+  enforceUserRateLimit,
+  safeJson,
+} from "@/lib/api-helpers";
+import { AUDIO_LIMITS } from "@/lib/audio-validation";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -49,6 +54,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // Per-user durable cap: at most 5 voice-clone attempts per hour. Prevents
+  // a single user from exhausting paid quota even across restarts/instances.
+  const userLimited = await enforceUserRateLimit({
+    userId: user.id,
+    bucket: "voice_clone",
+    limit: 5,
+    windowSeconds: 60 * 60,
+  });
+  if (userLimited) return userLimited;
+
   // Check voice slot limit
   const limitCheck = await checkLimit(user.id, "add_voice");
   if (!limitCheck.allowed) {
@@ -83,7 +98,11 @@ export async function POST(request: Request) {
   // Content-Type, so accept the client's content type when provided.
   const gcpKey = GCP_PATHS.voiceSample(user.id, voice.id);
   const contentType = parsed.data.contentType ?? "audio/mpeg";
-  const uploadUrl = await getPresignedUploadUrl(gcpKey, contentType);
+  // Bind the presigned URL to the configured audio size cap. The browser
+  // must send `x-goog-content-length-range: 0,<maxBytes>` with the PUT.
+  const uploadUrl = await getPresignedUploadUrl(gcpKey, contentType, {
+    maxBytes: AUDIO_LIMITS.maxBytes,
+  });
 
   // Increment voice slots used
   await supabase.rpc("increment_voice_slots", { user_id: user.id });
@@ -92,5 +111,9 @@ export async function POST(request: Request) {
     voiceId: voice.id,
     uploadUrl,
     gcpKey,
+    maxBytes: AUDIO_LIMITS.maxBytes,
+    requiredUploadHeaders: {
+      "x-goog-content-length-range": `0,${AUDIO_LIMITS.maxBytes}`,
+    },
   });
 }

@@ -1,6 +1,11 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import {
+  enforcePaidRateLimit,
+  enforceUserRateLimit,
+  safeJson,
+} from "@/lib/api-helpers";
+import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
 import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,15 +36,50 @@ export async function POST(request: Request) {
 
   const { voiceId } = parsed.data;
 
+  // Per-user durable cap: max 2 RVC trainings per day. Training is expensive.
+  const userLimited = await enforceUserRateLimit({
+    userId: user.id,
+    bucket: "singing_train",
+    limit: 2,
+    windowSeconds: 24 * 60 * 60,
+  });
+  if (userLimited) return userLimited;
+
+  // Cost cap per plan.
+  const costCheck = await checkCostCap(user.id, { kind: "replicate_training" });
+  if (!costCheck.allowed) {
+    return NextResponse.json(
+      { error: costCheck.reason, code: "cost_cap_reached" },
+      { status: 429 }
+    );
+  }
+
   // 1. Verify ownership
   const { data: voice } = await supabase
     .from("family_voices")
-    .select("id, user_id, sample_audio_url")
+    .select("id, user_id, sample_audio_url, rvc_training_status, rvc_model_id")
     .eq("id", voiceId)
     .single();
 
   if (!voice || voice.user_id !== user.id) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
+  }
+
+  // Idempotency: don't kick off a second training when one is in flight
+  // or already finished successfully.
+  if (voice.rvc_training_status === "processing" && voice.rvc_model_id) {
+    return NextResponse.json({
+      status: "processing",
+      trainingId: voice.rvc_model_id,
+      idempotent: true,
+    });
+  }
+  if (voice.rvc_training_status === "ready") {
+    return NextResponse.json({
+      status: "ready",
+      rvcModelId: voice.rvc_model_id,
+      idempotent: true,
+    });
   }
 
   if (!voice.sample_audio_url) {
@@ -67,6 +107,8 @@ export async function POST(request: Request) {
         rvc_model_id: training.id, // Temporarily store training ID here so we can poll status if needed
       })
       .eq("id", voiceId);
+
+    await recordUsage(user.id, { kind: "replicate_training" });
 
     return NextResponse.json({ status: "processing", trainingId: training.id });
   } catch (error) {
