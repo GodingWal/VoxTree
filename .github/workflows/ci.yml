@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (clean)
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint -- --max-warnings=0
+        continue-on-error: true
+
+      - name: Tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Provide dummy env so build doesn't fail on missing vars.
+          # Runtime simulation fallbacks are fail-closed only in production;
+          # build runs with NODE_ENV=production but without real secrets.
+          SIMULATION_MODE: "true"
+          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-anon-key"
+          SUPABASE_SERVICE_ROLE_KEY: "dummy-service-role-key"
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_dummy"
+          STRIPE_SECRET_KEY: "sk_test_dummy"
+          STRIPE_WEBHOOK_SECRET: "whsec_dummy"
+          STRIPE_FAMILY_MONTHLY_PRICE_ID: "price_dummy_family_monthly"
+          STRIPE_FAMILY_ANNUAL_PRICE_ID: "price_dummy_family_annual"
+          STRIPE_PREMIUM_MONTHLY_PRICE_ID: "price_dummy_premium_monthly"
+          STRIPE_PREMIUM_ANNUAL_PRICE_ID: "price_dummy_premium_annual"
+          ELEVENLABS_API_KEY: "dummy-elevenlabs-key"
+          REPLICATE_API_TOKEN: "dummy-replicate-token"
+          REPLICATE_WEBHOOK_SECRET: "whsec_dummy_replicate"
+          GOOGLE_CLOUD_PROJECT_ID: "dummy-project"
+          GOOGLE_CLOUD_CLIENT_EMAIL: "dummy@dummy-project.iam.gserviceaccount.com"
+          GOOGLE_CLOUD_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\ndummy\n-----END PRIVATE KEY-----\n"
+          GCS_BUCKET_NAME: "dummy-bucket"
+          NEXT_PUBLIC_APP_URL: "https://example.com"
+
+      - name: Dependency audit (high/critical)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Check for leaked secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

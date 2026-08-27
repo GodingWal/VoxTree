@@ -4,21 +4,30 @@ import { safeJson } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const PRICE_IDS: Record<string, string> = {
-  family_monthly:
-    process.env.STRIPE_FAMILY_MONTHLY_PRICE_ID ?? "price_family_monthly",
-  family_annual:
-    process.env.STRIPE_FAMILY_ANNUAL_PRICE_ID ?? "price_family_annual",
-  premium_monthly:
-    process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID ?? "price_premium_monthly",
-  premium_annual:
-    process.env.STRIPE_PREMIUM_ANNUAL_PRICE_ID ?? "price_premium_annual",
-};
-
 const checkoutSchema = z.object({
   plan: z.enum(["family", "premium"]),
   billing: z.enum(["monthly", "annual"]).default("monthly"),
 });
+
+function getPriceId(priceKey: string): string {
+  const envMap: Record<string, string> = {
+    family_monthly: "STRIPE_FAMILY_MONTHLY_PRICE_ID",
+    family_annual: "STRIPE_FAMILY_ANNUAL_PRICE_ID",
+    premium_monthly: "STRIPE_PREMIUM_MONTHLY_PRICE_ID",
+    premium_annual: "STRIPE_PREMIUM_ANNUAL_PRICE_ID",
+  };
+  const envName = envMap[priceKey];
+  if (!envName) throw new Error(`Unknown price key: ${priceKey}`);
+  const value = process.env[envName];
+  if (!value) {
+    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
+      throw new Error(`${envName} is required in production. Set ${envName} or enable SIMULATION_MODE=true.`);
+    }
+    console.warn(`Missing ${envName} — using placeholder that will fail on Stripe API call.`);
+    return `missing_${envName.toLowerCase()}`;
+  }
+  return value;
+}
 
 export async function POST(request: Request) {
   const supabase = getRouteClient();
@@ -64,11 +73,12 @@ export async function POST(request: Request) {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const priceId = getPriceId(priceKey);
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
-    line_items: [{ price: PRICE_IDS[priceKey], quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${appUrl}/dashboard?upgraded=true`,
     cancel_url: `${appUrl}/pricing`,
     metadata: { supabase_user_id: user.id, plan },

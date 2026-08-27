@@ -2,10 +2,16 @@
 const nextConfig = {
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
+      // Supabase Storage (user avatars, voice samples)
+      { protocol: 'https', hostname: '**.supabase.co' },
+      { protocol: 'https', hostname: '**.supabase.in' },
+      // GCS bucket for VoxTree media
+      { protocol: 'https', hostname: 'storage.googleapis.com' },
+      // Replicate CDN for generated Pixar avatars
+      { protocol: 'https', hostname: 'replicate.delivery' },
+      { protocol: 'https', hostname: 'replicate.com' },
+      // Vercel Blob / generic CDN if needed (restrict further once known)
+      { protocol: 'https', hostname: '**.vercel-storage.com' },
     ],
   },
   eslint: {
