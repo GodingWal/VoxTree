@@ -20,16 +20,22 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      setError(error.message);
+      if (error.message.toLowerCase().includes("email not confirmed")) {
+        setError("Your email has not been confirmed yet. Please check your inbox for the confirmation link from Supabase.");
+      } else if (error.message.toLowerCase().includes("invalid login credentials")) {
+        setError("Invalid email or password. Please verify your credentials and try again.");
+      } else {
+        setError(error.message);
+      }
       setLoading(false);
     } else {
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     }
   }

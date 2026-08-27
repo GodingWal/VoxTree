@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Loader2, Camera } from 'lucide-react';
+import { Loader2, Camera, MoreVertical, Trash2, Play, Square, Info } from 'lucide-react';
 
 
 // Decorative story "art"
@@ -196,12 +197,15 @@ export function TextLink({ children, onClick, href }: { children: React.ReactNod
   return <button onClick={onClick} style={style}>{children}</button>;
 }
 
-export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
+export function CloneFullCard({ clone, href, onDelete }: { clone: any; href?: string; onDelete?: (id: string) => void }) {
   const router = useRouter();
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const simulatedTimerRef = useRef<any>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   const [avatarUrl, setAvatarUrl] = useState<string | null>(clone.avatar_url || null);
 
@@ -221,6 +225,18 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
       })
     );
   }, [playing, clone.id, clone.name]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showDropdown]);
 
   const ready = clone.status === "ready";
 
@@ -311,9 +327,58 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
     }
   };
 
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowDropdown(false);
+
+    const confirmDelete = window.confirm(`Are you sure you want to delete ${clone.name}? This action cannot be undone.`);
+    if (!confirmDelete) return;
+
+    // Simulated/mock ID handling
+    if (!clone.id.includes("-") || clone.id.startsWith("c") || clone.id.startsWith("mock")) {
+      setDeleting(true);
+      setTimeout(() => {
+        setDeleting(false);
+        if (onDelete) {
+          onDelete(clone.id);
+        } else {
+          alert(`${clone.name} deleted (simulated).`);
+          router.refresh();
+        }
+      }, 800);
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/voices/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voiceId: clone.id }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to delete clone");
+      }
+
+      if (onDelete) {
+        onDelete(clone.id);
+      } else {
+        router.refresh();
+      }
+    } catch (err: any) {
+      console.error("Failed to delete voice:", err);
+      alert(err.message || "Error deleting clone. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (href) {
-      // Don't navigate if clicking on buttons
+      // Don't navigate if clicking on buttons or dropdown items
       if ((e.target as HTMLElement).closest('button')) {
         return;
       }
@@ -338,6 +403,154 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
       }}
       className="group"
     >
+      {/* Three-dots Options Dropdown */}
+      <div 
+        ref={dropdownRef} 
+        style={{ position: "absolute", top: 16, right: 16, zIndex: 30 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowDropdown(!showDropdown);
+          }}
+          style={{
+            background: "rgba(10, 14, 31, 0.75)",
+            border: "1px solid rgba(244, 236, 219, 0.1)",
+            borderRadius: 99,
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--paper-dim)",
+            cursor: "pointer",
+            transition: "all 0.2s",
+          }}
+          className="hover:text-[var(--lamp)] hover:border-[var(--lamp)] active:scale-95"
+          title="Options"
+        >
+          <MoreVertical size={16} />
+        </button>
+
+        {showDropdown && (
+          <div
+            style={{
+              position: "absolute",
+              top: 36,
+              right: 0,
+              background: "#1a2240",
+              border: "1px solid var(--ink-3)",
+              borderRadius: 12,
+              padding: "6px 0",
+              width: 160,
+              boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 40,
+            }}
+            className="animate-slide-up"
+          >
+            {href && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowDropdown(false);
+                  router.push(href);
+                }}
+                style={{
+                  padding: "8px 14px",
+                  background: "transparent",
+                  border: 0,
+                  color: "var(--paper-dim)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                className="hover:bg-white/5 hover:text-white"
+              >
+                <Info size={14} />
+                <span>View Details</span>
+              </button>
+            )}
+            
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowDropdown(false);
+                handlePlaySample(e);
+              }}
+              style={{
+                padding: "8px 14px",
+                background: "transparent",
+                border: 0,
+                color: "var(--paper-dim)",
+                fontSize: 13,
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+              className="hover:bg-white/5 hover:text-white"
+            >
+              {playing ? <Square size={14} /> : <Play size={14} />}
+              <span>{playing ? "Stop Sample" : "Hear Sample"}</span>
+            </button>
+
+            <button
+              onClick={handleDelete}
+              style={{
+                padding: "8px 14px",
+                background: "transparent",
+                border: 0,
+                color: "var(--rose)",
+                fontSize: 13,
+                cursor: "pointer",
+                textAlign: "left",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                borderTop: "1px solid var(--ink-3)",
+                marginTop: 4,
+                paddingTop: 8,
+              }}
+              className="hover:bg-red-500/10"
+            >
+              <Trash2 size={14} />
+              <span>Delete Clone</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {deleting && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(10, 14, 31, 0.8)",
+            backdropFilter: "blur(4px)",
+            borderRadius: 24,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            zIndex: 50,
+          }}
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--rose)]" />
+          <span className="mono" style={{ fontSize: 11, color: "var(--rose)", letterSpacing: "0.05em" }}>DELETING...</span>
+        </div>
+      )}
+
       {/* 3D Viewport Box with Breathing/Talking CSS Animation */}
       <div 
         style={{
@@ -350,12 +563,12 @@ export function CloneFullCard({ clone, href }: { clone: any; href?: string }) {
           border: "1px solid rgba(244, 236, 219, 0.03)",
         }}
       >
-        <img 
+        <Image 
           src={avatarUrl || "/mock_avatar.png"}
           alt={clone.name} 
+          fill
+          sizes="(max-width: 768px) 100vw, 25vw"
           style={{
-            width: "100%",
-            height: "100%",
             objectFit: "cover",
             transformOrigin: "bottom center",
             animation: playing 

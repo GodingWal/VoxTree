@@ -25,9 +25,9 @@ export default function Home() {
 
   return (
     <TwilightShell>
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
+      <div className="px-4 sm:px-6 md:px-8 py-8 md:py-12" style={{ maxWidth: 1280, margin: "0 auto" }}>
         {/* Hero */}
-        <section style={{ display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: 64, alignItems: "center", marginBottom: 96 }} className="fadeUp">
+        <section className="grid grid-cols-1 md:grid-cols-[1.15fr_1fr] gap-10 md:gap-16 items-center mb-16 md:mb-24 fadeUp">
           <div>
             <div className="mono" style={{
               display: "inline-flex", alignItems: "center", gap: 8,
@@ -79,7 +79,7 @@ export default function Home() {
               </Link>
             </div>
 
-            <div style={{ marginTop: 56, display: "flex", gap: 32, color: "var(--paper-mute)", fontSize: 12 }}>
+            <div className="flex flex-wrap gap-6 md:gap-8 mt-10 md:mt-14" style={{ color: "var(--paper-mute)", fontSize: 12 }}>
               <Stat n="3" l="clones in your tree" />
               <Stat n="83" l="stories read" />
               <Stat n="41" l="hours of bedtime" />
@@ -92,7 +92,7 @@ export default function Home() {
 
         {/* Continue */}
         <Section eyebrow="Pick up where you stopped" title={<>Tonight, on the <span className="serif-italic">moon-side</span>.</>} action={<Link href="/browse" style={{ color: "var(--lamp-soft)", fontSize: 13, textDecoration: "none" }}>Browse the library →</Link>}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
             {STORIES.map(s => (
               <Link key={s.id} href="/browse" style={{
                 textAlign: "left", display: "block", width: "100%", textDecoration: "none",
@@ -244,11 +244,11 @@ function FamilyTreeStrip() {
   const connectionPath = "M50 12 L50 35 L12 35 L12 55 M50 35 L37 35 L37 55 M50 35 L63 35 L63 55 M50 35 L88 35 L88 55";
 
   return (
-    <div style={{
+    <div className="px-6 py-8 md:px-9 md:py-10" style={{
       position: "relative", background: "var(--ink-1)", border: "1px solid var(--ink-3)",
-      borderRadius: 24, padding: "40px 36px 36px", overflow: "hidden",
+      borderRadius: 24, overflow: "hidden",
     }}>
-      <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} preserveAspectRatio="none" viewBox="0 0 100 100">
+      <svg className="hidden md:block" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} preserveAspectRatio="none" viewBox="0 0 100 100">
         <path d={connectionPath}
               stroke="rgba(244,236,219,0.12)" strokeWidth="0.25" fill="none" vectorEffect="non-scaling-stroke" />
       </svg>

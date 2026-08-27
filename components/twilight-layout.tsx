@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { VoxMark, VoxWordmark } from './voxtree-logo';
 
@@ -22,7 +23,7 @@ export function TwilightShell({ children }: { children: React.ReactNode }) {
 
 import { createClient } from "@/lib/supabase/client";
 import { getAmbientSynth } from "@/lib/ambient-synth";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, Menu, X } from "lucide-react";
 
 function TopBar() {
   const pathname = usePathname();
@@ -34,6 +35,12 @@ function TopBar() {
   // Bedtime reactive states
   const [bedtimeAudio, setBedtimeAudio] = React.useState<string>("none");
   const [isAmbientPlaying, setIsAmbientPlaying] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+  // Close mobile drawer on route change
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   const applyAutodim = (cfg: { time: string; autodim: boolean; audio: string }) => {
     if (!cfg.autodim) {
@@ -57,7 +64,7 @@ function TopBar() {
     }
   };
 
-  const fetchBedtimeSettings = async (userId: string) => {
+  const fetchBedtimeSettings = useCallback(async (userId: string) => {
     const localKey = `sim_bedtime_user_${userId}`;
     const stored = localStorage.getItem(localKey);
     let config = { time: "21:00", autodim: true, audio: "soft_rain" };
@@ -100,7 +107,7 @@ function TopBar() {
         setIsAmbientPlaying(true);
       } catch (err) {}
     }
-  };
+  }, [supabase]);
 
   React.useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -136,7 +143,7 @@ function TopBar() {
         fetchAvatar();
       }
     });
-  }, []);
+  }, [fetchBedtimeSettings, supabase]);
 
   // Listen to custom settings update events to dynamically adapt UI
   React.useEffect(() => {
@@ -193,10 +200,8 @@ function TopBar() {
       background: "linear-gradient(180deg, rgba(10,14,31,0.85), rgba(10,14,31,0.55))",
       borderBottom: "1px solid var(--ink-3)",
     }}>
-      <div style={{
+      <div className="px-4 sm:px-6 md:px-8 py-3 md:py-4 flex items-center justify-between gap-6" style={{
         maxWidth: 1280, margin: "0 auto",
-        padding: "18px 32px",
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24,
       }}>
         <Link href="/" style={{
           background: "none", border: 0, padding: 0, cursor: "pointer", color: "inherit", textDecoration: "none"
@@ -204,7 +209,8 @@ function TopBar() {
           <VoxWordmark size={18} animate={false} />
         </Link>
 
-        <nav style={{ display: "flex", gap: 4 }}>
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex gap-1">
           {items.map(it => {
             const isActive = pathname === it.href || (it.href !== "/" && pathname.startsWith(it.href));
             return (
@@ -225,7 +231,8 @@ function TopBar() {
           })}
         </nav>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-3">
           {/* Ambient sound controller */}
           {session && bedtimeAudio !== "none" && (
             <button
@@ -281,9 +288,10 @@ function TopBar() {
                 fontSize: 13,
                 overflow: "hidden",
                 boxShadow: "0 4px 6px rgba(0, 0, 0, 0.15)",
+                position: "relative",
               }}>
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <Image src={avatarUrl} alt="Profile" fill style={{ objectFit: "cover" }} />
                 ) : (
                   <div style={{
                     width: "100%",
@@ -320,7 +328,182 @@ function TopBar() {
             </Link>
           )}
         </div>
+
+        {/* Mobile controls (avatar & burger toggle button) */}
+        <div className="flex md:hidden items-center gap-3">
+          {session && (
+            <Link href="/dashboard/settings" style={{
+              width: 32,
+              height: 32,
+              borderRadius: 99,
+              border: "2px solid #e29578",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              fontSize: 12,
+              overflow: "hidden",
+              position: "relative",
+            }}>
+              {avatarUrl ? (
+                <Image src={avatarUrl} alt="Profile" fill style={{ objectFit: "cover" }} />
+              ) : (
+                <div style={{
+                  width: "100%",
+                  height: "100%",
+                  background: "linear-gradient(135deg, var(--rose), var(--lamp))",
+                  color: "var(--ink-0)",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  {initials}
+                </div>
+              )}
+            </Link>
+          )}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            style={{
+              background: "transparent",
+              border: "1px solid var(--ink-3)",
+              borderRadius: 8,
+              padding: 6,
+              color: "var(--paper-dim)",
+              cursor: "pointer",
+            }}
+            aria-label="Toggle mobile menu"
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Drawer dropdown menu */}
+      {isMobileMenuOpen && (
+        <div 
+          className="md:hidden border-t animate-slide-up"
+          style={{
+            borderColor: "var(--ink-3)",
+            background: "linear-gradient(180deg, rgba(17,23,43,0.98), rgba(10,14,31,0.98))",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            padding: "20px 16px 28px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            maxHeight: "calc(100vh - 60px)",
+            overflowY: "auto",
+          }}
+        >
+          <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {items.map(it => {
+              const isActive = pathname === it.href || (it.href !== "/" && pathname.startsWith(it.href));
+              return (
+                <Link key={it.id}
+                  href={it.href}
+                  style={{
+                    padding: "10px 14px",
+                    background: isActive ? "rgba(244,184,96,0.1)" : "transparent",
+                    color: isActive ? "var(--lamp-soft)" : "var(--paper-dim)",
+                    borderRadius: 10,
+                    fontSize: 14, fontWeight: 500,
+                    textDecoration: "none",
+                    border: "1px solid",
+                    borderColor: isActive ? "rgba(244,184,96,0.15)" : "transparent",
+                  }}>
+                  {it.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {session && bedtimeAudio !== "none" && (
+            <div style={{ borderTop: "1px solid var(--ink-3)", paddingTop: 14 }}>
+              <button
+                onClick={async () => {
+                  const synth = getAmbientSynth();
+                  if (isAmbientPlaying) {
+                    synth.stop();
+                    setIsAmbientPlaying(false);
+                  } else {
+                    await synth.setSound(bedtimeAudio as any);
+                    synth.setVolume(0.3);
+                    setIsAmbientPlaying(true);
+                  }
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  width: "100%",
+                  padding: "10px 14px",
+                  background: isAmbientPlaying ? "rgba(127,196,164,0.08)" : "var(--ink-2)",
+                  color: isAmbientPlaying ? "var(--moss)" : "var(--paper-dim)",
+                  border: isAmbientPlaying ? "1px solid rgba(127,196,164,0.25)" : "1px solid var(--ink-3)",
+                  borderRadius: 10, fontSize: 13, cursor: "pointer",
+                  justifyContent: "center",
+                }}
+              >
+                {isAmbientPlaying ? <Volume2 size={15} className="animate-pulse" /> : <VolumeX size={15} />}
+                <span className="mono" style={{ fontSize: 11 }}>Ambient: {soundLabels[bedtimeAudio]}</span>
+              </button>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "1px solid var(--ink-3)", paddingTop: 14 }}>
+            {session ? (
+              <>
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  padding: "10px 14px",
+                  background: "transparent",
+                  color: "var(--paper-mute)",
+                  border: "1px solid var(--ink-3)",
+                  borderRadius: 10, fontSize: 12,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: 99, background: "var(--moss)" }} />
+                  Connected as {session.user.email}
+                </div>
+                
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Link href="/dashboard/settings" style={{
+                    flex: 1,
+                    padding: "10px",
+                    background: "var(--ink-2)",
+                    color: "var(--paper-dim)",
+                    border: "1px solid var(--ink-3)",
+                    borderRadius: 10, fontSize: 13, textDecoration: "none",
+                    textAlign: "center", fontWeight: 500,
+                  }}>
+                    Profile
+                  </Link>
+                  <Link href="/dashboard/admin" style={{
+                    flex: 1,
+                    padding: "10px",
+                    background: "var(--ink-2)",
+                    color: "var(--paper-dim)",
+                    border: "1px solid var(--ink-3)",
+                    borderRadius: 10, fontSize: 13, textDecoration: "none",
+                    textAlign: "center", fontWeight: 500,
+                  }}>
+                    Admin
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <Link href="/login" style={{
+                padding: "12px 18px",
+                background: "var(--lamp)",
+                color: "var(--ink-0)",
+                border: 0, borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: "none",
+                textAlign: "center",
+              }}>
+                Log In
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -329,20 +512,22 @@ export function Footer() {
   return (
     <footer style={{
       borderTop: "1px solid var(--ink-3)",
-      padding: "32px 32px 48px",
+      padding: "32px 16px 48px",
       marginTop: 64,
       color: "var(--paper-mute)",
       fontSize: 12,
     }}>
-      <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <VoxMark size={22} color="var(--paper-mute)" />
-          <span className="serif" style={{ fontSize: 18, color: "var(--paper-dim)" }}>
-            Vox<span className="serif-italic">Tree</span>
-          </span>
-          <span style={{ marginLeft: 12 }}>Carrying clones through generations.</span>
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left" style={{ maxWidth: 1280, margin: "0 auto" }}>
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <VoxMark size={22} color="var(--paper-mute)" />
+            <span className="serif" style={{ fontSize: 18, color: "var(--paper-dim)" }}>
+              Vox<span className="serif-italic">Tree</span>
+            </span>
+          </div>
+          <span>Carrying clones through generations.</span>
         </div>
-        <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", justifyContent: "center" }}>
           <Link href="/privacy" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Privacy</Link>
           <Link href="/consent" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Consent</Link>
           <Link href="/help" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} className="hover-lamp">Help</Link>

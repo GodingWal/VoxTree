@@ -51,10 +51,15 @@ export async function probeAudio(buffer: Buffer): Promise<AudioProbe> {
   const sha256 = createHash("sha256").update(buffer).digest("hex");
 
   // Lazy import so test environments without ffmpeg-installer can still
-  // import this module.
-  const ffmpegInstaller = await import("@ffmpeg-installer/ffmpeg");
-  const ffprobePath = ffmpegInstaller.path
-    .replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
+  // import this module. Use separate @ffprobe-installer package — the
+  // ffmpeg installer only ships ffmpeg, not ffprobe.
+  const [ffmpegInstaller, ffprobeInstaller] = await Promise.all([
+    import("@ffmpeg-installer/ffmpeg"),
+    import("@ffprobe-installer/ffprobe"),
+  ]);
+  const ffprobePath =
+    (ffprobeInstaller as any).path ??
+    (ffmpegInstaller as any).path.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
   const { execFile } = await import("node:child_process");
 
   const tmp = mkdtempSync(join(os.tmpdir(), "voxtree-audio-"));

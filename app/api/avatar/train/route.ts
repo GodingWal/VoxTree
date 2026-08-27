@@ -29,7 +29,7 @@ const MAX_IMAGES = 20;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB per image
 
 export async function POST(request: NextRequest) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

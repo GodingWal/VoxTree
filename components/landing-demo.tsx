@@ -116,7 +116,7 @@ export function LandingDemo() {
               Voice Sandbox
             </h3>
             <p className="text-xs text-muted-foreground">
-              Test how custom cloned voices read children's books
+              Test how custom cloned voices read children&apos;s books
             </p>
           </div>
         </div>
@@ -156,7 +156,7 @@ export function LandingDemo() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground italic bg-brand-cream/50 dark:bg-muted/30 p-2.5 rounded-lg border border-brand-sage/10">
-          "{narrator.desc}"
+          &ldquo;{narrator.desc}&rdquo;
         </p>
       </div>
 

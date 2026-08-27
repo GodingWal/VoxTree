@@ -30,6 +30,11 @@ interface Clone {
 
 export function ClonesClient({ clones }: { clones: Clone[] }) {
   const [activePlaying, setActivePlaying] = useState<{ voiceId: string; name: string } | null>(null);
+  const [localClones, setLocalClones] = useState<Clone[]>(clones);
+
+  useEffect(() => {
+    setLocalClones(clones);
+  }, [clones]);
 
   useEffect(() => {
     const handlePlayState = (e: any) => {
@@ -44,13 +49,17 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
     return () => window.removeEventListener("clone-sample-state", handlePlayState);
   }, []);
 
-  // Determine dynamic SVG path for connection lines based on clones.length
+  const handleDeleteVoice = (id: string) => {
+    setLocalClones(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Determine dynamic SVG path for connection lines based on localClones.length
   let connectionPath = "M50 22 L50 72"; // Default single straight line
-  if (clones.length === 2) {
+  if (localClones.length === 2) {
     connectionPath = "M50 22 L50 45 L35 45 L35 72 M50 45 L65 45 L65 72";
-  } else if (clones.length === 3) {
+  } else if (localClones.length === 3) {
     connectionPath = "M50 22 L50 45 L22 45 L22 72 M50 45 L50 72 M50 45 L78 45 L78 72";
-  } else if (clones.length >= 4) {
+  } else if (localClones.length >= 4) {
     connectionPath = "M50 22 L50 45 L15 45 L15 72 M50 45 L38 45 L38 72 M50 45 L62 45 L62 72 M50 45 L85 45 L85 72";
   }
 
@@ -83,7 +92,7 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
           </div>
           <div>
             <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Active Clones</div>
-            <div className="serif" style={{ fontSize: 24, fontWeight: "bold", color: "var(--paper)", margin: 0, marginTop: 2 }}>{clones.length} models</div>
+            <div className="serif" style={{ fontSize: 24, fontWeight: "bold", color: "var(--paper)", margin: 0, marginTop: 2 }}>{localClones.length} models</div>
           </div>
         </div>
         <div style={{ background: "var(--ink-1)", border: "1px solid var(--ink-3)", borderRadius: 20, padding: 24, display: "flex", alignItems: "center", gap: 16 }}>
@@ -116,7 +125,7 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
           overflow: "hidden",
         }}>
           {/* connecting lines svg */}
-          {clones.length > 0 && (
+          {localClones.length > 0 && (
             <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} preserveAspectRatio="none" viewBox="0 0 100 100">
               <path d={connectionPath}
                     stroke="rgba(244,236,219,0.12)" strokeWidth="0.25" fill="none" vectorEffect="non-scaling-stroke" />
@@ -137,13 +146,13 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
               <div>
                 <div className="serif" style={{ fontSize: 22, lineHeight: 1, color: "var(--paper)" }}>Your Clones</div>
                 <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>
-                  {clones.length} {clones.length === 1 ? 'clone' : 'clones'} • 0 reads
+                  {localClones.length} {localClones.length === 1 ? 'clone' : 'clones'} • 0 reads
                 </div>
               </div>
             </div>
           </div>
 
-          {clones.length > 0 ? (
+          {localClones.length > 0 ? (
             <div style={{
               display: "flex",
               justifyContent: "center",
@@ -152,9 +161,9 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
               position: "relative",
               zIndex: 2,
             }}>
-              {clones.map(v => (
+              {localClones.map(v => (
                 <div key={v.id} style={{ width: "100%", maxWidth: 250 }}>
-                  <CloneFullCard clone={v} href={`/dashboard/clones/${v.id}`} />
+                  <CloneFullCard clone={v} href={`/dashboard/clones/${v.id}`} onDelete={handleDeleteVoice} />
                 </div>
               ))}
             </div>

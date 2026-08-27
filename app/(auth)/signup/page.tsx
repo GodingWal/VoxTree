@@ -12,6 +12,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -20,8 +21,9 @@ export default function SignUpPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -33,9 +35,12 @@ export default function SignUpPage() {
     if (error) {
       setError(error.message);
       setLoading(false);
-    } else {
-      router.push("/");
+    } else if (data.session) {
+      router.push("/dashboard");
       router.refresh();
+    } else {
+      setSuccess("Account created successfully! We have sent a confirmation email to " + email + ". Please check your inbox and click the verification link.");
+      setLoading(false);
     }
   }
 
@@ -104,6 +109,12 @@ export default function SignUpPage() {
 
             {error && (
               <p style={{ color: "var(--rose)", fontSize: 13, background: "rgba(255,100,100,0.1)", padding: 12, borderRadius: 8 }}>{error}</p>
+            )}
+
+            {success && (
+              <div style={{ color: "var(--paper)", fontSize: 13, background: "rgba(127,196,164,0.15)", border: "1px solid rgba(127,196,164,0.3)", padding: 16, borderRadius: 10, lineHeight: 1.5 }}>
+                {success}
+              </div>
             )}
 
             <button

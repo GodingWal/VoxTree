@@ -17,7 +17,7 @@ const trainSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

@@ -36,7 +36,7 @@ const processSchema = z.object({
  * just-created ElevenLabs voice so we don't leak paid resources.
  */
 export async function POST(request: Request) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

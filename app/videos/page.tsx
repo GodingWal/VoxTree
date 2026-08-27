@@ -65,7 +65,7 @@ export default function VideosComingSoonPage() {
             <span className="serif-italic" style={{ color: "var(--lamp)" }}>brought to life.</span>
           </h1>
           <p style={{ color: "var(--paper-dim)", fontSize: 18, maxWidth: 600, margin: "0 auto", lineHeight: 1.55 }}>
-            We are designing the next generation of voice-cloned cinema. Animate bedtime worlds dynamically synced with your clone's narrator cadence.
+            We are designing the next generation of voice-cloned cinema. Animate bedtime worlds dynamically synced with your clone&apos;s narrator cadence.
           </p>
         </div>
 
@@ -225,7 +225,7 @@ export default function VideosComingSoonPage() {
                   <div>
                     <h4 style={{ fontSize: 14, color: "var(--paper)", margin: 0, fontWeight: 600 }}>Generative Video Diffusion</h4>
                     <p style={{ fontSize: 12, color: "var(--paper-dim)", margin: "2px 0 0 0", lineHeight: 1.4 }}>
-                      Create rich Pixar-inspired bedtime worlds on the fly, customized to your child's favorite characters.
+                      Create rich Pixar-inspired bedtime worlds on the fly, customized to your child&apos;s favorite characters.
                     </p>
                   </div>
                 </div>
@@ -234,7 +234,7 @@ export default function VideosComingSoonPage() {
                   <div>
                     <h4 style={{ fontSize: 14, color: "var(--paper)", margin: 0, fontWeight: 600 }}>Perfect Lip Synchronization</h4>
                     <p style={{ fontSize: 12, color: "var(--paper-dim)", margin: "2px 0 0 0", lineHeight: 1.4 }}>
-                      AI animation loops that match your clone's reading rhythm and lip movement dynamically.
+                      AI animation loops that match your clone&apos;s reading rhythm and lip movement dynamically.
                     </p>
                   </div>
                 </div>
@@ -261,7 +261,7 @@ export default function VideosComingSoonPage() {
                 <>
                   <h3 className="serif" style={{ fontSize: 22, color: "var(--paper)", margin: "0 0 8px 0" }}>Be first to test</h3>
                   <p style={{ fontSize: 13, color: "var(--paper-dim)", margin: "0 0 20px 0", lineHeight: 1.4 }}>
-                    Join the private beta. We'll send you an invitation once video generations open in your account area.
+                    Join the private beta. We&apos;ll send you an invitation once video generations open in your account area.
                   </p>
                   <form onSubmit={handleSignUp} style={{ display: "flex", background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 16, padding: 6 }}>
                     <input 
@@ -317,7 +317,7 @@ export default function VideosComingSoonPage() {
                   </div>
                   <h3 className="serif" style={{ fontSize: 22, color: "var(--paper)", margin: "0 0 6px 0" }}>You are on the list!</h3>
                   <p style={{ fontSize: 13, color: "var(--paper-dim)", margin: 0 }}>
-                    We'll email you a developer invitation link at <span className="mono" style={{ color: "#fff" }}>{email}</span> soon.
+                    We&apos;ll email you a developer invitation link at <span className="mono" style={{ color: "#fff" }}>{email}</span> soon.
                   </p>
                 </div>
               )}

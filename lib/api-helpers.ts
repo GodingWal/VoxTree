@@ -32,9 +32,9 @@ export const paidApiRateLimiter = new RateLimit({ limit: 10, windowMs: 60_000 })
  * Apply paidApiRateLimiter using the caller's forwarded IP.
  * Returns a 429 NextResponse if the limit is exceeded, null otherwise.
  */
-export function enforcePaidRateLimit(request: Request): NextResponse | null {
+export async function enforcePaidRateLimit(request: Request): Promise<NextResponse | null> {
   const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  if (!paidApiRateLimiter.check(ip)) {
+  if (!(await paidApiRateLimiter.check(ip))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
   return null;

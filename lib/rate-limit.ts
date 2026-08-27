@@ -10,7 +10,44 @@ export class RateLimit {
     this.windowMs = options.windowMs;
   }
 
-  check(id: string): boolean {
+  /**
+   * Checks if the request limit for the given key/IP has been exceeded.
+   * Utilizes Postgres check_rate_limit function to be serverless-safe.
+   * Falls back to in-memory tracking in tests or when Supabase is unconfigured.
+   */
+  async check(id: string): Promise<boolean> {
+    const useDatabase = 
+      process.env.NODE_ENV !== "test" && 
+      process.env.VITEST !== "true" && 
+      !!process.env.NEXT_PUBLIC_SUPABASE_URL && 
+      !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!useDatabase) {
+      return this.checkInMemory(id);
+    }
+
+    try {
+      const supabase = createAdminClient();
+      
+      const { data, error } = await supabase.rpc("check_rate_limit", {
+        p_key: id,
+        p_limit: this.limit,
+        p_window_ms: this.windowMs,
+      });
+
+      if (error) {
+        console.error("Database rate limit RPC error, failing open:", error);
+        return true; // Fail open to avoid breaking app experience for users if database is overloaded
+      }
+
+      return !!data;
+    } catch (err) {
+      console.error("Rate limiter exception, failing open:", err);
+      return true; // Fail open
+    }
+  }
+
+  private checkInMemory(id: string): boolean {
     const now = Date.now();
 
     // Cleanup expired entries

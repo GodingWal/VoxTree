@@ -6,10 +6,19 @@ import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
 import path from "path";
 
-// Initialize fluent-ffmpeg pointing to @ffmpeg-installer/ffmpeg
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// fluent-ffmpeg + binary paths are resolved lazily inside the handler so
+// the @ffmpeg-installer / @ffprobe-installer packages are never evaluated
+// at build time (they use dynamic require() that webpack can't bundle).
+async function getFfmpeg() {
+  const [{ default: ffmpeg }, ffmpegInstaller, ffprobeInstaller] = await Promise.all([
+    import("fluent-ffmpeg"),
+    import("@ffmpeg-installer/ffmpeg"),
+    import("@ffprobe-installer/ffprobe"),
+  ]);
+  ffmpeg.setFfmpegPath((ffmpegInstaller as any).path);
+  ffmpeg.setFfprobePath((ffprobeInstaller as any).path);
+  return ffmpeg;
+}
 
 export async function POST(
   request: NextRequest,
@@ -47,15 +56,16 @@ export async function POST(
     const jpgPath = path.join(tempDir, imageFilename);
 
     // 2. Extract Audio via FFmpeg (PCM 16-bit, 44.1kHz, mono)
+    const ffmpeg = await getFfmpeg();
     await new Promise<void>((resolve, reject) => {
-      ffmpeg(webmPath)
+      (ffmpeg as any)(webmPath)
         .noVideo()
         .audioCodec("pcm_s16le")
         .audioFrequency(44100)
         .audioChannels(1)
         .save(wavPath)
         .on("end", () => resolve())
-        .on("error", (err) => reject(new Error("FFmpeg audio extract failed: " + err.message)));
+        .on("error", (err: any) => reject(new Error("FFmpeg audio extract failed: " + err.message)));
     });
 
     // 3. Extract the cover frame (used as the immediate avatar) and a small
@@ -63,7 +73,7 @@ export async function POST(
     // frames seed the LoRA training set so the personal Pixar clone has
     // varied angles/expressions to learn from.
     await new Promise<void>((resolve, reject) => {
-      ffmpeg(webmPath)
+      (ffmpeg as any)(webmPath)
         .screenshots({
           timestamps: [2],
           filename: imageFilename,
@@ -71,13 +81,13 @@ export async function POST(
           size: "640x640",
         })
         .on("end", () => resolve())
-        .on("error", (err) => reject(new Error("FFmpeg video frame extract failed: " + err.message)));
+        .on("error", (err: any) => reject(new Error("FFmpeg video frame extract failed: " + err.message)));
     });
 
     const referenceFramesDir = path.join(tempDir, "lora", params.id);
     await fs.mkdir(referenceFramesDir, { recursive: true });
     await new Promise<void>((resolve, reject) => {
-      ffmpeg(webmPath)
+      (ffmpeg as any)(webmPath)
         .screenshots({
           timestamps: ["10%", "30%", "50%", "70%", "90%"],
           filename: "ref_%i.jpg",
@@ -85,7 +95,7 @@ export async function POST(
           size: "768x768",
         })
         .on("end", () => resolve())
-        .on("error", (err) =>
+        .on("error", (err: any) =>
           reject(new Error("FFmpeg reference frame extract failed: " + err.message))
         );
     });

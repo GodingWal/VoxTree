@@ -33,7 +33,7 @@ const createVoiceSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();
@@ -104,8 +104,7 @@ export async function POST(request: Request) {
     maxBytes: AUDIO_LIMITS.maxBytes,
   });
 
-  // Increment voice slots used
-  await supabase.rpc("increment_voice_slots", { user_id: user.id });
+  // The increment of voice slots is now automatically handled via database trigger on family_voices INSERT
 
   return NextResponse.json({
     voiceId: voice.id,
