@@ -29,7 +29,7 @@ const schema = z.object({
  * GET /api/clips/talking-video/status until the video URL is ready.
  */
 export async function POST(request: NextRequest) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

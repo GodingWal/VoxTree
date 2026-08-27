@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Camera, RefreshCw, Check, X, Loader2 } from "lucide-react";
 
 interface VisualCloneCaptureProps {
@@ -19,12 +20,13 @@ export function VisualCloneCapture({ voiceId, onSuccess, onClose }: VisualCloneC
   const [cameraActive, setCameraActive] = useState(false);
 
   // Start webcam stream
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     setError(null);
     setCameraActive(false);
     try {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (videoRef.current && videoRef.current.srcObject) {
+        const activeStream = videoRef.current.srcObject as MediaStream;
+        activeStream.getTracks().forEach((track) => track.stop());
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -44,16 +46,18 @@ export function VisualCloneCapture({ voiceId, onSuccess, onClose }: VisualCloneC
       console.error("Camera access error:", err);
       setError("Unable to access camera. Please verify permission settings.");
     }
-  };
+  }, []);
 
   useEffect(() => {
     startCamera();
+    const currentVideo = videoRef.current;
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (currentVideo && currentVideo.srcObject) {
+        const activeStream = currentVideo.srcObject as MediaStream;
+        activeStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [voiceId]);
+  }, [voiceId, startCamera]);
 
   // Capture frame
   const capturePhoto = () => {
@@ -158,7 +162,7 @@ export function VisualCloneCapture({ voiceId, onSuccess, onClose }: VisualCloneC
         <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#0a0e1f", overflow: "hidden" }}>
           {capturedImage ? (
             /* Preview captured image */
-            <img src={capturedImage} alt="Captured" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <Image src={capturedImage} alt="Captured" fill style={{ objectFit: "cover" }} />
           ) : (
             /* Live Camera Stream */
             <>

@@ -203,7 +203,7 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
           }} className="fadeUp">
             <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
-              <strong>Simulation Mode:</strong> The `family_children` database table is not active. Changes are stored locally in your browser's session storage. Apply migration `006_children_and_bedtime.sql` to connect DB tables.
+              <strong>Simulation Mode:</strong> The `family_children` database table is not active. Changes are stored locally in your browser&apos;s session storage. Apply migration `006_children_and_bedtime.sql` to connect DB tables.
             </div>
           </div>
         )}
@@ -219,7 +219,7 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
         )}
 
         {/* Two Column Layout */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 56, alignItems: "start" }} className="fadeUp">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 lg:gap-14 items-start fadeUp">
           
           {/* Left Column: Children list */}
           <Section eyebrow="ACTIVE READERS" title={<>Your <span className="serif-italic">Children</span></>}>
@@ -291,7 +291,7 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
                 {/* Child Name */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                   <label className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    Child's Name
+                    Child&apos;s Name
                   </label>
                   <input
                     type="text"
@@ -311,7 +311,7 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <label className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Child's Age
+                      Child&apos;s Age
                     </label>
                     <span style={{ fontSize: 14, color: "var(--lamp-soft)", fontWeight: 600 }}>
                       {age} years old

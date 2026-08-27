@@ -254,17 +254,14 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
   const isPlaying = playerState === "playing" || playerState === "generating";
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 32px 24px" }}>
+    <div className="px-4 sm:px-6 md:px-8 py-8" style={{ maxWidth: 1280, margin: "0 auto" }}>
       <Link href="/browse" style={{
         background: "none", border: 0, color: "var(--paper-mute)",
         cursor: "pointer", marginBottom: 24, fontSize: 13, textDecoration: "none",
         display: "inline-block"
       }}>← Back to library</Link>
 
-      <div style={{
-        display: "grid", gridTemplateColumns: "1.1fr 1fr",
-        gap: 56, alignItems: "start",
-      }}>
+      <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-8 md:gap-14 items-start">
         {/* Story art panel */}
         <div style={{
           position: "relative", borderRadius: 28, overflow: "hidden",
@@ -379,7 +376,7 @@ export function StoryPlayer({ content, voices, existingClips }: StoryPlayerProps
             <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--paper-mute)", marginBottom: 12 }}>
               Switch the narrator
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {voices.map((v) => {
                 const isSelected = selectedVoice === v.id;
                 return (

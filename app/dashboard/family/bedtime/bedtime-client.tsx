@@ -171,7 +171,7 @@ export function BedtimeClient({
             Bedtime & <span className="serif-italic" style={{ color: "var(--lamp)" }}>Ambient</span>
           </h1>
           <p style={{ color: "var(--paper-dim)", fontSize: 15, maxWidth: 540, lineHeight: 1.5, margin: 0 }}>
-            Configure automatic night filters to soothe children's eyes and loop dynamic ambient sounds during narration playbacks.
+            Configure automatic night filters to soothe children&apos;s eyes and loop dynamic ambient sounds during narration playbacks.
           </p>
         </div>
 
@@ -244,7 +244,7 @@ export function BedtimeClient({
                       Enable Ambient Screen Auto-Dim
                     </label>
                     <p style={{ fontSize: 12, color: "var(--paper-mute)", margin: "4px 0 0", lineHeight: 1.4 }}>
-                      When enabled and local time is past your daily bedtime, VoxTree automatically dims screen brightness and increases contrast to protect children's eyes before sleep.
+                      When enabled and local time is past your daily bedtime, VoxTree automatically dims screen brightness and increases contrast to protect children&apos;s eyes before sleep.
                     </p>
                   </div>
                 </div>

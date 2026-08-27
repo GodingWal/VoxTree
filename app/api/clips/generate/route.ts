@@ -12,13 +12,21 @@ import {
 import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
 import { logger } from "@/lib/logger";
 import Replicate from "replicate";
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+
+// Lazy loader for fluent-ffmpeg so @ffmpeg-installer is not evaluated at build time
+async function getFfmpeg() {
+  const [{ default: ffmpeg }, ffmpegInstaller] = await Promise.all([
+    import("fluent-ffmpeg"),
+    import("@ffmpeg-installer/ffmpeg"),
+  ]);
+  (ffmpeg as any).setFfmpegPath((ffmpegInstaller as any).path);
+  return ffmpeg as any;
+}
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN || "dummy_token",
@@ -30,7 +38,7 @@ const generateSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();
@@ -105,6 +113,19 @@ export async function POST(request: Request) {
     });
   }
 
+  // Auto-cleanup any stuck clips for this user (created > 15 mins ago and still processing/queued)
+  try {
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    await supabase
+      .from("generated_clips")
+      .update({ status: "failed" })
+      .eq("user_id", user.id)
+      .in("status", ["queued", "processing"])
+      .lt("created_at", fifteenMinsAgo);
+  } catch (cleanupErr) {
+    console.error("Failed to clean up stuck clips:", cleanupErr);
+  }
+
   // Create a clip record in queued status
   const { data: clip, error: insertError } = await supabase
     .from("generated_clips")
@@ -126,7 +147,7 @@ export async function POST(request: Request) {
 
   // Background processing function
   const processClip = async () => {
-    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    const ffmpeg = await getFfmpeg();
     const admin = createAdminClient();
     try {
       // Fetch voice details
@@ -213,7 +234,7 @@ export async function POST(request: Request) {
             .outputOptions(["-map [aout]", "-c:a libmp3lame", "-b:a 192k"])
             .output(outputFile)
             .on("end", () => resolve())
-            .on("error", (err) => reject(err))
+            .on("error", (err: any) => reject(err))
             .run();
         });
       }

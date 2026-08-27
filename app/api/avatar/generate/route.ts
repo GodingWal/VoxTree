@@ -23,7 +23,7 @@ const generateSchema = z.object({
  * data URI directly to Replicate — no GCS/cloud storage required.
  */
 export async function POST(request: NextRequest) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

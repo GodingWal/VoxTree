@@ -352,7 +352,7 @@ export function BrowseClient({ initialStories, voices = [] }: { initialStories: 
                 </h3>
                 <p style={{ fontSize: 15, color: "var(--paper-dim)", maxWidth: 440, margin: "0 auto 32px", lineHeight: 1.5 }}>
                   Head over to the Stories page to discover and select bedtime tales.
-                  Once you add stories, they'll appear here ready to be narrated by your clones.
+                  Once you add stories, they&apos;ll appear here ready to be narrated by your clones.
                 </p>
                 <Link href="/dashboard/stories" style={{
                   padding: "14px 28px", background: "var(--lamp)", color: "var(--ink-0)",
@@ -531,16 +531,18 @@ function FeaturedRow({ story, onRemove, onPlay, progress }: {
     : 0;
 
   return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "1.1fr 1fr",
-      background: "var(--ink-1)", border: "1px solid var(--ink-3)",
-      borderRadius: 28, overflow: "hidden", minHeight: 360,
-      position: "relative",
-    }} className="clones-dashboard-grid">
+    <div 
+      className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] clones-dashboard-grid"
+      style={{
+        background: "var(--ink-1)", border: "1px solid var(--ink-3)",
+        borderRadius: 28, overflow: "hidden", minHeight: 360,
+        position: "relative",
+      }}
+    >
       <div style={{ position: "relative", minHeight: 200 }}>
         <StoryArt kind={getArtKind(story)} color={getColor(story)} height="100%" />
       </div>
-      <div style={{ padding: "44px 44px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div className="p-6 sm:p-8 md:p-11" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <div className="mono" style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--lamp)", marginBottom: 14 }}>
           Featured {progress?.completed ? "· Completed" : progressPct > 0 ? `· ${progressPct}% listened` : ""}
         </div>
@@ -602,13 +604,14 @@ function InlinePlayer({ story, voices, onClose, onProgress, initialProgress }: {
     };
   }, []);
 
+  const progressSec = Math.floor(progress / 5);
   // Save progress periodically
   useEffect(() => {
-    if (playerState === "playing" && progress > 0) {
+    if (playerState === "playing" && progressSec > 0) {
       const completed = duration > 0 && progress >= duration - 2;
       onProgress(story.id, progress, completed);
     }
-  }, [Math.floor(progress / 5)]); // Update every 5 seconds
+  }, [progressSec, duration, onProgress, playerState, progress, story.id]); // Update every 5 seconds
 
   async function handleGenerate() {
     if (!selectedVoice) return;

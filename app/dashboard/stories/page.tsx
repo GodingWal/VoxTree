@@ -31,7 +31,7 @@ export default async function StoriesPage() {
         </h1>
         <p style={{ color: "var(--paper-mute)", marginTop: 16, maxWidth: 560, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
           Spin through our collection of bedtime tales. Select the ones you love 
-          and they'll appear in your library, ready to be narrated by your clones.
+          and they&apos;ll appear in your library, ready to be narrated by your clones.
         </p>
       </div>
 

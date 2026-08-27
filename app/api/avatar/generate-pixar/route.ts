@@ -23,7 +23,7 @@ const schema = z.object({
  * the training completed (lora_status = 'ready').
  */
 export async function POST(request: NextRequest) {
-  const rateLimited = enforcePaidRateLimit(request);
+  const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   const supabase = getRouteClient();

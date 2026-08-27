@@ -84,10 +84,10 @@ export function StoriesDiscovery({ stories }: { stories: Story[] }) {
     }
   };
 
-  const goTo = (index: number) => {
+  const goTo = useCallback((index: number) => {
     const wrapped = ((index % stories.length) + stories.length) % stories.length;
     setCenterIndex(wrapped);
-  };
+  }, [stories.length]);
 
   // Drag/swipe handling
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -118,7 +118,7 @@ export function StoriesDiscovery({ stories }: { stories: Story[] }) {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [centerIndex, stories.length]);
+  }, [centerIndex, goTo]);
 
   const selectedStories = stories.filter(s => selectedIds.includes(s.id));
   const currentStory = stories[centerIndex];

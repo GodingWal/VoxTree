@@ -34,7 +34,7 @@ export default function PrivacyPage() {
             Privacy <span className="serif-italic">Matters</span>
           </h1>
           <p style={{ color: "var(--paper-dim)", fontSize: 16, maxWidth: 640, lineHeight: 1.6 }}>
-            VoxTree is built on the absolute trust of families. We treat voice prints, visual profiles, and children's details with the highest possible level of security and respect.
+            VoxTree is built on the absolute trust of families. We treat voice prints, visual profiles, and children&apos;s details with the highest possible level of security and respect.
           </p>
         </div>
 
@@ -53,14 +53,14 @@ export default function PrivacyPage() {
               borderRadius: 20, padding: 32, color: "var(--paper-dim)", fontSize: 15, lineHeight: 1.7
             }}>
               <p style={{ marginTop: 0 }}>
-                Because VoxTree narrations are enjoyed by kids, we adhere strictly to the <strong>Children's Online Privacy Protection Act (COPPA)</strong> and the <strong>General Data Protection Regulation (GDPR-K)</strong>:
+                Because VoxTree narrations are enjoyed by kids, we adhere strictly to the <strong>Children&apos;s Online Privacy Protection Act (COPPA)</strong> and the <strong>General Data Protection Regulation (GDPR-K)</strong>:
               </p>
               <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
                 <li>
                   <strong style={{ color: "var(--paper)" }}>Verified Parental Consent:</strong> We verify parental credentials before enabling voice/face cloning, ensuring visual capture tools are operated under adult supervision.
                 </li>
                 <li>
-                  <strong style={{ color: "var(--paper)" }}>No Ad-Tracking:</strong> VoxTree contains zero commercial advertisements. We never track children's behavior for targeting or analytics.
+                  <strong style={{ color: "var(--paper)" }}>No Ad-Tracking:</strong> VoxTree contains zero commercial advertisements. We never track children&apos;s behavior for targeting or analytics.
                 </li>
                 <li>
                   <strong style={{ color: "var(--paper)" }}>The Right to Be Forgotten:</strong> You can permanently delete any child profile, recorded voice sample, or generated clip at any time directly through settings, wiping it from our server storage instantly.

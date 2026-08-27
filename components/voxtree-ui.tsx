@@ -1207,7 +1207,7 @@ function AddCloneView({ close }) {
         <h2 className="serif" style={{ fontSize: 36, margin: 0, lineHeight: 1.05 }}>
           {step === 1 && <>Who would you like <span className="serif-italic">to record</span>?</>}
           {step === 2 && <>Read this <span className="serif-italic">aloud</span>, gently.</>}
-          {step === 3 && <>It's <span className="serif-italic" style={{ color: "var(--lamp)" }}>their clone</span>, now.</>}
+          {step === 3 && <>It&apos;s <span className="serif-italic" style={{ color: "var(--lamp)" }}>their clone</span>, now.</>}
         </h2>
 
         {step === 1 && (

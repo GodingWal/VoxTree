@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import Image from "next/image";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Mic, Music, User as UserIcon, Activity, Sparkles, Camera, Play, Square, Loader2, ArrowLeft, Wand2 } from "lucide-react";
 import { TrainSingingButton } from "@/components/train-singing-button";
@@ -159,9 +160,10 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
               borderRadius: 99,
               border: "3px solid #f4b860",
               overflow: "hidden",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+              position: "relative"
             }} className="flex-shrink-0">
-              <img src={avatarUrl} alt={voice.name} className="w-full h-full object-cover" />
+              <Image src={avatarUrl} alt={voice.name} fill style={{ objectFit: "cover" }} />
             </div>
           ) : (
             <Avatar name={voice.name} color={cloneColor} size={80} ring />
@@ -338,8 +340,8 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                   {/* Left: Original Photo */}
                   <div className="space-y-3">
                     <span className="mono text-xs text-[var(--paper-mute)] tracking-wider block uppercase">Original Capture</span>
-                    <div className="aspect-square w-full max-w-[280px] rounded-2xl overflow-hidden border border-[var(--ink-3)] bg-[var(--ink-2)]">
-                      <img src={avatarUrl} alt="Original Capture" className="w-full h-full object-cover" />
+                    <div className="aspect-square w-full max-w-[280px] rounded-2xl overflow-hidden border border-[var(--ink-3)] bg-[var(--ink-2)] relative">
+                      <Image src={avatarUrl} alt="Original Capture" fill style={{ objectFit: "cover" }} />
                     </div>
                   </div>
 
@@ -347,7 +349,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                   <div className="space-y-3">
                     <span className="mono text-xs text-[var(--paper-mute)] tracking-wider block uppercase">Pixar Avatar Headshot</span>
                     <div className="aspect-square w-full max-w-[280px] rounded-2xl overflow-hidden border border-[var(--lamp)]/30 bg-[var(--ink-2)] relative group">
-                      <img src={avatarUrl} alt="Pixar Headshot" className="w-full h-full object-cover" />
+                      <Image src={avatarUrl} alt="Pixar Headshot" fill style={{ objectFit: "cover" }} />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <span className="mono text-xs text-white border border-white/30 rounded-full px-3 py-1.5 bg-black/20">3D ASSET ACTIVE</span>
                       </div>
@@ -396,6 +398,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
         <Tabs.Content value="identity" className="outline-none animate-in fade-in duration-300">
           <LoraReferencesUploader
             voiceId={voice.id}
+            voiceName={voice.name}
             initialReferences={voice.character_reference_images ?? []}
             initialStatus={voice.lora_status}
             initialTriggerWord={voice.lora_trigger_word}
@@ -413,11 +416,13 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
               <div className="w-full max-w-xs bg-[var(--ink-2)] rounded-3xl p-6 border border-[var(--ink-3)] text-white shadow-xl flex flex-col mx-auto">
                 {/* 3D Viewport Box with Breathing/Talking CSS Animation */}
                 <div className="w-full aspect-[4/5] bg-[var(--ink-1)] rounded-2xl overflow-hidden mb-5 relative border border-[var(--ink-3)] flex items-center justify-center">
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt="Pixar Character"
-                    className="w-full h-full object-cover transition-all duration-300"
+                    fill
+                    className="transition-all duration-300"
                     style={{
+                      objectFit: "cover",
                       transformOrigin: "bottom center",
                       animation: isTalking
                         ? "characterTalk 0.5s ease-in-out infinite alternate"

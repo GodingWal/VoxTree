@@ -294,7 +294,7 @@ export function StoriesPlayer({ stories, voices, existingClips }: StoriesPlayerP
   const isPlaying = playerState === "playing" || playerState === "generating";
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 56, alignItems: "start", paddingBottom: 100 }}>
+    <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 lg:gap-14 items-start pb-20">
       {/* LEFT COLUMN: Player & Controls */}
       <div>
         <div style={{ position: "relative", borderRadius: 28, overflow: "hidden", aspectRatio: "1/1", border: "1px solid var(--ink-3)", marginBottom: 32 }}>
