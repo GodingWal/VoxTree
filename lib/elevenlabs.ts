@@ -39,6 +39,12 @@ export async function cloneVoice(
   const apiKey = getApiKey();
 
   if (!apiKey) {
+    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
+      throw new Error(
+        "ELEVENLABS_API_KEY is required in production. " +
+          "Set ELEVENLABS_API_KEY or enable SIMULATION_MODE=true for testing."
+      );
+    }
     console.warn(
       "No ELEVENLABS_API_KEY found. Simulating Voice Cloning for development."
     );
@@ -74,6 +80,12 @@ export async function generateSpeech(
   const apiKey = getApiKey();
 
   if (!apiKey) {
+    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
+      throw new Error(
+        "ELEVENLABS_API_KEY is required in production. " +
+          "Set ELEVENLABS_API_KEY or enable SIMULATION_MODE=true for testing."
+      );
+    }
     console.warn("No ELEVENLABS_API_KEY found. Simulating Speech Generation.");
     return Buffer.from([]);
   }

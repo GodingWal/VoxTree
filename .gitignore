@@ -19,6 +19,15 @@ dist/
 .env
 .env*.local
 
+# VoxTree: never commit biometric media, generated avatars, or local uploads
+/public/uploads/
+/public/uploads/**
+# Local LoRA reference frames
+/public/uploads/lora/
+
+# Generated docs that bloat history
+Voice_Cloning_Architecture.pdf
+
 # Vercel
 .vercel
 

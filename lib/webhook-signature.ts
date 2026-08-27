@@ -34,6 +34,9 @@ export function verifyReplicateWebhook(params: {
 }): VerifyResult {
   const secret = params.secret ?? process.env.REPLICATE_WEBHOOK_SECRET ?? null;
   if (!secret) {
+    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
+      return { ok: false, reason: "REPLICATE_WEBHOOK_SECRET is required in production" };
+    }
     return { ok: true, simulated: true };
   }
 
