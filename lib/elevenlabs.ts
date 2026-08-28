@@ -39,17 +39,9 @@ export async function cloneVoice(
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
-      throw new Error(
-        "ELEVENLABS_API_KEY is required in production. " +
-          "Set ELEVENLABS_API_KEY or enable SIMULATION_MODE=true for testing."
-      );
-    }
-    console.warn(
-      "No ELEVENLABS_API_KEY found. Simulating Voice Cloning for development."
+    throw new Error(
+      "ELEVENLABS_API_KEY is required. Set ELEVENLABS_API_KEY in your environment."
     );
-    await new Promise((r) => setTimeout(r, 2000));
-    return `simulated_voice_id_${Date.now()}`;
   }
 
   const formData = new FormData();
@@ -80,14 +72,9 @@ export async function generateSpeech(
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
-      throw new Error(
-        "ELEVENLABS_API_KEY is required in production. " +
-          "Set ELEVENLABS_API_KEY or enable SIMULATION_MODE=true for testing."
-      );
-    }
-    console.warn("No ELEVENLABS_API_KEY found. Simulating Speech Generation.");
-    return Buffer.from([]);
+    throw new Error(
+      "ELEVENLABS_API_KEY is required. Set ELEVENLABS_API_KEY in your environment."
+    );
   }
 
   let targetVoiceId = voiceId;

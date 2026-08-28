@@ -17,11 +17,6 @@ export async function POST(request: Request) {
     logger.warn("replicate_webhook_rejected", { reason: verification.reason });
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
-  if (verification.simulated) {
-    logger.info("replicate_webhook_unsigned", {
-      note: "REPLICATE_WEBHOOK_SECRET not configured; accepted without verification",
-    });
-  }
 
   let body: { id?: string; status?: string; version?: string };
   try {

@@ -30,16 +30,9 @@ export async function getPresignedUploadUrl(
   options?: { maxBytes?: number }
 ): Promise<string> {
   if (!process.env.GCS_BUCKET_NAME) {
-    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
-      throw new Error(
-        "GCS_BUCKET_NAME is required in production. " +
-          "Set GCS_BUCKET_NAME or enable SIMULATION_MODE=true for testing."
-      );
-    }
-    console.warn("GCS_BUCKET_NAME is missing. Simulating presigned upload URL.");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const cleanUrl = appUrl.replace(":3000", ":3001");
-    return `${cleanUrl}/api/mock/upload?key=${encodeURIComponent(key)}`;
+    throw new Error(
+      "GCS_BUCKET_NAME is required. Set GCS_BUCKET_NAME in your environment."
+    );
   }
 
   const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
@@ -73,16 +66,9 @@ export async function getPresignedUploadUrl(
  */
 export async function getPresignedDownloadUrl(key: string): Promise<string> {
   if (!process.env.GCS_BUCKET_NAME) {
-    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
-      throw new Error(
-        "GCS_BUCKET_NAME is required in production. " +
-          "Set GCS_BUCKET_NAME or enable SIMULATION_MODE=true for testing."
-      );
-    }
-    console.warn("GCS_BUCKET_NAME is missing. Simulating presigned download URL.");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const cleanUrl = appUrl.replace(":3000", ":3001");
-    return `${cleanUrl}/api/mock/download?key=${encodeURIComponent(key)}`;
+    throw new Error(
+      "GCS_BUCKET_NAME is required. Set GCS_BUCKET_NAME in your environment."
+    );
   }
 
   const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
