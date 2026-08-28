@@ -93,14 +93,14 @@ describe("verifyReplicateWebhook", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("treats absent secret as simulated and accepts", () => {
+  it("rejects when secret is absent", () => {
     const result = verifyReplicateWebhook({
       rawBody: body,
       secret: null,
       headers: makeHeaders({}),
     });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.simulated).toBe(true);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("REPLICATE_WEBHOOK_SECRET is required");
   });
 
   it("rejects a tampered body even with a valid header trio", () => {
