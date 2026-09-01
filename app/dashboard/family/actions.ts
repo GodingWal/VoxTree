@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { isSimulationEnabled } from "@/lib/features";
 
 export async function inviteFamilyMember(formData: FormData) {
   const email = formData.get("email") as string;
@@ -9,7 +10,7 @@ export async function inviteFamilyMember(formData: FormData) {
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Get authenticated user
   const {
@@ -48,7 +49,10 @@ export async function inviteFamilyMember(formData: FormData) {
     });
 
   if (inviteError) {
-    console.warn("Database insert failed for family_invitations. It is likely the table does not exist yet. Running in simulation mode.", inviteError);
+    if (!isSimulationEnabled()) {
+      return { success: false, error: "Invitation could not be saved." };
+    }
+    console.warn("Database insert failed for family_invitations in development simulation.", inviteError);
 
     // Fallback/Simulation mode (e.g. if migration 004 has not been run yet on their remote Supabase instance)
     // We can store a temporary simulation cookie or just return success with a simulation flag

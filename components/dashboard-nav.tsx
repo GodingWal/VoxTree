@@ -8,7 +8,7 @@ import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { ProfileDropdown } from "@/components/profile-dropdown";
 
 export async function DashboardNav() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

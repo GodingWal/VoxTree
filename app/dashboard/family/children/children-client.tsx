@@ -34,14 +34,14 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
   useEffect(() => {
     // If running in simulation or if database yielded no rows, try reading from localStorage
     const localKey = `sim_children_user_${userId}`;
-    const stored = localStorage.getItem(localKey);
+    const stored = dbSimulated ? localStorage.getItem(localKey) : null;
     
     if (stored) {
       setChildren(JSON.parse(stored));
       setIsSimulating(true);
     } else if (dbChildren.length > 0) {
       setChildren(dbChildren);
-    } else {
+    } else if (dbSimulated) {
       // Default mock children
       const defaults = [
         { id: "mock-1", name: "Yusuf", age: 5 },
@@ -50,8 +50,11 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
       setChildren(defaults);
       localStorage.setItem(localKey, JSON.stringify(defaults));
       setIsSimulating(true);
+    } else {
+      setChildren([]);
+      setIsSimulating(false);
     }
-  }, [dbChildren, userId]);
+  }, [dbChildren, userId, dbSimulated]);
 
   const saveSimulationData = (newList: Child[]) => {
     const localKey = `sim_children_user_${userId}`;

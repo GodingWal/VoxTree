@@ -10,7 +10,7 @@ export const metadata = {
 };
 
 export default async function ConsentPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   // Get active session
   const {

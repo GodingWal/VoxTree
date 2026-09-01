@@ -23,7 +23,7 @@ type Voice = {
 };
 
 export default async function BrowsePage() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const { data: rawContent } = await supabase
     .from("content_library")

@@ -7,7 +7,7 @@ import { ContentActions, AddContentButton } from "./content-actions";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminContentPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

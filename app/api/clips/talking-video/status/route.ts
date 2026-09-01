@@ -10,7 +10,7 @@ import path from "path";
  * persist the playable URL on the clip row + on the family_voices record.
  */
 export async function GET(request: NextRequest) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

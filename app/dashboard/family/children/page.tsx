@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ChildrenClient } from "./children-client";
+import { isSimulationEnabled } from "@/lib/features";
 
 export const metadata = {
   title: "Manage Readers | VoxTree",
@@ -8,7 +9,7 @@ export const metadata = {
 };
 
 export default async function ChildrenPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -28,11 +29,13 @@ export default async function ChildrenPage() {
       .order("name", { ascending: true });
     
     if (error) {
+      if (!isSimulationEnabled()) throw error;
       simulatedMode = true;
     } else if (data) {
       dbChildren = data;
     }
   } catch (err) {
+    if (!isSimulationEnabled()) throw err;
     simulatedMode = true;
   }
 

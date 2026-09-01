@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

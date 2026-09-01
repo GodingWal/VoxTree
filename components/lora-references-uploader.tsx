@@ -2,6 +2,7 @@
  
 import React, { useEffect, useRef, useState } from "react";
 import { Loader2, Sparkles, X, Camera, RotateCcw, Check, AlertCircle, Video, Mic } from "lucide-react";
+import Image from "next/image";
 
 interface Props {
   voiceId: string;
@@ -407,9 +408,9 @@ export function LoraReferencesUploader({
               {existing.map((u, i) => (
                 <div
                   key={i}
-                  className="aspect-square rounded-xl overflow-hidden border border-[var(--ink-3)] bg-[var(--ink-2)]"
+                  className="relative aspect-square rounded-xl overflow-hidden border border-[var(--ink-3)] bg-[var(--ink-2)]"
                 >
-                  <img src={u} alt={`reference ${i}`} className="w-full h-full object-cover" />
+                  <Image src={u} alt={`reference ${i}`} fill unoptimized className="object-cover" />
                 </div>
               ))}
             </div>
@@ -611,7 +612,7 @@ export function LoraReferencesUploader({
                   {previews.map((url, i) => (
                     <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-[var(--ink-3)] bg-[var(--ink-2)] group shadow-md">
                       {url && (
-                        <img src={url} alt={SCAN_STEPS[i].label} className="w-full h-full object-cover" />
+                        <Image src={url} alt={SCAN_STEPS[i].label} fill unoptimized className="object-cover" />
                       )}
                       <div className="absolute bottom-0 inset-x-0 bg-black/85 py-1 text-center border-t border-white/5">
                         <span className="mono text-[8px] text-[var(--lamp-soft)] font-semibold uppercase tracking-wider block truncate px-1">

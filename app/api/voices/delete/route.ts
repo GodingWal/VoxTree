@@ -5,13 +5,14 @@ import { deleteVoice } from "@/lib/elevenlabs";
 import { safeJson } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
+import { deleteVoiceMedia } from "@/lib/gcp";
 
 const deleteSchema = z.object({
   voiceId: z.string().uuid(),
 });
 
 export async function POST(request: Request) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -55,11 +56,11 @@ export async function POST(request: Request) {
     // Delete related clips to prevent orphaned data
     await admin.from("generated_clips").delete().eq("voice_id", voiceId);
 
+    // Delete the original sample, normalized sample, and every generated clip for this voice.
+    await deleteVoiceMedia(user.id, voiceId);
+
     // Delete the voice record
     await admin.from("family_voices").delete().eq("id", voiceId);
-
-    // Release the voice slot back to the user's quota.
-    await admin.rpc("decrement_voice_slots", { user_id: user.id });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ClonesClient } from "./clones-client";
 
 export default async function ClonesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

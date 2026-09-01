@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { BedtimeClient } from "./bedtime-client";
+import { isSimulationEnabled } from "@/lib/features";
 
 export const metadata = {
   title: "Bedtime & Background | VoxTree",
@@ -8,7 +9,7 @@ export const metadata = {
 };
 
 export default async function BedtimePage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   
   // Get authenticated user
   const {
@@ -33,6 +34,7 @@ export default async function BedtimePage() {
       .single();
 
     if (error) {
+      if (!isSimulationEnabled()) throw error;
       dbSimulated = true;
     } else if (data) {
       initialTime = data.bedtime_time || "21:00";
@@ -40,6 +42,7 @@ export default async function BedtimePage() {
       initialAudio = data.default_background_audio || "soft_rain";
     }
   } catch (err) {
+    if (!isSimulationEnabled()) throw err;
     dbSimulated = true;
   }
 

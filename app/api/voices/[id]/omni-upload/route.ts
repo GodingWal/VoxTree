@@ -22,10 +22,11 @@ async function getFfmpeg() {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -44,15 +45,15 @@ export async function POST(
     const tempDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(tempDir, { recursive: true });
 
-    const webmPath = path.join(tempDir, `omni_raw_${params.id}.webm`);
+    const webmPath = path.join(tempDir, `omni_raw_${id}.webm`);
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(webmPath, fileBuffer);
 
     // Output paths
-    const audioFilename = `voice_sample_${params.id}.wav`;
+    const audioFilename = `voice_sample_${id}.wav`;
     const wavPath = path.join(tempDir, audioFilename);
     
-    const imageFilename = `avatar_frame_${params.id}.jpg`;
+    const imageFilename = `avatar_frame_${id}.jpg`;
     const jpgPath = path.join(tempDir, imageFilename);
 
     // 2. Extract Audio via FFmpeg (PCM 16-bit, 44.1kHz, mono)
@@ -84,7 +85,7 @@ export async function POST(
         .on("error", (err: any) => reject(new Error("FFmpeg video frame extract failed: " + err.message)));
     });
 
-    const referenceFramesDir = path.join(tempDir, "lora", params.id);
+    const referenceFramesDir = path.join(tempDir, "lora", id);
     await fs.mkdir(referenceFramesDir, { recursive: true });
     await new Promise<void>((resolve, reject) => {
       (ffmpeg as any)(webmPath)
@@ -143,7 +144,7 @@ export async function POST(
             sample_bytes: probe.bytes,
             status: "ready",
           })
-          .eq("id", params.id);
+          .eq("id", id);
 
         if (updateError) {
           // Saga cleanup: drop the paid ElevenLabs voice we can't link.
@@ -161,7 +162,7 @@ export async function POST(
         await admin
           .from("family_voices")
           .update({ status: "failed" })
-          .eq("id", params.id);
+          .eq("id", id);
       }
 
       // Pixar avatar generation (non-blocking, updates DB when complete)
@@ -199,7 +200,7 @@ export async function POST(
             const pixarRes = await fetch(outputUrl);
             if (pixarRes.ok) {
               const pixarBuffer = Buffer.from(await pixarRes.arrayBuffer());
-              const pixarFilename = `pixar_avatar_${params.id}.png`;
+              const pixarFilename = `pixar_avatar_${id}.png`;
               const pixarPath = path.join(tempDir, pixarFilename);
               await fs.writeFile(pixarPath, pixarBuffer);
 
@@ -211,7 +212,7 @@ export async function POST(
                   idle_video_url: pixarUrl,
                   talking_video_url: pixarUrl,
                 })
-                .eq("id", params.id);
+                .eq("id", id);
 
               // Update user profile avatar too
               await admin
@@ -234,7 +235,7 @@ export async function POST(
       referenceFrameUrls = refEntries
         .filter((n) => n.startsWith("ref_") && n.endsWith(".jpg"))
         .sort()
-        .map((n) => `/uploads/lora/${params.id}/${n}`);
+        .map((n) => `/uploads/lora/${id}/${n}`);
     } catch (e) {
       console.warn("Could not enumerate LoRA reference frames", e);
     }
@@ -250,14 +251,14 @@ export async function POST(
         status: "ready",
         character_reference_images: referenceFrameUrls,
       })
-      .eq("id", params.id);
+      .eq("id", id);
 
     if (dbError) {
       console.warn("Database failed to save visual clone paths. Continuing in simulation mode.", dbError);
       return NextResponse.json({
         success: true,
         simulated: true,
-        voiceId: params.id,
+        voiceId: id,
         avatarUrl: publicImageUrl,
         audioUrl: publicAudioUrl,
         message: "Onboarding captured and split successfully (Simulation mode: Database columns not created)."
@@ -266,7 +267,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      voiceId: params.id,
+      voiceId: id,
       avatarUrl: publicImageUrl,
       audioUrl: publicAudioUrl,
     });

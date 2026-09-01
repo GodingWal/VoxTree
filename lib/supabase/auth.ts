@@ -11,8 +11,9 @@ import { createClient as createSsrClient } from "./server";
  * so we fall back to a plain JS client configured with that token. Either way,
  * Row-Level Security ensures the returned client can only act as that user.
  */
-export function getRouteClient(): SupabaseClient {
-  const auth = headers().get("authorization");
+export async function getRouteClient(): Promise<SupabaseClient> {
+  const headerStore = await headers();
+  const auth = headerStore.get("authorization");
   if (auth && /^bearer\s+/i.test(auth)) {
     const token = auth.replace(/^bearer\s+/i, "").trim();
     return createJsClient(
@@ -24,5 +25,5 @@ export function getRouteClient(): SupabaseClient {
       }
     );
   }
-  return createSsrClient();
+  return await createSsrClient();
 }

@@ -15,7 +15,7 @@ function migrationFiles() {
 }
 
 describe("migrations — file integrity", () => {
-  it("expected 11 migrations present in lex order", () => {
+  it("expected 12 migrations present in lex order", () => {
     const files = migrationFiles();
     expect(files).toEqual([
       "001_initial_schema.sql",
@@ -29,6 +29,7 @@ describe("migrations — file integrity", () => {
       "009_add_talking_video.sql",
       "010_cloning_improvements.sql",
       "011_sync_slots_and_rate_limits.sql",
+      "012_consent_and_data_lifecycle.sql",
     ]);
   });
 
@@ -38,7 +39,7 @@ describe("migrations — file integrity", () => {
     expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 
-  it("no gaps in numeric sequence (001..011 contiguous)", () => {
+  it("no gaps in numeric sequence (001..012 contiguous)", () => {
     const files = migrationFiles();
     const nums = files.map((f) => Number(f.slice(0, 3)));
     for (let i = 0; i < nums.length; i++) {
@@ -66,6 +67,14 @@ describe("migrations — file integrity", () => {
     expect(m011).toContain("sync_voice_slots");
     expect(m011).toContain("check_rate_limit");
     expect(m011).toContain("trg_sync_voice_slots");
+  });
+
+  it("012 adds auditable consent, authorization, and lifecycle requests with RLS", () => {
+    const m012 = fs.readFileSync(path.join(MIGRATIONS_DIR, "012_consent_and_data_lifecycle.sql"), "utf8");
+    expect(m012).toContain("consent_records");
+    expect(m012).toContain("voice_owner_authorized_at");
+    expect(m012).toContain("data_lifecycle_requests");
+    expect(m012).toContain("ENABLE ROW LEVEL SECURITY");
   });
 });
 

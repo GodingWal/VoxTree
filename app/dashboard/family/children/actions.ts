@@ -16,7 +16,7 @@ export async function addChild(formData: FormData) {
     return { success: false, error: "Please enter a valid age between 0 and 18." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Get authenticated user
   const {
@@ -51,7 +51,7 @@ export async function deleteChild(childId: string) {
     return { success: false, error: "Invalid child ID." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Get authenticated user
   const {

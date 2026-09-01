@@ -6,7 +6,7 @@ import { getRouteClient } from "@/lib/supabase/auth";
  * Used by the client to poll for Pixar avatar generation completion.
  */
 export async function GET(request: NextRequest) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

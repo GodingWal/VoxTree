@@ -24,6 +24,9 @@ const ALLOWED_AUDIO_TYPES = [
 
 const createVoiceSchema = z.object({
   name: z.string().min(1).max(100),
+  voiceOwnerName: z.string().trim().min(2).max(120),
+  voiceOwnerRelationship: z.string().trim().min(2).max(80),
+  voiceOwnerAuthorized: z.literal(true),
   contentType: z
     .string()
     .refine((t) => (ALLOWED_AUDIO_TYPES as readonly string[]).includes(t), {
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -51,6 +54,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Invalid input", details: parsed.error.flatten() },
       { status: 400 }
+    );
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("users")
+    .select("consent_verified, consent_notice_version")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile?.consent_verified) {
+    return NextResponse.json(
+      { error: "Verified parental consent is required before creating a voice.", consentRequired: true },
+      { status: 403 }
     );
   }
 
@@ -84,6 +100,10 @@ export async function POST(request: Request) {
       user_id: user.id,
       name: parsed.data.name,
       status: "processing",
+      voice_owner_name: parsed.data.voiceOwnerName,
+      voice_owner_relationship: parsed.data.voiceOwnerRelationship,
+      voice_owner_authorized_at: new Date().toISOString(),
+      authorization_notice_version: profile.consent_notice_version,
     })
     .select()
     .single();

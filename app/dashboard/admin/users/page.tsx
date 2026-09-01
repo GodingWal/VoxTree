@@ -6,7 +6,7 @@ import { UserActions } from "./user-actions";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminUsersPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 
 // VoxTree logo — a tree whose canopy is concentric soundwave arcs
@@ -8,7 +7,7 @@ export function VoxMark({ size = 48, color = "var(--paper)", glow = "var(--lamp)
   // viewBox 64x64. Trunk anchored at bottom; arcs sweep upward.
   const ring = animate
     ? { animation: "lampPulse 3s ease-in-out infinite" }
-    : null;
+    : undefined;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none"
          style={{ display: "block" }}>
@@ -86,4 +85,3 @@ export function VoxMarkSpeaking({ size = 64, color = "var(--lamp)" }) {
     </svg>
   );
 }
-

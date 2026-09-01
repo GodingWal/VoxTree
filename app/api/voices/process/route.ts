@@ -17,6 +17,8 @@ import { transcodeToMp3 } from "@/lib/audio-transcode";
 import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { hasActiveConsent } from "@/lib/consent";
+import { sendOperationalAlert } from "@/lib/monitoring";
 
 const processSchema = z.object({
   voiceId: z.string().uuid(),
@@ -39,13 +41,17 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await hasActiveConsent(user.id))) {
+    return NextResponse.json({ error: "Active parental consent is required.", consentRequired: true }, { status: 403 });
   }
 
   const parsedJson = await safeJson(request);
@@ -190,6 +196,7 @@ export async function POST(request: Request) {
       code: error instanceof AudioValidationError ? error.code : undefined,
       message: error instanceof Error ? error.message : "Unknown error",
     });
+    await sendOperationalAlert("voice_clone_failed_alert", { voiceId, userId, code: error instanceof AudioValidationError ? error.code : "internal" });
     await admin
       .from("family_voices")
       .update({ status: "failed" })

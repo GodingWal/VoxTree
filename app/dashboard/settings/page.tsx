@@ -4,9 +4,11 @@ import type { Plan } from "@/types/database";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Section } from "@/components/twilight-ui";
+import { AccountDataControls } from "@/components/account-data-controls";
+import { BillingPortalButton } from "@/components/billing-portal-button";
 
 export default async function SettingsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -106,15 +108,21 @@ export default async function SettingsPage() {
               <div style={{ fontSize: 14, color: "var(--paper-dim)" }}>
                 Want to change your plan?
               </div>
-              <Link href="/pricing" style={{
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}><BillingPortalButton /><Link href="/pricing" style={{
                 padding: "10px 18px",
                 background: "var(--lamp)", color: "var(--ink-0)",
                 border: 0, borderRadius: 99, textDecoration: "none",
                 fontSize: 13, fontWeight: 600, cursor: "pointer",
               }}>
                 View Plans →
-              </Link>
+              </Link></div>
             </div>
+          </div>
+        </Section>
+
+        <Section eyebrow="Privacy" title={<>Your data & <span className="serif-italic">consent</span></>}>
+          <div style={{ background: "var(--ink-2)", border: "1px solid var(--ink-3)", borderRadius: 20, padding: 32 }}>
+            <AccountDataControls email={userEmail ?? ""} />
           </div>
         </Section>
       </div>

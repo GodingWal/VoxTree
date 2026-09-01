@@ -1,48 +1,44 @@
 /** @type {import('next').NextConfig} */
+const supabaseHostname = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+      : "example.supabase.co";
+  } catch {
+    return "example.supabase.co";
+  }
+})();
+
 const nextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   images: {
     remotePatterns: [
       // Supabase Storage (user avatars, voice samples)
-      { protocol: 'https', hostname: '**.supabase.co' },
-      { protocol: 'https', hostname: '**.supabase.in' },
+      { protocol: 'https', hostname: supabaseHostname },
       // GCS bucket for VoxTree media
       { protocol: 'https', hostname: 'storage.googleapis.com' },
       // Replicate CDN for generated Pixar avatars
       { protocol: 'https', hostname: 'replicate.delivery' },
       { protocol: 'https', hostname: 'replicate.com' },
-      // Vercel Blob / generic CDN if needed (restrict further once known)
-      { protocol: 'https', hostname: '**.vercel-storage.com' },
     ],
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  experimental: {
-    serverComponentsExternalPackages: [
-      "@ffmpeg-installer/ffmpeg",
-      "@ffprobe-installer/ffprobe",
-      "fluent-ffmpeg",
-    ],
-  },
-  // Ensure the binary-installer packages are never bundled by webpack on
-  // the server — they use dynamic require() with variable paths that
-  // webpack turns into a `sync ^.*\/.*$` context covering every file in
-  // the package (README.md, .d.ts, tsconfig.json) which then fails to parse.
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      const externals = [
-        "@ffmpeg-installer/ffmpeg",
-        "@ffprobe-installer/ffprobe",
-        "fluent-ffmpeg",
-      ];
-      // Preserve existing externals (array or function)
-      const prev = config.externals;
-      config.externals = [
-        ...(Array.isArray(prev) ? prev : prev ? [prev] : []),
-        ...externals,
-      ];
-    }
-    return config;
+  serverExternalPackages: [
+    "@ffmpeg-installer/ffmpeg",
+    "@ffprobe-installer/ffprobe",
+    "fluent-ffmpeg",
+  ],
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=()" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
+    ];
   },
 };
 

@@ -5,9 +5,10 @@ import { Section, CloneFullCard } from "@/components/twilight-ui";
 import { VoxMark } from "@/components/voxtree-logo";
 import { BookOpen, Clock, Users, Mail, Clock4 } from "lucide-react";
 import { InviteMemberButton } from "./invite-button";
+import { isSimulationEnabled } from "@/lib/features";
 
 export default async function FamilyPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -49,11 +50,12 @@ export default async function FamilyPage() {
       childrenList = data;
     }
   } catch (e) {
-    console.warn("Could not query family_children table, running in fallback.", e);
+    if (!isSimulationEnabled()) throw e;
+    console.warn("Could not query family_children table in development simulation.", e);
   }
 
   // Fallback to default mock readers if none exist
-  if (childrenList.length === 0) {
+  if (childrenList.length === 0 && isSimulationEnabled()) {
     childrenList = [
       { id: "mock-1", name: "Yusuf", age: 5 },
       { id: "mock-2", name: "Aisha", age: 7 }

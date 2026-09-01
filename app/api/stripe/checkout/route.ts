@@ -30,7 +30,7 @@ function getPriceId(priceKey: string): string {
 }
 
 export async function POST(request: Request) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
