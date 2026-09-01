@@ -39,7 +39,7 @@ export function BedtimeClient({
   // Initialize from localStorage if simulation is active
   useEffect(() => {
     const localKey = `sim_bedtime_user_${userId}`;
-    const stored = localStorage.getItem(localKey);
+    const stored = dbSimulated ? localStorage.getItem(localKey) : null;
     if (stored) {
       const parsed = JSON.parse(stored);
       setTime(parsed.time || "21:00");

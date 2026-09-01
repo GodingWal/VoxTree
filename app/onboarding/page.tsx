@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lightbulb, Loader2, CheckCircle2, Mic, StopCircle, ArrowRight, Upload, Sparkles, Video } from "lucide-react";
 import { TwilightShell } from "@/components/twilight-layout";
-import { OmniCaptureModal } from "@/components/omni-capture-modal";
+import { VoiceCaptureModal } from "@/components/voice-capture-modal";
 
 type Step = 1 | 2 | 3;
 
@@ -37,7 +37,12 @@ const TIPS = [
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
   const [voiceName, setVoiceName] = useState("");
+  const [voiceOwnerName, setVoiceOwnerName] = useState("");
+  const [voiceOwnerRelationship, setVoiceOwnerRelationship] = useState("");
+  const [voiceOwnerAuthorized, setVoiceOwnerAuthorized] = useState(false);
   const [voiceId, setVoiceId] = useState<string | null>(null);
+  const [uploadUrl, setUploadUrl] = useState("");
+  const [uploadHeaders, setUploadHeaders] = useState<Record<string, string>>({});
   
   const [isOmniOpen, setIsOmniOpen] = useState(false);
   const [status, setStatus] = useState<string>("processing");
@@ -58,7 +63,7 @@ export default function OnboardingPage() {
   }, [step, status]);
 
   async function handleStep1() {
-    if (!voiceName.trim()) return;
+    if (!voiceName.trim() || !voiceOwnerName.trim() || !voiceOwnerRelationship.trim() || !voiceOwnerAuthorized) return;
     setError(null);
     setUpgradePrompt(null);
     setSubmitting(true);
@@ -68,7 +73,13 @@ export default function OnboardingPage() {
       const createRes = await fetch("/api/voices/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: voiceName }),
+        body: JSON.stringify({
+          name: voiceName,
+          voiceOwnerName,
+          voiceOwnerRelationship,
+          voiceOwnerAuthorized,
+          contentType: "audio/webm",
+        }),
       });
       const createData = await createRes.json();
 
@@ -82,6 +93,8 @@ export default function OnboardingPage() {
       }
 
       setVoiceId(createData.voiceId);
+      setUploadUrl(createData.uploadUrl);
+      setUploadHeaders(createData.requiredUploadHeaders ?? {});
       setStep(2);
     } catch {
       setError("Failed to create voice record. Please try again.");
@@ -90,10 +103,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleOmniComplete = (avatarUrl: string, audioUrl: string) => {
-    if (voiceId) {
-      localStorage.setItem(`sim_avatar_${voiceId}`, avatarUrl);
-    }
+  const handleVoiceComplete = () => {
     setIsOmniOpen(false);
     setStep(3);
     setStatus("ready");
@@ -142,6 +152,27 @@ export default function OnboardingPage() {
               }}
             />
 
+            <input
+              type="text"
+              value={voiceOwnerName}
+              onChange={(e) => setVoiceOwnerName(e.target.value)}
+              placeholder="Voice owner&apos;s legal name"
+              style={{ width: "100%", padding: "14px 18px", fontSize: 15, borderRadius: 14, background: "var(--ink-2)", border: "1px solid var(--ink-3)", color: "var(--paper)", outline: "none", marginBottom: 12 }}
+            />
+
+            <input
+              type="text"
+              value={voiceOwnerRelationship}
+              onChange={(e) => setVoiceOwnerRelationship(e.target.value)}
+              placeholder="Relationship to your family"
+              style={{ width: "100%", padding: "14px 18px", fontSize: 15, borderRadius: 14, background: "var(--ink-2)", border: "1px solid var(--ink-3)", color: "var(--paper)", outline: "none", marginBottom: 14 }}
+            />
+
+            <label style={{ display: "flex", textAlign: "left", gap: 10, color: "var(--paper-dim)", fontSize: 13, lineHeight: 1.45, marginBottom: 24 }}>
+              <input type="checkbox" checked={voiceOwnerAuthorized} onChange={(e) => setVoiceOwnerAuthorized(e.target.checked)} style={{ marginTop: 3 }} />
+              I confirm that this person authorized creation and use of their private VoxTree voice, or I have lawful authority to consent for them.
+            </label>
+
             {error && <p style={{ color: "var(--rose)", fontSize: 13, marginBottom: 16 }}>{error}</p>}
 
             {upgradePrompt && (
@@ -158,12 +189,12 @@ export default function OnboardingPage() {
             {!upgradePrompt && (
               <button
                 onClick={handleStep1}
-                disabled={!voiceName.trim() || submitting}
+                disabled={!voiceName.trim() || !voiceOwnerName.trim() || !voiceOwnerRelationship.trim() || !voiceOwnerAuthorized || submitting}
                 style={{
                   width: "100%", padding: 16, borderRadius: 16, border: 0,
                   background: "var(--lamp)", color: "var(--ink-0)", fontSize: 16, fontWeight: 600,
-                  cursor: !voiceName.trim() || submitting ? "not-allowed" : "pointer",
-                  opacity: !voiceName.trim() || submitting ? 0.5 : 1,
+                  cursor: !voiceName.trim() || !voiceOwnerAuthorized || submitting ? "not-allowed" : "pointer",
+                  opacity: !voiceName.trim() || !voiceOwnerAuthorized || submitting ? 0.5 : 1,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -186,7 +217,7 @@ export default function OnboardingPage() {
               <div>
                 <h1 className="serif" style={{ fontSize: 32, margin: 0, color: "var(--paper)" }}>Activate Your Clone</h1>
                 <p style={{ color: "var(--paper-dim)", marginTop: 12, fontSize: 15, lineHeight: 1.5 }}>
-                  Position your face in front of the camera and read the short sentence on screen. We will split the single capture into your voice profile and 3D character avatar.
+                  Record a private audio sample in a quiet room. Camera access and visual cloning are separate, optional features and are not part of the core setup.
                 </p>
               </div>
 
@@ -208,8 +239,8 @@ export default function OnboardingPage() {
                   gap: 8,
                 }}
               >
-                <Video size={20} />
-                Open Setup Interface
+                <Mic size={20} />
+                Open Voice Recorder
               </button>
             </div>
           </div>
@@ -253,12 +284,13 @@ export default function OnboardingPage() {
         )}
       </div>
 
-      {isOmniOpen && voiceId && (
-        <OmniCaptureModal
+      {isOmniOpen && voiceId && uploadUrl && (
+        <VoiceCaptureModal
           voiceId={voiceId}
-          voiceName={voiceName}
+          uploadUrl={uploadUrl}
+          uploadHeaders={uploadHeaders}
           onClose={() => setIsOmniOpen(false)}
-          onCaptureComplete={handleOmniComplete}
+          onComplete={handleVoiceComplete}
         />
       )}
     </TwilightShell>

@@ -17,6 +17,8 @@ import path from "path";
 import os from "os";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { hasActiveConsent } from "@/lib/consent";
+import { sendOperationalAlert } from "@/lib/monitoring";
 
 // Lazy loader for fluent-ffmpeg so @ffmpeg-installer is not evaluated at build time
 async function getFfmpeg() {
@@ -41,11 +43,15 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await hasActiveConsent(user.id))) {
+    return NextResponse.json({ error: "Active parental consent is required.", consentRequired: true }, { status: 403 });
   }
 
   const parsedJson = await safeJson(request);
@@ -277,6 +283,7 @@ export async function POST(request: Request) {
         voiceId,
         message: err?.message ?? "Unknown error",
       });
+      await sendOperationalAlert("clip_generation_failed_alert", { clipId: clip.id, userId: user.id, contentId, voiceId });
       await admin
         .from("generated_clips")
         .update({ status: "failed" })

@@ -12,7 +12,7 @@ export async function updateBedtimeSettings(formData: FormData) {
     return { success: false, error: "Please specify a bedtime." };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // 1. Get authenticated user
   const {

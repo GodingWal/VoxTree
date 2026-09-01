@@ -14,7 +14,7 @@ const plans = [
     annualPrice: "$0",
     period: "forever",
     features: [
-      "1 voice & visual profile",
+      "1 authorized voice profile",
       "2 story clips",
       "4 stories",
       "No time expiration",
@@ -33,7 +33,7 @@ const plans = [
     features: [
       "2 family clones",
       "Full story content library",
-      "Unlimited video generations",
+      "Advanced features when enabled",
     ],
     cta: "Upgrade to Family",
     plan: "family" as const,
@@ -48,7 +48,7 @@ const plans = [
     features: [
       "Unlimited family clones",
       "Full story content library",
-      "Unlimited video generations",
+      "Advanced features when enabled",
       "Priority AI processing queue",
       "Early access to new features",
       "Offline story downloads",
@@ -77,7 +77,7 @@ export default function PricingPage() {
       if (data.error) {
         setError(data.error);
       } else if (data.url) {
-        window.location.href = data.url;
+        window.location.assign(data.url);
       } else {
         setError("An unexpected error occurred.");
       }

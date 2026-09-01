@@ -10,7 +10,7 @@ interface WatchPageProps {
 
 export default async function WatchPage({ params }: WatchPageProps) {
   const { id } = await params;
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const {
     data: { user },

@@ -14,11 +14,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies (clean)
@@ -29,7 +31,6 @@ jobs:
 
       - name: Lint
         run: npm run lint -- --max-warnings=0
-        continue-on-error: true
 
       - name: Tests
         run: npm test
@@ -62,10 +63,14 @@ jobs:
 
       - name: Dependency audit (high/critical)
         run: npm audit --audit-level=high
-        continue-on-error: true
+
+      - name: Install browser for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end launch smoke tests
+        run: npm run test:e2e
 
       - name: Check for leaked secrets (gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true

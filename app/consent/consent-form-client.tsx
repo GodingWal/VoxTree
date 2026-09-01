@@ -14,6 +14,8 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
   const [name, setName] = useState(parentName || "");
   const [agree, setAgree] = useState(false);
   const [signature, setSignature] = useState("");
+  const [relationship, setRelationship] = useState("");
+  const [voiceOwnerAuthorization, setVoiceOwnerAuthorization] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +34,13 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
     setError(null);
 
     try {
-      const res = await verifyParentalConsent();
+      const res = await verifyParentalConsent({
+        parentName: name,
+        parentRelationship: relationship,
+        signature,
+        agreementAccepted: agree,
+        voiceOwnerAuthorizationConfirmed: voiceOwnerAuthorization,
+      });
       if (res.success) {
         router.refresh();
       } else {
@@ -121,6 +129,13 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
         </div>
 
         {/* Legal checkbox */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+          <label className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Relationship to child
+          </label>
+          <input type="text" required value={relationship} onChange={(e) => setRelationship(e.target.value)} placeholder="Parent or legal guardian" style={{ width: "100%", background: "var(--ink-1)", border: "1px solid var(--ink-3)", borderRadius: 12, padding: "14px 16px", color: "var(--paper)", fontSize: 15 }} />
+        </div>
+
         <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", userSelect: "none" }}>
           <input
             type="checkbox"
@@ -130,6 +145,13 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
           />
           <span style={{ fontSize: 13, color: "var(--paper-dim)", lineHeight: 1.4 }}>
             I agree to the terms of the Parental Consent Agreement and confirm that I am the legal parent or guardian.
+          </span>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", userSelect: "none" }}>
+          <input type="checkbox" checked={voiceOwnerAuthorization} onChange={(e) => setVoiceOwnerAuthorization(e.target.checked)} style={{ marginTop: 3, cursor: "pointer" }} />
+          <span style={{ fontSize: 13, color: "var(--paper-dim)", lineHeight: 1.4 }}>
+            I will only upload a voice or likeness when I have authorization from that person or lawful authority to act for them.
           </span>
         </label>
 

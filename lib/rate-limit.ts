@@ -36,14 +36,14 @@ export class RateLimit {
       });
 
       if (error) {
-        console.error("Database rate limit RPC error, failing open:", error);
-        return true; // Fail open to avoid breaking app experience for users if database is overloaded
+        console.error("Database rate limit RPC error:", error);
+        return process.env.NODE_ENV !== "production";
       }
 
       return !!data;
     } catch (err) {
-      console.error("Rate limiter exception, failing open:", err);
-      return true; // Fail open
+      console.error("Rate limiter exception:", err);
+      return process.env.NODE_ENV !== "production";
     }
   }
 
@@ -106,9 +106,9 @@ export async function checkUserRateLimit(
     .gte("created_at", since);
 
   if (error) {
-    // Fail open on RL infra issues so we don't block legitimate users on
-    // a transient DB problem. Logs in api-helpers will surface this.
-    return { allowed: true, remaining: opts.limit };
+    return process.env.NODE_ENV === "production"
+      ? { allowed: false, remaining: 0 }
+      : { allowed: true, remaining: opts.limit };
   }
 
   const used = count ?? 0;

@@ -5,7 +5,7 @@ import { ShieldCheck, Lock, EyeOff, KeyRound } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy | VoxTree",
-  description: "Learn how VoxTree protects child safety and secures voice and visual clone data with full GDPR and COPPA compliance.",
+  description: "Learn how VoxTree handles family voice, child profile, and generated story data.",
 };
 
 export default function PrivacyPage() {
@@ -41,8 +41,8 @@ export default function PrivacyPage() {
         {/* Pillars Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 64 }} className="fadeUp">
           <PillarCard icon={<ShieldCheck size={28} />} title="100% Owned By You" desc="Your voice clones and visual avatars belong to your family alone. We never rent or sell them." />
-          <PillarCard icon={<Lock size={28} />} title="Encrypted Storage" desc="All captured photos, WebM video captures, and audio samples are fully encrypted at rest." />
-          <PillarCard icon={<EyeOff size={28} />} title="Zero Model Training" desc="Your data is strictly used to generate story sessions for your account and is never used to train public AI models." />
+          <PillarCard icon={<Lock size={28} />} title="Private Storage" desc="Uploads are stored in private cloud storage and accessed through short-lived signed links." />
+          <PillarCard icon={<EyeOff size={28} />} title="Limited Purpose" desc="Family media is processed to provide requested VoxTree features and is not offered in a public voice gallery." />
         </div>
 
         {/* Policy Content */}
@@ -53,17 +53,17 @@ export default function PrivacyPage() {
               borderRadius: 20, padding: 32, color: "var(--paper-dim)", fontSize: 15, lineHeight: 1.7
             }}>
               <p style={{ marginTop: 0 }}>
-                Because VoxTree narrations are enjoyed by kids, we adhere strictly to the <strong>Children&apos;s Online Privacy Protection Act (COPPA)</strong> and the <strong>General Data Protection Regulation (GDPR-K)</strong>:
+                Because VoxTree is used by families with children, the product includes safeguards intended to support applicable child-privacy requirements. Final legal applicability and launch geography require qualified counsel review.
               </p>
               <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
                 <li>
-                  <strong style={{ color: "var(--paper)" }}>Verified Parental Consent:</strong> We verify parental credentials before enabling voice/face cloning, ensuring visual capture tools are operated under adult supervision.
+                  <strong style={{ color: "var(--paper)" }}>Recorded Parental Consent:</strong> Voice creation requires a signed, versioned consent record and a separate voice-owner authorization confirmation.
                 </li>
                 <li>
                   <strong style={{ color: "var(--paper)" }}>No Ad-Tracking:</strong> VoxTree contains zero commercial advertisements. We never track children&apos;s behavior for targeting or analytics.
                 </li>
                 <li>
-                  <strong style={{ color: "var(--paper)" }}>The Right to Be Forgotten:</strong> You can permanently delete any child profile, recorded voice sample, or generated clip at any time directly through settings, wiping it from our server storage instantly.
+                  <strong style={{ color: "var(--paper)" }}>Data Controls:</strong> Settings provide data export, consent revocation, and permanent account deletion. Failed deletion attempts are recorded for operational follow-up.
                 </li>
               </ul>
             </div>

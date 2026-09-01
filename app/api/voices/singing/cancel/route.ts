@@ -15,7 +15,7 @@ const cancelSchema = z.object({
  * the training already finished or was already cancelled.
  */
 export async function POST(request: Request) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

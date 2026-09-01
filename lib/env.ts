@@ -43,6 +43,10 @@ const envSchema = z.object({
 
   // Optional
   NODE_ENV: z.enum(["development", "production", "test"]).optional(),
+  SIMULATION_MODE: z.enum(["true", "false"]).optional(),
+  FEATURE_VISUAL_CLONING: z.enum(["true", "false"]).optional(),
+  FEATURE_SINGING_VOICE: z.enum(["true", "false"]).optional(),
+  FEATURE_TALKING_VIDEO: z.enum(["true", "false"]).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -104,10 +108,9 @@ export function isProduction(): boolean {
  * fallback is attempted without explicit SIMULATION_MODE=true.
  */
 export function assertSimulationAllowed(context: string): void {
-  if (isProduction() && process.env.SIMULATION_MODE !== "true") {
+  if (isProduction()) {
     throw new Error(
-      `${context} is not configured. Missing environment variable in production. ` +
-        `Set the required env var or explicitly enable SIMULATION_MODE=true for testing.`
+      `${context} cannot use simulation behavior in production. Configure the real integration or disable the feature.`
     );
   }
 }

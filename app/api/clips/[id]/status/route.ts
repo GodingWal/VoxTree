@@ -4,14 +4,14 @@ import { getPresignedDownloadUrl } from "@/lib/gcp";
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const clipId = params.id;
+  const { id: clipId } = await params;
   if (!clipId) {
     return NextResponse.json({ error: "Missing clip ID" }, { status: 400 });
   }
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {

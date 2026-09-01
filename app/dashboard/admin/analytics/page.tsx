@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminAnalyticsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

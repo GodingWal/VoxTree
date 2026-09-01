@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendOperationalAlert } from "@/lib/monitoring";
+import { sendTransactionalEmail } from "@/lib/email";
 import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
@@ -88,7 +90,12 @@ export async function POST(request: Request) {
     }
 
     case "invoice.payment_failed": {
-      // TODO: Send email notification about failed payment
+      const invoice = event.data.object as Stripe.Invoice;
+      await sendOperationalAlert("stripe_payment_failed", { invoiceId: invoice.id, customerId: invoice.customer });
+      const { data: billingUser } = await supabase.from("users").select("email").eq("stripe_customer_id", invoice.customer as string).single();
+      if (billingUser?.email) {
+        await sendTransactionalEmail({ to: billingUser.email, template: "payment-failed", data: { invoiceId: invoice.id } });
+      }
       break;
     }
   }

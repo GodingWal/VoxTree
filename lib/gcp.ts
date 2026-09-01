@@ -120,6 +120,24 @@ export function getPublicUrl(key: string): string {
   return `https://storage.googleapis.com/${BUCKET_NAME}/${key}`;
 }
 
+/** Permanently delete all private objects below a user-owned prefix. */
+export async function deleteObjectPrefix(prefix: string): Promise<number> {
+  if (!process.env.GCS_BUCKET_NAME) {
+    throw new Error("GCS_BUCKET_NAME is required for data deletion.");
+  }
+  const [files] = await storage.bucket(process.env.GCS_BUCKET_NAME).getFiles({ prefix });
+  await Promise.all(files.map((file) => withRetry(() => file.delete({ ignoreNotFound: true }), { attempts: 3, baseDelayMs: 500 })));
+  return files.length;
+}
+
+export async function deleteVoiceMedia(userId: string, voiceId: string): Promise<number> {
+  const voiceFiles = await deleteObjectPrefix(`voice-samples/${userId}/${voiceId}/`);
+  const [clipFiles] = await storage.bucket(process.env.GCS_BUCKET_NAME!).getFiles({ prefix: `clips/${userId}/` });
+  const matchingClips = clipFiles.filter((file) => file.name.includes(`/${voiceId}/`));
+  await Promise.all(matchingClips.map((file) => withRetry(() => file.delete({ ignoreNotFound: true }), { attempts: 3, baseDelayMs: 500 })));
+  return voiceFiles + matchingClips.length;
+}
+
 /**
  * Build GCS key paths following the bucket structure convention.
  */

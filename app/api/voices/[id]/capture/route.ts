@@ -9,13 +9,14 @@ import path from "path";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -37,7 +38,7 @@ export async function POST(
     const buffer = Buffer.from(base64Data, "base64");
 
     // 2. Save the file locally
-    const filename = `visual_clone_${params.id}_${Date.now()}.png`;
+    const filename = `visual_clone_${id}_${Date.now()}.png`;
     const uploadDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, filename);
@@ -53,7 +54,7 @@ export async function POST(
         idle_video_url: publicUrl,
         talking_video_url: publicUrl,
       })
-      .eq("id", params.id);
+      .eq("id", id);
 
     // 4. Update current user's profile avatar_url
     const { error: userDbError } = await supabase
@@ -96,14 +97,14 @@ export async function POST(
           const pixarRes = await fetch(outputUrl);
           if (pixarRes.ok) {
             const pixarBuffer = Buffer.from(await pixarRes.arrayBuffer());
-            const pixarFilename = `pixar_avatar_${params.id}.png`;
+            const pixarFilename = `pixar_avatar_${id}.png`;
             await fs.writeFile(path.join(uploadDir, pixarFilename), pixarBuffer);
 
             const pixarUrl = `/uploads/${pixarFilename}`;
             await admin
               .from("family_voices")
               .update({ avatar_url: pixarUrl, idle_video_url: pixarUrl, talking_video_url: pixarUrl })
-              .eq("id", params.id);
+              .eq("id", id);
             await admin
               .from("users")
               .update({ avatar_url: pixarUrl })
@@ -112,7 +113,7 @@ export async function POST(
         }
       } catch (err) {
         logger.warn("pixar_avatar_generation_failed", {
-          voiceId: params.id,
+          voiceId: id,
           userId: user.id,
           message: err instanceof Error ? err.message : "Unknown error",
         });
@@ -139,7 +140,7 @@ export async function POST(
     });
   } catch (error: any) {
     logger.error("visual_capture_failed", {
-      voiceId: params.id,
+      voiceId: id,
       message: error?.message ?? "Unknown error",
     });
     return NextResponse.json({ error: error.message || "Failed to process visual capture" }, { status: 500 });

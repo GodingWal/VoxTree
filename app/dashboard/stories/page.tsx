@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { StoriesDiscovery } from "@/components/stories-discovery";
 
 export default async function StoriesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

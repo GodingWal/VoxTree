@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { ContentItem } from "@/types/database";
 
 export async function addContent(data: Omit<ContentItem, "id" | "created_at">) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -33,7 +33,7 @@ export async function addContent(data: Omit<ContentItem, "id" | "created_at">) {
 }
 
 export async function deleteContent(id: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -60,7 +60,7 @@ export async function deleteContent(id: string) {
 }
 
 export async function updateContent(id: string, data: Partial<Omit<ContentItem, "id" | "created_at">>) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

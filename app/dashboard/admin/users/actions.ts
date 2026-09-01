@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import type { Plan } from "@/types/database";
 
 export async function resetUserPassword(email: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -38,7 +38,7 @@ export async function updateUser(
     stripe_customer_id?: string | null;
   }
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

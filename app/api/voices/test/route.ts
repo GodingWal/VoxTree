@@ -1,4 +1,5 @@
 import { getRouteClient } from "@/lib/supabase/auth";
+import { hasActiveConsent } from "@/lib/consent";
 import { generateSpeech } from "@/lib/elevenlabs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -8,13 +9,17 @@ const testVoiceSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await hasActiveConsent(user.id))) {
+    return NextResponse.json({ error: "Active parental consent is required.", consentRequired: true }, { status: 403 });
   }
 
   let body: unknown;

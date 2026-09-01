@@ -22,8 +22,9 @@ vi.mock("@/lib/supabase/auth", () => ({
       select: () => ({
         eq: () => ({
           single: () =>
-            // voices/delete ownership check — return row belonging to caller or other user
-            Promise.resolve({ data: (vi as unknown as { _voiceRow?: unknown })._voiceRow ?? null }),
+            table === "users"
+              ? Promise.resolve({ data: { consent_verified: true, consent_notice_version: "test" }, error: null })
+              : Promise.resolve({ data: (vi as unknown as { _voiceRow?: unknown })._voiceRow ?? null }),
         }),
       }),
     }),
@@ -84,6 +85,13 @@ function reqJson(body: unknown, headers: Record<string, string> = {}) {
   });
 }
 
+const authorizedVoice = {
+  name: "Grandma",
+  voiceOwnerName: "Grandma Example",
+  voiceOwnerRelationship: "Grandmother",
+  voiceOwnerAuthorized: true,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetUser.mockResolvedValue({ data: { user: { id: "user-a" } } });
@@ -97,13 +105,13 @@ beforeEach(() => {
 describe("POST /api/voices/create", () => {
   it("401 when unauthenticated", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
-    const res = await createVoice(reqJson({ name: "Grandma" }));
+    const res = await createVoice(reqJson(authorizedVoice));
     expect(res.status).toBe(401);
   });
 
   it("403 when voice slot limit reached", async () => {
     mockCheckLimit.mockResolvedValue({ allowed: false, reason: "Voice limit reached", upgradePrompt: "Upgrade" });
-    const res = await createVoice(reqJson({ name: "Grandma" }));
+    const res = await createVoice(reqJson(authorizedVoice));
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.upgradeRequired).toBe(true);
@@ -121,7 +129,7 @@ describe("POST /api/voices/create", () => {
   });
 
   it("201 happy path returns uploadUrl and gcpKey", async () => {
-    const res = await createVoice(reqJson({ name: "Grandma", contentType: "audio/wav" }));
+    const res = await createVoice(reqJson({ ...authorizedVoice, contentType: "audio/wav" }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.voiceId).toBe("voice-1");
@@ -131,7 +139,7 @@ describe("POST /api/voices/create", () => {
 
   it("still creates record when insert succeeds and returns presigned URL", async () => {
     mockInsert.mockResolvedValueOnce({ data: { id: "voice-2", user_id: "user-a" }, error: null });
-    const res = await createVoice(reqJson({ name: "Mom" }));
+    const res = await createVoice(reqJson({ ...authorizedVoice, name: "Mom", voiceOwnerName: "Mom Example", voiceOwnerRelationship: "Mother" }));
     expect(res.status).toBe(200);
     expect(mockGetPresignedUploadUrl).toHaveBeenCalled();
   });

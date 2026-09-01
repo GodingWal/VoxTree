@@ -13,7 +13,7 @@ function getColorForName(name: string) {
 }
 
 export default async function CloneDetailsPage({ params }: { params: { id: string } }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

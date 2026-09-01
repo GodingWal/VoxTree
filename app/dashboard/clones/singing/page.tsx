@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Mic2, Music, UploadCloud, AlertCircle } from "lucide-react";
 
 export default async function SingingClonesPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

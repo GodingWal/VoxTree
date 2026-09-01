@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
   if (!voiceId) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

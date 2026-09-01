@@ -9,7 +9,7 @@ import { checkLoraTrainingStatus } from "@/lib/replicate";
  * local dev where webhooks aren't reachable, and as a safety net in prod).
  */
 export async function GET(request: NextRequest) {
-  const supabase = getRouteClient();
+  const supabase = await getRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

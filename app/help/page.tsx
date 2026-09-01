@@ -30,12 +30,12 @@ const FAQS: FAQItem[] = [
   {
     category: "avatar",
     question: "How does the Pixar visual clone capture work?",
-    answer: "During onboarding, the webcam snaps a 5-second video frame. Our visual pipeline runs an style-transfer network that transforms the photo into a stylized Pixar-inspired character. This character is used as the narrator's profile avatar throughout the app."
+    answer: "Visual cloning is an advanced, separately gated feature and is disabled for the core launch. Standard onboarding uses microphone-only voice recording and does not request camera access."
   },
   {
     category: "avatar",
     question: "Do the avatars actually animate during story readbacks?",
-    answer: "Yes! On the Clones page and during Story playing, the Pixar characters slowly breathe while idle. When you play a story, their lips and outline bounce with the sound frequency, providing a responsive visual narration."
+    answer: "Animated avatars remain an advanced beta feature. Availability is controlled independently from the core family voice and story experience."
   },
   {
     category: "privacy",
@@ -45,7 +45,7 @@ const FAQS: FAQItem[] = [
   {
     category: "privacy",
     question: "Is VoxTree COPPA and GDPR compliant?",
-    answer: "Yes. VoxTree complies fully with the Children's Online Privacy Protection Act (COPPA) and GDPR-K regulations. We require parental consent before any account can use visual captures or voice cloning, and we do not utilize ad tracking."
+    answer: "VoxTree includes signed consent records, voice-owner authorization, private storage, export, revocation, and deletion controls. Compliance depends on launch geography, operations, vendor terms, and qualified legal review, so VoxTree does not make an unconditional compliance claim."
   },
   {
     category: "billing",
