@@ -5,6 +5,7 @@ import { Section, CloneFullCard } from "@/components/twilight-ui";
 import { VoxMark } from "@/components/voxtree-logo";
 import { BookOpen, Clock, Users, Mail, Clock4 } from "lucide-react";
 import { InviteMemberButton } from "./invite-button";
+import { InviteGrandmaButton } from "./invite-grandma-button";
 import { isSimulationEnabled } from "@/lib/features";
 
 export default async function FamilyPage() {
@@ -117,6 +118,20 @@ export default async function FamilyPage() {
     console.warn("Could not query family_invitations table.", e);
   }
 
+  // 3b. Fetch grandparent invites (viral loop)
+  let grandparentInvites: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("invites")
+      .select("*")
+      .eq("inviter_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (!error && data) grandparentInvites = data;
+  } catch (e) {
+    console.warn("Could not query invites table.", e);
+  }
+
   // Map supabase voices to Twilight format
   const clones = voices?.map((v, i) => {
     const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8"];
@@ -144,7 +159,10 @@ export default async function FamilyPage() {
             The Family Tree
           </h1>
         </div>
-        <InviteMemberButton isPremium={isPremium} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <InviteGrandmaButton />
+          <InviteMemberButton isPremium={isPremium} />
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24, marginBottom: 48 }}>
@@ -268,6 +286,67 @@ export default async function FamilyPage() {
         </div>
       )}
 
+
+      {/* Grandparent invites (viral loop) */}
+      {grandparentInvites.length > 0 && (
+        <div
+          style={{
+            background: "var(--ink-1)",
+            border: "1px solid var(--ink-3)",
+            borderRadius: 28,
+            padding: "32px 40px",
+            marginBottom: 40,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <Mail style={{ color: "var(--lamp)" }} size={20} />
+            <h2 className="serif" style={{ fontSize: 24, color: "var(--paper)", margin: 0 }}>
+              Grandparent Invites
+            </h2>
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 99,
+                background: "rgba(127,196,164,0.15)",
+                color: "var(--moss)",
+                fontWeight: 700,
+              }}
+            >
+              VIRAL LOOP
+            </span>
+          </div>
+          <p style={{ color: "var(--paper-dim)", fontSize: 13, marginBottom: 16 }}>
+            Share links for grandparents to record — they will generate a 30-sec sample story automatically.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            {grandparentInvites.map((inv: any) => (
+              <div
+                key={inv.id}
+                style={{
+                  background: "var(--ink-2)",
+                  border: "1px solid var(--ink-3)",
+                  borderRadius: 16,
+                  padding: "16px 20px",
+                }}
+              >
+                <div style={{ color: "var(--paper)", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {inv.email || inv.phone || inv.token.slice(0, 8) + "…"} · {inv.role}
+                </div>
+                <div className="mono" style={{ fontSize: 10, color: "var(--paper-mute)", marginTop: 6, display: "flex", gap: 6, alignItems: "center" }}>
+                  <Clock4 size={10} /> {inv.status} · expires {new Date(inv.expires_at).toLocaleDateString()}
+                </div>
+                {inv.status === "pending" && (
+                  <a href={"/invite/" + inv.token} style={{ display: "inline-block", marginTop: 8, fontSize: 12, color: "var(--lamp)", fontWeight: 600 }}>
+                    Open invite link →
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Family Settings Section */}
       <div className="fadeUp" style={{ marginTop: 80, marginBottom: 32 }}>

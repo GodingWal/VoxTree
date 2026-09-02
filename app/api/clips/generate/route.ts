@@ -4,6 +4,8 @@ import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { generateSpeech } from "@/lib/elevenlabs";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
+import { checkAbuse } from "@/lib/abuse-detection";
+import { applyWatermark } from "@/lib/watermark";
 import {
   enforcePaidRateLimit,
   enforceUserRateLimit,
@@ -90,6 +92,34 @@ export async function POST(request: Request) {
     );
   }
 
+  // Abuse fence: check content text for celebrity impersonation before queueing
+  // (voice-specific check happens after voice fetch in the background job, but
+  // we also do a lightweight pre-check on the content script if available)
+  {
+    const { data: _abuseContent } = await supabase
+      .from("content_library")
+      .select("text_script")
+      .eq("id", contentId)
+      .single();
+    const script = (_abuseContent as unknown as { text_script?: string | null })?.text_script ?? null;
+    if (script) {
+      const abusePre = checkAbuse({
+        voiceOwnerName: null,
+        voiceName: null,
+        textScript: script,
+        authUser: {
+          id: user.id,
+          email: (user as any).email ?? null,
+          displayName: (user as any).user_metadata?.["full_name"] ?? (user as any).user_metadata?.["name"] ?? null,
+          user_metadata: (user as any).user_metadata ?? null,
+        },
+      });
+      if (abusePre.blocked) {
+        return NextResponse.json({ error: abusePre.reason, code: abusePre.code }, { status: 403 });
+      }
+    }
+  }
+
   // Fetch the content details to determine mode
   const { data: content, error: contentError } = await supabase
     .from("content_library")
@@ -107,6 +137,30 @@ export async function POST(request: Request) {
 
   if (!content.instrumental_url) {
     return NextResponse.json({ error: "This story is missing a background music track." }, { status: 400 });
+  }
+
+  // Abuse fence: verify selected voice is not a celebrity impersonation
+  {
+    const { data: voiceForAbuse } = await supabase
+      .from("family_voices")
+      .select("name, voice_owner_name")
+      .eq("id", voiceId)
+      .single();
+    if (voiceForAbuse) {
+      const voiceAbuse = checkAbuse({
+        voiceOwnerName: (voiceForAbuse as any).voice_owner_name ?? null,
+        voiceName: (voiceForAbuse as any).name ?? null,
+        authUser: {
+          id: user.id,
+          email: (user as any).email ?? null,
+          displayName: (user as any).user_metadata?.["full_name"] ?? (user as any).user_metadata?.["name"] ?? null,
+          user_metadata: (user as any).user_metadata ?? null,
+        },
+      });
+      if (voiceAbuse.blocked) {
+        return NextResponse.json({ error: voiceAbuse.reason, code: voiceAbuse.code }, { status: 403 });
+      }
+    }
   }
 
   // Check cache first
@@ -184,6 +238,16 @@ export async function POST(request: Request) {
         }
         console.log(`[Clip Generation] Generating speech via ElevenLabs for clip ${clip.id}`);
         rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
+        // P0 #3: inaudible watermark — embed clip/user identity into TTS output
+        try {
+          rawVocalsBuffer = applyWatermark(rawVocalsBuffer, {
+            clipId: clip.id,
+            userId: user.id,
+            timestamp: Date.now(),
+          });
+        } catch (wmErr) {
+          console.warn("[Clip Generation] Watermark failed (non-fatal):", wmErr);
+        }
         await recordUsage(user.id, { kind: "elevenlabs_chars", chars: charCount });
       } else if (content.content_mode === "v2v") {
         if (!voice.rvc_model_id) throw new Error("V2V singing voice not set up");
@@ -208,6 +272,16 @@ export async function POST(request: Request) {
         // Download the output from Replicate
         const repRes = await fetch(output);
         rawVocalsBuffer = Buffer.from(await repRes.arrayBuffer());
+        // Watermark V2V output as well
+        try {
+          rawVocalsBuffer = applyWatermark(rawVocalsBuffer, {
+            clipId: clip.id,
+            userId: user.id,
+            timestamp: Date.now(),
+          });
+        } catch (wmErr) {
+          console.warn("[Clip Generation] Watermark failed (non-fatal, V2V):", wmErr);
+        }
         await recordUsage(user.id, { kind: "replicate_inference" });
       } else {
         throw new Error("Unsupported content mode");
