@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Loader2, Camera, MoreVertical, Trash2, Play, Square, Info } from 'lucide-react';
+import { Loader2, MoreVertical, Trash2, Play, Square, Info } from 'lucide-react';
+import { InteractiveClone } from '@/components/interactive-clone';
 
 
 // Decorative story "art"
@@ -551,83 +551,12 @@ export function CloneFullCard({ clone, href, onDelete }: { clone: any; href?: st
         </div>
       )}
 
-      {/* 3D Viewport Box with Breathing/Talking CSS Animation */}
-      <div 
-        style={{
-          width: "100%",
-          aspectRatio: "4/5",
-          background: "#0a0e1f",
-          borderRadius: 20,
-          overflow: "hidden",
-          position: "relative",
-          border: "1px solid rgba(244, 236, 219, 0.03)",
-        }}
-      >
-        <Image 
-          src={avatarUrl || "/mock_avatar.png"}
-          alt={clone.name} 
-          fill
-          sizes="(max-width: 768px) 100vw, 25vw"
-          style={{
-            objectFit: "cover",
-            transformOrigin: "bottom center",
-            animation: playing 
-              ? "characterTalk 0.5s ease-in-out infinite alternate" 
-              : "characterBreathe 4s ease-in-out infinite",
-            opacity: avatarUrl ? 1 : 0.45,
-            filter: avatarUrl ? "none" : "grayscale(30%)",
-          }}
-        />
-
-        {/* Dynamic Gradient rim-light overlay on talk */}
-        {playing && (
-          <div 
-            className="absolute inset-0 pointer-events-none" 
-            style={{
-              boxShadow: "inset 0 0 20px rgba(244,184,96,0.25)",
-              background: "radial-gradient(circle, transparent 60%, rgba(244,184,96,0.1) 100%)"
-            }}
-          />
-        )}
-
-        {/* Active Waveform Overlay when talking */}
-        {playing && (
-          <div className="absolute bottom-3 left-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg p-2 border border-white/10 flex items-center justify-center gap-2">
-            <div className="flex items-center gap-1 h-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="w-0.5 bg-[var(--lamp)] rounded-full animate-[barWave_0.5s_ease-in-out_infinite_alternate]"
-                  style={{
-                    height: "100%",
-                    animationDelay: `${i * 0.08}s`
-                  }}
-                />
-              ))}
-            </div>
-            <span className="mono" style={{ fontSize: 8, color: "var(--paper-dim)", letterSpacing: "0.05em" }}>TALKING</span>
-          </div>
-        )}
-
-        {/* If no avatarUrl, show an overlay indicator to Add Visual Clone */}
-        {!avatarUrl && (
-          <div 
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "rgba(10, 14, 31, 0.6)",
-              backdropFilter: "blur(2px)",
-            }}
-          >
-            <Camera size={24} style={{ color: "var(--lamp-soft)", marginBottom: 8 }} />
-            <span className="mono" style={{ fontSize: 10, color: "var(--paper-dim)", letterSpacing: "0.05em" }}>NO VISUAL CLONE</span>
-          </div>
-        )}
-      </div>
+      <InteractiveClone
+        name={clone.name}
+        avatarUrl={avatarUrl}
+        modelUrl={clone.model_3d_url}
+        speaking={playing}
+      />
 
       {/* Meta Specs */}
       <div>
@@ -743,19 +672,8 @@ export function CloneFullCard({ clone, href, onDelete }: { clone: any; href?: st
         </button>
       )}
 
-      {/* Breathing and talking CSS animations */}
+      {/* Shared audio meter animation */}
       <style jsx global>{`
-        @keyframes characterBreathe {
-          0% { transform: scale(1.0); }
-          50% { transform: scale(1.018) translateY(-1px); }
-          100% { transform: scale(1.0); }
-        }
-        @keyframes characterTalk {
-          0% { transform: scale(1.0) rotate(0deg); }
-          25% { transform: scale(1.015) rotate(0.3deg) translateY(-2px); }
-          75% { transform: scale(1.025) rotate(-0.3deg) translateY(-1px); }
-          100% { transform: scale(1.0) rotate(0deg); }
-        }
         @keyframes barWave {
           0% { height: 15%; }
           100% { height: 100%; }

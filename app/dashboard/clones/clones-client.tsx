@@ -26,6 +26,7 @@ interface Clone {
   stories: number;
   color: string;
   avatar_url: string | null;
+  model_3d_url?: string | null;
 }
 
 export function ClonesClient({ clones }: { clones: Clone[] }) {

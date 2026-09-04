@@ -144,7 +144,8 @@ export default async function FamilyPage() {
       lastUsed: "—",
       stories: 0,
       color: colors[i % colors.length],
-      avatar_url: v.avatar_url
+      avatar_url: v.avatar_url,
+      model_3d_url: v.model_3d_url || null,
     };
   }) || [];
 
