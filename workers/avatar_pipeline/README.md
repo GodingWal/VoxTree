@@ -75,3 +75,8 @@ or production base character in this change. Do not label its output a user clon
 Only trusted studio scenes may be loaded. Blender files/plugins are executable assets;
 disable auto-execution, isolate workers, and never accept scene paths from public users.
 Run the prototype only with synthetic fixtures until production authorization exists.
+
+## Reusable master shots
+
+See [RENDERING_RULES.md](RENDERING_RULES.md) for mandatory master authoring rules,
+shot strategies, cache invalidation, pass math, and the `render_shot.py` entrypoint.
