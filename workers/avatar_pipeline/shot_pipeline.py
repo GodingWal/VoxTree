@@ -18,6 +18,7 @@ def _require_asset_id(asset_id):
     require(isinstance(asset_id, str) and bool(asset_id), 'Invalid asset ID')
     require(not asset_id.startswith('/') and ':' not in asset_id,
             'Asset IDs must be studio-relative, not machine paths: ' + asset_id)
+    require('\\' not in asset_id, 'Asset IDs must use forward slashes: ' + asset_id)
     require(all(part not in ('', '.', '..')
                 for part in asset_id.replace('\\', '/').split('/')),
             'Invalid asset ID: ' + asset_id)
