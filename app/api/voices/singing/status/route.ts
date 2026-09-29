@@ -29,12 +29,15 @@ export async function GET(request: Request) {
   const replicateStatus = await checkTrainingStatus(voice.rvc_model_id);
 
   if (replicateStatus.status === "succeeded") {
+    if (!replicateStatus.version) {
+      return NextResponse.json({ error: "Training completed without a model version" }, { status: 502 });
+    }
     const admin = createAdminClient();
     await admin
       .from("family_voices")
       .update({
         rvc_training_status: "ready",
-        rvc_model_id: replicateStatus.version || "simulated_success",
+        rvc_model_id: replicateStatus.version,
       })
       .eq("id", voiceId);
     

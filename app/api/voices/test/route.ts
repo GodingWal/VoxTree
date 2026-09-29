@@ -62,8 +62,7 @@ export async function POST(request: Request) {
     );
 
     if (audioBuffer.length === 0) {
-      // Simulated environment fallback
-      return NextResponse.json({ simulated: true });
+      throw new Error("ElevenLabs returned empty audio");
     }
 
     return new NextResponse(new Uint8Array(audioBuffer), {
