@@ -3,25 +3,23 @@
 **Plan date:** August 27, 2026  
 **Target public launch:** September 25, 2026  
 **Launch DRI:** Founder / CEO (name to assign by August 28)  
-**Recommended launch scope:** Core family voice-cloning and narrated-content experience. Keep singing voice, visual LoRA, and talking-video generation behind feature flags until each passes the same security, reliability, consent, and cost gates.
+**Frozen launch scope (September 28, 2026):** Core family voice-cloning and narrated-content experience. Keep singing voice, visual LoRA, and talking-video generation behind feature flags until each passes the same security, reliability, consent, and cost gates.
 
 ## Executive decision
 
 VoxTree is not production-ready today, but a controlled launch within 30 days is achievable if scope is frozen now and the team works launch blockers before marketing expansion.
 
-The codebase is synchronized to GitHub `main` at commit `917aab4`. The current verification baseline is:
+The original August 27 baseline is superseded by the September 28 release-foundation verification. The original public launch date has passed; the Launch DRI must assign a new date after the remaining gates are satisfied.
 
-- 58/58 automated tests pass.
-- TypeScript validation passes.
-- Lint passes with two image-optimization warnings.
-- The production build fails in the FFprobe/media-upload bundle path.
-- There is no CI workflow, and 27 API routes have no route-level automated coverage.
-- The dependency audit reports 1 critical, 7 high, and 6 moderate production vulnerabilities; Next.js 14.2.21 is deprecated and vulnerable.
-- Voice samples and face/avatar captures are committed under `public/uploads`, and additional recordings exist locally in that public directory.
-- Production integrations can still fall back to simulation behavior when configuration is missing.
-- The database migration sequence contains two `008` migrations, and one is currently untracked.
-- There is a privacy page and consent checkbox, but no Terms page, no demonstrated verifiable-parental-consent mechanism, no complete parent data access/deletion workflow, and no legal/compliance sign-off.
-- Monitoring, CI/CD, tested backups/restores, incident response, a status page, and a production runbook are not present in the repository.
+- Clean `npm ci`, 110 unit tests, and the production build pass in an isolated checkout based on GitHub `main`, with synthetic build-only environment values and simulation disabled.
+- Dependency updates report zero vulnerabilities, including production dependencies.
+- CI includes type-check, lint, unit tests, build, dependency audit, end-to-end smoke tests, secret scanning, and a release-tree media check. Every pull request is covered, as are release-branch pushes.
+- `main` requires one approving review and the green `ci` check, including for administrators. Releases use reviewed PRs into `main`; the historical `release/2026-09-launch` branch is not the authoritative release candidate. Deploy only a reviewed commit with successful CI and an immutable release tag.
+- Production startup requires the app URL and all required Stripe, Supabase, storage, ElevenLabs, Replicate, and webhook configuration. Simulation is rejected in production; talking video additionally requires Hedra when enabled.
+- Placeholder checkout prices, fake production voice/job IDs, and false-success capture responses are rejected. Demo children remain restricted to explicit non-production simulation.
+- Uploads are excluded from Git. Fourteen local media files were moved out of the public directory into a private local quarantine, without deleting them. Historical uploads remain in Git history.
+- Credential rotation, counsel/security's history-purge decision, production vendor verification, legal sign-off, and final launch approval remain open. Do not infer those approvals from passing CI.
+- Launch scope is frozen to the core family voice-cloning and narration journey below. Visual cloning, singing voice, and talking video default off and require separate review before activation.
 
 ## Non-negotiable launch scope
 
@@ -62,17 +60,20 @@ One person may hold multiple roles, but each row needs a named individual by Aug
 
 **Outcome:** A secure, reproducible build with automated checks.
 
-- [ ] **P0 — Engineering:** Fix the FFprobe bundling failure and prove `npm run build` succeeds from a clean install.
-- [ ] **P0 — Engineering:** Upgrade Next.js and related React/build dependencies to supported, patched versions; resolve every critical/high production vulnerability or document a compensating control approved by the Launch DRI.
-- [ ] **P0 — Engineering:** Add GitHub Actions for clean install, type-check, lint, unit tests, production build, dependency audit, and secret scanning on every pull request.
-- [ ] **P0 — Engineering:** Protect `main`; require review and green CI before merge. Create a `release/2026-09-launch` branch or equivalent release process.
-- [ ] **P0 — Engineering:** Add startup environment validation. Production must fail closed when Stripe, Supabase, storage, ElevenLabs, Replicate, webhook, or app URL configuration is missing.
-- [ ] **P0 — Engineering:** Remove or production-disable all mock upload/download routes, fake IDs, placeholder Stripe prices, demo children, and simulation fallbacks.
+- [x] **P0 — Engineering:** Fix the FFprobe bundling failure and prove `npm run build` succeeds from a clean install.
+- [x] **P0 — Engineering:** Upgrade Next.js and related React/build dependencies to supported, patched versions; resolve every critical/high production vulnerability or document a compensating control approved by the Launch DRI.
+- [x] **P0 — Engineering:** Add GitHub Actions for clean install, type-check, lint, unit tests, production build, dependency audit, and secret scanning on every pull request.
+- [x] **P0 — Engineering:** Protect `main`; require review and green CI before merge. Create a `release/2026-09-launch` branch or equivalent release process.
+- [x] **P0 — Engineering:** Add startup environment validation. Production must fail closed when Stripe, Supabase, storage, ElevenLabs, Replicate, webhook, or app URL configuration is missing.
+- [x] **P0 — Engineering:** Remove or production-disable all mock upload/download routes, fake IDs, placeholder Stripe prices, demo children, and simulation fallbacks.
 - [ ] **P0 — Engineering:** Remove customer-like voice/face/media files from `public/uploads`, add the directory to `.gitignore`, rotate any affected test credentials, and decide with counsel/security whether repository history must be purged.
-- [ ] **P1 — Engineering:** Restrict Next Image remote hosts instead of allowing every HTTPS hostname.
-- [ ] **P1 — Product:** Freeze launch scope and define which advanced features are off by default.
+- [x] **P1 — Engineering:** Restrict Next Image remote hosts instead of allowing every HTTPS hostname.
+- [x] **P1 — Product:** Freeze launch scope and define which advanced features are off by default.
 
 **Exit gate:** Fresh checkout installs reproducibly; CI is green; production build succeeds; no secrets or customer biometric media are present in the release tree.
+
+
+**Verification and remaining decisions (September 28):** Engineering controls above are implemented; see the current baseline and the release-foundation PR for CI evidence. The media/credential item remains incomplete until the Launch DRI records affected accounts, rotation dates, and counsel/security's explicit history-retention or purge decision. Rewriting shared Git history requires a separately coordinated maintenance window. Production launch remains blocked by those decisions and the later legal, vendor, and operational gates.
 
 ## Days 4-7: Privacy, security, and data controls (Aug 30-Sep 2)
 

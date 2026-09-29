@@ -11,6 +11,12 @@
  * simulate so dev flows still work.
  */
 
+import { isSimulationEnabled } from "./features";
+
+function requireSimulation(): void {
+  if (!isSimulationEnabled()) throw new Error("Hedra simulation requires explicit development simulation mode; configure HEDRA_API_KEY.");
+}
+
 const DEFAULT_BASE = "https://api.hedra.com";
 
 function config() {
@@ -50,6 +56,7 @@ export async function uploadAsset(
 ): Promise<string> {
   const { apiKey } = config();
   if (!apiKey) {
+    requireSimulation();
     console.warn("HEDRA_API_KEY missing — simulating asset upload.");
     return `simulated_${type}_${Date.now()}`;
   }
@@ -91,6 +98,7 @@ export async function createTalkingVideo(params: {
 }): Promise<TalkingVideoGenerationResult> {
   const { apiKey } = config();
   if (!apiKey) {
+    requireSimulation();
     console.warn("HEDRA_API_KEY missing — simulating talking video generation.");
     return {
       generationId: `simulated_hedra_${Date.now()}`,
@@ -140,6 +148,7 @@ export async function getTalkingVideoStatus(
   generationId: string
 ): Promise<TalkingVideoGenerationResult> {
   if (generationId.startsWith("simulated_hedra_")) {
+    requireSimulation();
     const startedAt = parseInt(generationId.split("_").pop() || "0", 10);
     const elapsed = Date.now() - startedAt;
     if (elapsed > 8_000) {

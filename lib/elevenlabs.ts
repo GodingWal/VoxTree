@@ -1,4 +1,5 @@
 import { withRetry, isRetryableStatus, HttpError } from "./retry";
+import { assertSimulationAllowed } from "./env";
 
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
@@ -79,6 +80,7 @@ export async function generateSpeech(
 
   let targetVoiceId = voiceId;
   if (voiceId.startsWith("simulated_voice_id_")) {
+    assertSimulationAllowed("Simulated ElevenLabs voice");
     console.warn(
       "Using simulated voice ID with real API Key. Fetching available voices from ElevenLabs account..."
     );
@@ -125,6 +127,7 @@ export async function deleteVoice(voiceId: string): Promise<void> {
   const apiKey = getApiKey();
 
   if (!apiKey || voiceId.startsWith("simulated_voice_id_")) {
+    assertSimulationAllowed("Simulated ElevenLabs deletion");
     return;
   }
 

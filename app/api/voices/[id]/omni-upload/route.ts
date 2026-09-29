@@ -254,15 +254,8 @@ export async function POST(
       .eq("id", id);
 
     if (dbError) {
-      console.warn("Database failed to save visual clone paths. Continuing in simulation mode.", dbError);
-      return NextResponse.json({
-        success: true,
-        simulated: true,
-        voiceId: id,
-        avatarUrl: publicImageUrl,
-        audioUrl: publicAudioUrl,
-        message: "Onboarding captured and split successfully (Simulation mode: Database columns not created)."
-      });
+      console.warn("Database failed to save visual clone paths.", dbError);
+      return NextResponse.json({ error: "Could not save captured media" }, { status: 500 });
     }
 
     return NextResponse.json({
