@@ -4,15 +4,33 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shot_pipeline import cache_key, composite, digest, frames
 from shot_pipeline import parse_dependencies, plan, require_locked_frame_rate, verify_cache
+from render_shot import validate_pass_scenes
 
 SHOT = dict(version=1, strategy='layered', frame_start=1, frame_end=2, fps=24,
             width=1, height=1, revision='fixture-v1', layer_contract='linear-premult-delta-v1')
 
 class ShotTests(unittest.TestCase):
+    def test_preflight_rejects_later_pass_before_mutating_first(self):
+        class Scene(dict):
+            def __init__(self, fps):
+                super().__init__(voxtree_pass_contract=SHOT['layer_contract'])
+                self.camera = object()
+                self.render = SimpleNamespace(fps=fps, fps_base=1, engine='original')
+        plate, character = Scene(24), Scene(30)
+        bpy = SimpleNamespace(data=SimpleNamespace(scenes={'VT_plate': plate, 'VT_character': character}))
+        with self.assertRaisesRegex(ValueError, 'VT_character'):
+            validate_pass_scenes(bpy, SHOT, ['plate', 'character'])
+        self.assertEqual(plate.render.engine, 'original')
+        self.assertEqual(character.render.engine, 'original')
+        character.render.fps = 24
+        self.assertEqual(validate_pass_scenes(bpy, SHOT, ['plate', 'character']),
+                         {'plate': plate, 'character': character})
+
     def test_plan(self):
         self.assertEqual(plan(SHOT, False), ['plate', 'character', 'effects'])
         self.assertEqual(plan(SHOT, True), ['character', 'effects'])
@@ -82,7 +100,8 @@ class ShotTests(unittest.TestCase):
             self.assertEqual(parse_dependencies(['plates/wall.png=' + str(wall)]),
                              {'plates/wall.png': str(wall)})
             for bad in ('wall.png', '=path', 'plates//wall.png', 'plates/../wall.png',
-                        '/studio/wall.png', 'C:\\studio\\wall.png', 'plates/wall.png='):
+                        '/studio/wall.png', 'C:\\studio\\wall.png', 'plates/wall.png=',
+                        'plates\\wall.png=path'):
                 with self.subTest(spec=bad):
                     with self.assertRaises(ValueError):
                         parse_dependencies([bad])
