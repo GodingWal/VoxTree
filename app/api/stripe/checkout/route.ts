@@ -20,11 +20,7 @@ function getPriceId(priceKey: string): string {
   if (!envName) throw new Error(`Unknown price key: ${priceKey}`);
   const value = process.env[envName];
   if (!value) {
-    if (process.env.NODE_ENV === "production" && process.env.SIMULATION_MODE !== "true") {
-      throw new Error(`${envName} is required in production. Set ${envName} or enable SIMULATION_MODE=true.`);
-    }
-    console.warn(`Missing ${envName} — using placeholder that will fail on Stripe API call.`);
-    return `missing_${envName.toLowerCase()}`;
+    throw new Error(`${envName} is required. Configure a real Stripe price before checkout.`);
   }
   return value;
 }
