@@ -26,6 +26,21 @@ def read_image(bpy, path, shot, channels):
         bpy.data.images.remove(image)
 
 
+def validate_pass_scenes(bpy, shot, passes):
+    """Preflight every authored scene before changing any scene or output."""
+    scenes = {}
+    for name in passes:
+        scene = bpy.data.scenes.get('VT_' + name)
+        require(scene is not None, 'Missing authored pass scene VT_' + name)
+        require(scene.get('voxtree_pass_contract') == shot['layer_contract'],
+                'Pass has not been authored for the compositing contract')
+        require(scene.camera is not None, 'Missing camera')
+        require_locked_frame_rate(scene.render.fps, scene.render.fps_base,
+                                  shot['fps'], 'Pass scene VT_' + name)
+        scenes[name] = scene
+    return scenes
+
+
 def main():
     import bpy
     from shot_pipeline import composite
@@ -51,15 +66,9 @@ def main():
     passes = plan(shot, hit)
     # Scenes are authored independently: plate excludes all personalized effects;
     # character retains environment ray participation; effects uses signed collectors.
-    scenes = {}
-    for name in passes:
-        scene = bpy.data.scenes.get('VT_' + name)
-        require(scene is not None, 'Missing authored pass scene VT_' + name)
-        require(scene.get('voxtree_pass_contract') == shot['layer_contract'],
-                'Pass has not been authored for the compositing contract')
-        require(scene.camera is not None, 'Missing camera')
+    scenes = validate_pass_scenes(bpy, shot, passes)
+    for scene in scenes.values():
         scene.render.engine = 'PRMAN_RENDER'  # Fail without plugin; no fallback.
-        scenes[name] = scene
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     if 'plate' in passes:
