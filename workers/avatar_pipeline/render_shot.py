@@ -7,7 +7,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from contract import load, require
 from blender_worker import personalize
-from shot_pipeline import cache_key, digest, frames, plan, validate_shot, verify_cache
+from shot_pipeline import cache_key, digest, frames, parse_dependencies, plan
+from shot_pipeline import require_locked_frame_rate, validate_shot, verify_cache
 
 
 def read_image(bpy, path, shot, channels):
@@ -31,7 +32,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('--shot', required=True)
     p.add_argument('--avatar', required=True)
-    p.add_argument('--dependency', action='append', required=True)
+    p.add_argument('--dependency', action='append', required=True,
+                     help="Repeat as ASSET_ID=path (studio-relative ID, e.g. plates/wall.png=/studio/wall.png)")
     p.add_argument('--cache-root', required=True)
     p.add_argument('--output', required=True)
     args = p.parse_args(sys.argv[sys.argv.index('--') + 1:])
@@ -40,7 +42,10 @@ def main():
     require(all(avatar[k] == shot[k] for k in ('fps', 'frame_start', 'frame_end')),
             'Avatar timing differs from cached shot')
     require(bool(bpy.data.filepath), 'Load a trusted authored blend file')
-    key = cache_key(shot, [bpy.data.filepath, *args.dependency])
+    # 'scene' is the reserved ID for the loaded template; every other file
+    # carries the studio-relative ID supplied with --dependency.
+    key = cache_key(shot, {'scene': bpy.data.filepath,
+                           **parse_dependencies(args.dependency)})
     cache = Path(args.cache_root).resolve() / key
     hit = verify_cache(shot, cache, key)
     passes = plan(shot, hit)
@@ -66,6 +71,10 @@ def main():
         destination = cache if name == 'plate' else output / name
         destination.mkdir(exist_ok=True)
         scene.frame_start, scene.frame_end = shot['frame_start'], shot['frame_end']
+        # Authored pass timing is absolute in frames: adopting a new rate would
+        # resample the shot against the plate and the avatar cues. Reject it.
+        require_locked_frame_rate(scene.render.fps, scene.render.fps_base,
+                                  shot['fps'], 'Pass scene VT_' + name)
         scene.render.fps, scene.render.fps_base = shot['fps'], 1
         scene.render.resolution_x, scene.render.resolution_y = shot['width'], shot['height']
         scene.render.resolution_percentage = 100

@@ -6,6 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from contract import MORPHS, VISEMES, load, require
+from shot_pipeline import require_locked_frame_rate
 
 
 def personalize(bpy, job):
@@ -37,6 +38,10 @@ def personalize(bpy, job):
     # Complete validation precedes mutation; omitted identity values reset to neutral.
     for name, key in bindings.items():
         key.value = job["morphs"].get(name, 0)
+    # Blender animation timing is absolute in frames: adopting a new rate here
+    # would drift authored body/camera motion against the viseme cues built below.
+    require_locked_frame_rate(scene.render.fps, scene.render.fps_base,
+                              job["fps"], "Template frame rate")
     scene.render.fps = job["fps"]
     scene.render.fps_base = 1
     scene.frame_start = job["frame_start"]
