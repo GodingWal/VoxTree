@@ -22,7 +22,9 @@ Such a shot is not automatically reusable. Default uncertain shots to full.
    scenery from rendering is not a correct substitute for holdouts/collectors.
 4. Lock camera, lens, frame range, FPS, resolution, animation timing, lighting,
    exposure, shutter, depth of field, color configuration and render settings.
-   Any change invalidates cached plates. Dialogue must fit the authored timing;
+   Any change invalidates cached plates. The worker rejects templates and pass
+   scenes whose frame rate differs from the job/shot instead of resampling them.
+   Dialogue must fit the authored timing;
    otherwise revise and rerender the affected shot and its plate.
 5. Character pass: scene-linear, premultiplied RGBA, with correct foreground occlusion.
    Effect pass: signed RGB delta on the uncovered environment relative to the clean
@@ -70,13 +72,16 @@ from the earlier prototype is NOT a layered RenderMan production template.
 Example on a licensed, configured Blender/RenderMan worker (Blender includes NumPy):
 
 ```bash
-blender --background --disable-autoexec /studio/story.blend --python-exit-code 1 --python workers/avatar_pipeline/render_shot.py -- --shot workers/avatar_pipeline/examples/shot.json --avatar workers/avatar_pipeline/examples/synthetic-avatar.json --dependency /studio/dependencies.json --cache-root /private/plates --output /private/jobs/example-001
+blender --background --disable-autoexec /studio/story.blend --python-exit-code 1 --python workers/avatar_pipeline/render_shot.py -- --shot workers/avatar_pipeline/examples/shot.json --avatar workers/avatar_pipeline/examples/synthetic-avatar.json --dependency plates/wall.png=/studio/wall.png --dependency plates/floor.png=/studio/floor.png --cache-root /private/plates --output /private/jobs/example-001
 ```
 
-Supply repeated `--dependency` arguments for every file or a versioned dependency
-manifest containing their content hashes. Same output directory fails rather than
-overwriting. Same plate key reuses complete verified frames; new avatar jobs do not
-change that key. `full` renders without a plate; `reuse` skips character work entirely.
+Supply repeated `--dependency ASSET_ID=path` arguments for every file. The asset ID
+is a studio-relative logical name (never an absolute machine path) that binds each
+content hash to its role in the scene; swapping two files' contents invalidates the
+key. The loaded template takes the reserved ID `scene`. Same output directory fails
+rather than overwriting. Same plate key reuses complete verified frames; new avatar
+jobs do not change that key. `full` renders without a plate; `reuse` skips character
+work entirely.
 No cloud queue, production UI, video encoding or automatic licensing is introduced.
 
 Tests: `python3 -m unittest discover -s workers/avatar_pipeline/tests -v` (NumPy needed).

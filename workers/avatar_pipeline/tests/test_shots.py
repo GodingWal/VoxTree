@@ -6,7 +6,8 @@ import tempfile
 import unittest
 import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shot_pipeline import cache_key, composite, digest, frames, plan, verify_cache
+from shot_pipeline import cache_key, composite, digest, frames
+from shot_pipeline import parse_dependencies, plan, require_locked_frame_rate, verify_cache
 
 SHOT = dict(version=1, strategy='layered', frame_start=1, frame_end=2, fps=24,
             width=1, height=1, revision='fixture-v1', layer_contract='linear-premult-delta-v1')
@@ -35,8 +36,8 @@ class ShotTests(unittest.TestCase):
             root = Path(tmp)
             asset = root / 'scene.blend'
             asset.write_bytes(b'first revision')
-            key = cache_key(SHOT, [asset])
-            self.assertNotEqual(key, cache_key(dict(SHOT, fps=30), [asset]))
+            key = cache_key(SHOT, {'scene': asset})
+            self.assertNotEqual(key, cache_key(dict(SHOT, fps=30), {'scene': asset}))
             self.assertFalse(verify_cache(SHOT, root, key))
             for frame in frames(SHOT, root):
                 frame.write_bytes(b'test receipt bytes; EXR decoding is separately validated')
@@ -46,4 +47,64 @@ class ShotTests(unittest.TestCase):
             frames(SHOT, root)[0].write_bytes(b'corrupt')
             self.assertFalse(verify_cache(SHOT, root, key))
             asset.write_bytes(b'changed lighting')
-            self.assertNotEqual(key, cache_key(SHOT, [asset]))
+            self.assertNotEqual(key, cache_key(SHOT, {'scene': asset}))
+
+    def test_dependency_swap_invalidates_cache(self):
+        # Swapping two dependencies' contents changes the rendered scene, so
+        # the key must change even though the multiset of bytes is identical.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wall, floor = root / 'wall.png', root / 'floor.png'
+            wall.write_bytes(b'WALL-BYTES')
+            floor.write_bytes(b'FLOOR-BYTES')
+            before = cache_key(SHOT, {'plates/wall.png': wall, 'plates/floor.png': floor})
+            wall.write_bytes(b'FLOOR-BYTES')
+            floor.write_bytes(b'WALL-BYTES')
+            self.assertNotEqual(before,
+                                cache_key(SHOT, {'plates/wall.png': wall, 'plates/floor.png': floor}))
+            # Swapping back restores the original scene and its key.
+            wall.write_bytes(b'WALL-BYTES')
+            floor.write_bytes(b'FLOOR-BYTES')
+            self.assertEqual(before,
+                             cache_key(SHOT, {'plates/wall.png': wall, 'plates/floor.png': floor}))
+            # Identical bytes under different IDs are different scenes.
+            self.assertNotEqual(before,
+                                cache_key(SHOT, {'plates/wall.png': wall, 'plates/ceiling.png': floor}))
+            # Order of declaration never affects the key.
+            self.assertEqual(before,
+                             cache_key(SHOT, {'plates/floor.png': floor, 'plates/wall.png': wall}))
+
+    def test_dependency_identity_rules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            wall = root / 'wall.png'
+            wall.write_bytes(b'WALL-BYTES')
+            self.assertEqual(parse_dependencies(['plates/wall.png=' + str(wall)]),
+                             {'plates/wall.png': str(wall)})
+            for bad in ('wall.png', '=path', 'plates//wall.png', 'plates/../wall.png',
+                        '/studio/wall.png', 'C:\\studio\\wall.png', 'plates/wall.png='):
+                with self.subTest(spec=bad):
+                    with self.assertRaises(ValueError):
+                        parse_dependencies([bad])
+            with self.assertRaises(ValueError):
+                parse_dependencies(['plates/a.png=' + str(wall),
+                                    'plates/a.png=' + str(wall)])
+            with self.assertRaises(ValueError):
+                parse_dependencies(['scene=' + str(wall)])
+            with self.assertRaises(ValueError):
+                cache_key(SHOT, {})
+            with self.assertRaises(ValueError):
+                cache_key(SHOT, {'plates/missing.png': root / 'missing.png'})
+
+    def test_locked_frame_rate(self):
+        for fps, base in ((24, 1), (30, 1), (25, 1), (24.0, 1)):
+            require_locked_frame_rate(fps, base, int(fps), 'template')
+        # The reported 24 -> 30 FPS defect: a motion ending at frame 25 ends at
+        # 1.0 s in a 24 fps scene but 0.8 s after silent resampling to 30 fps.
+        for template, base, expected in ((24, 1, 30), (30, 1, 24), (30000, 1001, 30),
+                                         (24, 1, 24.5), (0, 1, 24), (24, 0, 24),
+                                         (-24, 1, 24), (float('nan'), 1, 24),
+                                         (24, float('nan'), 24), (True, 1, 1)):
+            with self.subTest(template=(template, base, expected)):
+                with self.assertRaises(ValueError):
+                    require_locked_frame_rate(template, base, expected, 'template')
