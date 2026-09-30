@@ -14,7 +14,7 @@ The original August 27 baseline is superseded by the September 28 release-founda
 - Clean `npm ci`, 110 unit tests, and the production build pass in an isolated checkout based on GitHub `main`, with synthetic build-only environment values and simulation disabled.
 - Dependency updates report zero vulnerabilities, including production dependencies.
 - CI includes type-check, lint, unit tests, build, dependency audit, end-to-end smoke tests, secret scanning, and a release-tree media check. Every pull request is covered, as are release-branch pushes.
-- `main` requires one approving review and the green `ci` check, including for administrators. Releases use reviewed PRs into `main`; the historical `release/2026-09-launch` branch is not the authoritative release candidate. Deploy only a reviewed commit with successful CI and an immutable release tag.
+- `main` requires the green `ci` check on an up-to-date branch, including for administrators. On September 28, the repository owner explicitly removed the approving-review requirement. Releases use PRs into `main`; the historical `release/2026-09-launch` branch is not the authoritative release candidate. Deploy only a commit with successful CI and an immutable release tag.
 - Production startup requires the app URL and all required Stripe, Supabase, storage, ElevenLabs, Replicate, and webhook configuration. Simulation is rejected in production; talking video additionally requires Hedra when enabled.
 - Placeholder checkout prices, fake production voice/job IDs, and false-success capture responses are rejected. Demo children remain restricted to explicit non-production simulation.
 - Uploads are excluded from Git. Fourteen local media files were moved out of the public directory into a private local quarantine, without deleting them. Historical uploads remain in Git history.
@@ -63,7 +63,7 @@ One person may hold multiple roles, but each row needs a named individual by Aug
 - [x] **P0 — Engineering:** Fix the FFprobe bundling failure and prove `npm run build` succeeds from a clean install.
 - [x] **P0 — Engineering:** Upgrade Next.js and related React/build dependencies to supported, patched versions; resolve every critical/high production vulnerability or document a compensating control approved by the Launch DRI.
 - [x] **P0 — Engineering:** Add GitHub Actions for clean install, type-check, lint, unit tests, production build, dependency audit, and secret scanning on every pull request.
-- [x] **P0 — Engineering:** Protect `main`; require review and green CI before merge. Create a `release/2026-09-launch` branch or equivalent release process.
+- [x] **P0 — Engineering:** Protect `main` and require green CI before merge; use PRs into `main` as the release process. Owner-approved deviation (September 28): mandatory approving reviews removed at the repository owner's explicit request.
 - [x] **P0 — Engineering:** Add startup environment validation. Production must fail closed when Stripe, Supabase, storage, ElevenLabs, Replicate, webhook, or app URL configuration is missing.
 - [x] **P0 — Engineering:** Remove or production-disable all mock upload/download routes, fake IDs, placeholder Stripe prices, demo children, and simulation fallbacks.
 - [ ] **P0 — Engineering:** Remove customer-like voice/face/media files from `public/uploads`, add the directory to `.gitignore`, rotate any affected test credentials, and decide with counsel/security whether repository history must be purged.
