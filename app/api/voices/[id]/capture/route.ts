@@ -122,14 +122,7 @@ export async function POST(
 
     if (dbError || userDbError) {
       console.warn("Database failed to update visual clone columns.", { dbError, userDbError });
-      return NextResponse.json({
-        success: true,
-        simulated: true,
-        avatarUrl: publicUrl,
-        idleVideoUrl: publicUrl,
-        talkingVideoUrl: publicUrl,
-        message: "Visual clone captured (Simulation mode: Database columns not created)."
-      });
+      return NextResponse.json({ error: "Could not save visual clone" }, { status: 500 });
     }
 
     return NextResponse.json({

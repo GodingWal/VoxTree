@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "strategy": "layered",
+  "frame_start": 1,
+  "frame_end": 240,
+  "fps": 24,
+  "width": 640,
+  "height": 640,
+  "revision": "studio-template-v1",
+  "layer_contract": "linear-premult-delta-v1"
+}

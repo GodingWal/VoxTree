@@ -12,7 +12,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   // App
-  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_APP_URL: z.string().url(),
 
   // Supabase
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -44,9 +44,18 @@ const envSchema = z.object({
   // Optional
   NODE_ENV: z.enum(["development", "production", "test"]).optional(),
   SIMULATION_MODE: z.enum(["true", "false"]).optional(),
+  HEDRA_API_KEY: z.string().min(1).optional(),
   FEATURE_VISUAL_CLONING: z.enum(["true", "false"]).optional(),
   FEATURE_SINGING_VOICE: z.enum(["true", "false"]).optional(),
   FEATURE_TALKING_VIDEO: z.enum(["true", "false"]).optional(),
+}).superRefine((env, ctx) => {
+  if (env.NODE_ENV !== "production") return;
+  if (env.SIMULATION_MODE === "true") {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["SIMULATION_MODE"], message: "Simulation is forbidden in production" });
+  }
+  if (env.FEATURE_TALKING_VIDEO === "true" && !env.HEDRA_API_KEY) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["HEDRA_API_KEY"], message: "Required when talking video is enabled" });
+  }
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -105,7 +114,7 @@ export function isProduction(): boolean {
 
 /**
  * Assert that simulation mode is allowed. Throws in production if simulation
- * fallback is attempted without explicit SIMULATION_MODE=true.
+ * fallback is attempted, regardless of SIMULATION_MODE.
  */
 export function assertSimulationAllowed(context: string): void {
   if (isProduction()) {

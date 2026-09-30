@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**', 'fix/release-foundation']
   pull_request:
-    branches: [main]
 
 jobs:
   ci:
@@ -29,6 +28,25 @@ jobs:
       - name: Type check
         run: npm run type-check
 
+      - name: Check release tree for private uploads and environment files
+        run: |
+          if git ls-files | grep -E '(^public/uploads/|(^|/)\.env($|\.(local|production|development|test)($|\.local$)))'; then
+            echo "Private uploads or environment files must not be tracked."
+            exit 1
+          fi
+
+      - name: Setup Python for avatar worker tests
+        if: hashFiles('workers/avatar_pipeline/tests/test_*.py') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Avatar worker tests
+        if: hashFiles('workers/avatar_pipeline/tests/test_*.py') != ''
+        run: |
+          python -m pip install numpy==2.2.6
+          python -m unittest discover -s workers/avatar_pipeline/tests -v
+
       - name: Lint
         run: npm run lint -- --max-warnings=0
 
@@ -39,9 +57,8 @@ jobs:
         run: npm run build
         env:
           # Provide dummy env so build doesn't fail on missing vars.
-          # Runtime simulation fallbacks are fail-closed only in production;
-          # build runs with NODE_ENV=production but without real secrets.
-          SIMULATION_MODE: "true"
+          # Build-only synthetic credentials; production simulation is forbidden.
+          SIMULATION_MODE: "false"
           NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-anon-key"
           SUPABASE_SERVICE_ROLE_KEY: "dummy-service-role-key"
