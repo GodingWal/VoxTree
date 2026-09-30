@@ -263,9 +263,9 @@ export async function probeAudio(buffer: Buffer): Promise<AudioProbe> {
 
 export function assertAudioWithinLimits(probe: AudioProbe): void {
   const normalized: AudioProbe = {
-    peakVolumeDb: null,
-    sampleRate: null,
     ...probe,
+    peakVolumeDb: probe.peakVolumeDb ?? null,
+    sampleRate: probe.sampleRate ?? null,
   } as AudioProbe;
   const result = validateAudioQuality(normalized);
   if (result.pass) return;

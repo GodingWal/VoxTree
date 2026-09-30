@@ -93,7 +93,6 @@ export default async function BrowsePage({
     <BrowseClient
       initialStories={content}
       voices={voices}
-      activeFilters={{ age: ageFilter, tag: tagFilter, curriculum: curriculumFilter, duration: durationFilter, q: qFilter }}
     />
   );
 }

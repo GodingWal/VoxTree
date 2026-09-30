@@ -15,7 +15,7 @@ function migrationFiles() {
 }
 
 describe("migrations — file integrity", () => {
-  it("expected 14 migrations present in lex order", () => {
+  it("expected 15 migrations present in lex order", () => {
     const files = migrationFiles();
     expect(files).toEqual([
       "001_initial_schema.sql",
@@ -32,6 +32,7 @@ describe("migrations — file integrity", () => {
       "012_consent_and_data_lifecycle.sql",
       "013_consent_video.sql",
       "014_invites.sql",
+      "015_digital_actors.sql",
     ]);
   });
 
@@ -41,7 +42,7 @@ describe("migrations — file integrity", () => {
     expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 
-  it("no gaps in numeric sequence (001..014 contiguous)", () => {
+  it("no gaps in numeric sequence (001..015 contiguous)", () => {
     const files = migrationFiles();
     const nums = files.map((f) => Number(f.slice(0, 3)));
     for (let i = 0; i < nums.length; i++) {

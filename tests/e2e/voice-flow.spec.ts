@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test.describe("voice flow: capture -> clone -> generate", () => {
   test("onboarding wizard validates consent + creates voice (capture step)", async ({ page }) => {
     await page.route("**/api/voices/create", async (route) => {
-      const body = await route.request().postDataJSON().catch(() => ({}));
+      const body = route.request().postDataJSON();
       if (!body.voiceOwnerAuthorized) {
         await route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ error: "consent required" }) });
         return;
@@ -12,19 +12,24 @@ test.describe("voice flow: capture -> clone -> generate", () => {
     });
     await page.goto("/onboarding");
     await expect(page.getByText(/Who will be reading/i)).toBeVisible({ timeout: 10000 });
-    const nameInput = page.getByPlaceholder(/Grandma Sue/i);
-    if (await nameInput.isVisible().catch(() => false)) await nameInput.fill("Grandma Test"); else await page.getByRole("textbox").first().fill("Grandma Test");
-    const authCheckbox = page.getByRole("checkbox").first();
-    if (await authCheckbox.isVisible().catch(() => false)) await authCheckbox.check();
-    const submit = page.getByRole("button", { name: /Continue|Create|Next|Start/i }).first();
-    if (await submit.isVisible().catch(() => false)) { await submit.click(); await page.waitForTimeout(800); }
-    await expect(page.locator("body")).toBeVisible();
+    const submit = page.getByRole("button", { name: "Continue", exact: true });
+    await expect(submit).toBeDisabled();
+    await page.getByPlaceholder(/Grandma Sue/i).fill("Grandma Test");
+    await page.getByPlaceholder("Voice owner's legal name").fill("Jane Doe");
+    await page.getByPlaceholder("Relationship to your family").fill("Grandmother");
+    await expect(submit).toBeDisabled();
+    await page.getByRole("checkbox").first().check();
+    await expect(submit).toBeEnabled();
+    const created = page.waitForResponse("**/api/voices/create");
+    await submit.click();
+    expect((await created).status()).toBe(200);
+    await expect(page.getByRole("heading", { name: "Activate Your Clone" })).toBeVisible();
   });
   test("capture modal upload -> process (clone step) uses presigned PUT + Cache-Control", async ({ page }) => {
     let processCalled = false;
     await page.route("https://storage.googleapis.com/**", async (route) => { if (route.request().method() === "PUT") await route.fulfill({ status: 200, body: "" }); else await route.continue(); });
     await page.route("**/api/voices/create", async (route) => { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ voiceId: "00000000-0000-4000-a000-000000000001", uploadUrl: "https://storage.googleapis.com/fake-bucket/voice-samples/test/voice.webm?sig=test", requiredUploadHeaders: { "x-goog-content-length-range": "0,26214400" } }) }); });
-    await page.route("**/api/voices/process", async (route) => { processCalled = true; const body = await route.request().postDataJSON().catch(() => ({})); expect(body.voiceId).toBeTruthy(); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "processing", voiceId: body.voiceId }) }); });
+    await page.route("**/api/voices/process", async (route) => { processCalled = true; const body = route.request().postDataJSON(); expect(body.voiceId).toBeTruthy(); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "processing", voiceId: body.voiceId }) }); });
     await page.goto("/onboarding");
     await page.waitForTimeout(500);
     const result = await page.evaluate(async () => {
@@ -44,7 +49,7 @@ test.describe("voice flow: capture -> clone -> generate", () => {
   });
   test("generate step calls /api/clips/generate and handles cached vs new clip", async ({ page }) => {
     let generateBody = null;
-    await page.route("**/api/clips/generate", async (route) => { generateBody = await route.request().postDataJSON().catch(() => null); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", videoUrl: "https://storage.googleapis.com/fake/clip.mp4", cached: true }) }); });
+    await page.route("**/api/clips/generate", async (route) => { generateBody = route.request().postDataJSON(); await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "ready", videoUrl: "https://storage.googleapis.com/fake/clip.mp4", cached: true }) }); });
     await page.goto("/browse");
     const isBrowse = await page.getByText(/Stories|Browse|Library/i).first().isVisible().catch(() => false);
     if (!isBrowse) {
@@ -58,8 +63,10 @@ test.describe("voice flow: capture -> clone -> generate", () => {
     await expect(page.locator("body")).toBeVisible();
     await page.evaluate(async () => { await fetch("/api/clips/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contentId: "00000000-0000-4000-a000-000000000002", voiceId: "00000000-0000-4000-a000-000000000001" }) }); });
     expect(generateBody).toBeTruthy();
-    expect(generateBody.contentId).toBeTruthy();
-    expect(generateBody.voiceId).toBeTruthy();
+    expect(generateBody).toMatchObject({
+      contentId: expect.any(String),
+      voiceId: expect.any(String),
+    });
   });
   test("billing usage meter reflects PLAN_LIMITS thresholds", async ({ page }) => {
     await page.route("**/api/me/usage", async (route) => { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ plan: "free", voiceSlotsUsed: 1, videosUsed: 2, storiesUsed: 3 }) }); });
