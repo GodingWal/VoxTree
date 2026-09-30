@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "job_id": "synthetic-avatar-001",
+  "rig_version": "voxtree-adult-v1",
+  "morphs": {"face_width": 0.3, "jaw_width": 0.2, "body_build": 0.4},
+  "fps": 24,
+  "frame_start": 1,
+  "frame_end": 240,
+  "visemes": [
+    {"start": 0.5, "end": 0.7, "name": "PP", "weight": 0.8},
+    {"start": 0.7, "end": 1.0, "name": "aa", "weight": 0.7},
+    {"start": 1.0, "end": 1.2, "name": "ou", "weight": 0.6}
+  ]
+}
