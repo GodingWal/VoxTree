@@ -245,7 +245,7 @@ Replacing a character becomes an asset-reference change from the original charac
 
 Do not rerender an entire movie by default when only one character changes.
 
-Render affected character passes such as beauty, alpha, shadow, reflection, indirect contribution when necessary, depth, motion vectors, Cryptomatte/object IDs, and other required AOVs. Composite those passes into the existing master.
+Author each reusable shot with a character-free background plate or decomposed scene layers. Render affected character passes such as beauty, alpha, shadow, reflection, indirect contribution when necessary, depth, motion vectors, Cryptomatte/object IDs, and other required AOVs. Composite the replacement over the clean plate, not over pixels containing the original character. If the clean plate or required interaction layers are unavailable, rerender the affected background and interaction surfaces; a mask alone cannot recover occluded pixels.
 
 Some shots will still require wider rerendering when a replacement materially changes global illumination, reflections, volumetrics, cloth interaction, or physical contact. The system should classify these cases rather than assuming every shot can be isolated.
 
@@ -262,7 +262,7 @@ Generate standardized test renders before accepting a new avatar:
 7. Full body
 8. Walking or motion pose
 
-Validate identity similarity, proportions, facial deformation, eyes, mouth, skin/material quality, hair attachment, rig deformation, joints, and render integrity. Low-confidence results should automatically return to the relevant fitting stage.
+Validate identity similarity, proportions, facial deformation, eyes, mouth, skin/material quality, hair attachment, rig deformation, joints, and render integrity. Low-confidence results may return to the relevant fitting stage for at most two automated refitting attempts. Record the attempt count and failure reason; exhausted jobs enter `QA_FAILED` for manual review or a new capture instead of consuming more GPU time.
 
 ## 17. Processing States
 
@@ -279,6 +279,7 @@ GROOM_PROCESSING
 AVATAR_BUILDING
 RIGGING
 MATERIAL_BUILDING
+PROCESSING_FAILED
 QA_RENDERING
 QA_ANALYZING
 QA_FAILED
@@ -289,13 +290,15 @@ ARCHIVED
 DELETED
 ```
 
+Store the failing stage, error code, and retry count with `PROCESSING_FAILED`. A worker may retry transient errors within a bounded budget; permanent or exhausted errors must leave the active processing state and surface to the user or operator.
+
 ## 18. Consent, Ownership, and Safety
 
 Avatar data requires explicit lifecycle controls. Store versioned consent and ownership metadata with each avatar and verify permissions before every clone or render job.
 
 Required controls:
 
-- Explicit consent before clone creation
+- Explicit consent and likeness-owner authorization before opening capture or accepting any upload
 - Ownership/authorization checks
 - Ability to delete source captures
 - Ability to delete generated avatar data
@@ -305,7 +308,7 @@ Required controls:
 - Server-side authorization rather than UI-only enforcement
 - Clear data-retention rules
 
-VoxTree's rule against cloning anyone under 18 should be enforced in the account/capture authorization layer and checked again during job execution.
+The proposed avatar product is adult-only (18+). Age verification and server-side enforcement must be added before this policy can be claimed as active. The current consent form permits child audio/visual processing, so that flow and the launch plan must be reconciled with the adult-only avatar policy before release. Reject underage avatar capture at intake and check age and consent again during job execution.
 
 ## 19. Suggested Service Boundaries
 
