@@ -7,6 +7,8 @@ import { z } from "zod";
 const checkoutSchema = z.object({
   plan: z.enum(["family", "premium"]),
   billing: z.enum(["monthly", "annual"]).default("monthly"),
+  trial: z.boolean().optional(),
+  isTrial: z.boolean().optional(),
 });
 
 function getPriceId(priceKey: string): string {
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
   }
 
   const { plan, billing } = parsed.data;
+  const isTrialConversion = parsed.data.trial === true || parsed.data.isTrial === true;
   const priceKey = `${plan}_${billing}`;
 
   // Get or create Stripe customer
@@ -75,10 +78,18 @@ export async function POST(request: Request) {
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/dashboard?upgraded=true`,
-    cancel_url: `${appUrl}/pricing`,
-    metadata: { supabase_user_id: user.id, plan },
+    success_url: `${appUrl}/dashboard?upgraded=true${isTrialConversion ? "&trial_converted=true" : ""}`,
+    cancel_url: `${appUrl}/pricing${isTrialConversion ? "?trial=true" : ""}`,
+    metadata: {
+      supabase_user_id: user.id,
+      plan,
+      ...(isTrialConversion ? {
+        trial: "true",
+        trial_conversion: "true",
+        trial_source: "try_before_you_pay",
+      } : {}),
+    },
   });
 
-  return NextResponse.json({ url: session.url });
+  return NextResponse.json({ url: session.url, trial: isTrialConversion });
 }

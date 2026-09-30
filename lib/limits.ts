@@ -1,12 +1,29 @@
 import { createAdminClient } from "./supabase/admin";
 import type { Plan } from "@/types/database";
 
+export const TRIAL_CLIPS_LIMIT = 3;
+export const TRIAL_CLIP_MAX_DURATION_SEC = 30;
+export const TRIAL_LIMITS = {
+  trialClips: TRIAL_CLIPS_LIMIT,
+  maxDurationSec: TRIAL_CLIP_MAX_DURATION_SEC,
+  watermark: true,
+} as const;
+
+export function isTrialClipAllowed(clipsUsed: number): boolean {
+  return clipsUsed < TRIAL_CLIPS_LIMIT;
+}
+
+export function trialClipsRemaining(clipsUsed: number): number {
+  return Math.max(0, TRIAL_CLIPS_LIMIT - clipsUsed);
+}
+
 // null means unlimited
 export const PLAN_LIMITS = {
   free: {
     voice_slots: 1,
     videos: 2,
     stories: 4,
+    trialClips: TRIAL_CLIPS_LIMIT,
     content_access: "basic" as const,
   },
   family: {

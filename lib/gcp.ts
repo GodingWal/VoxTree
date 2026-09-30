@@ -150,4 +150,7 @@ export const GCP_PATHS = {
     `clips/${userId}/${contentId}/${voiceId}/output.mp4`,
   clipAudio: (userId: string, contentId: string, voiceId: string) =>
     `clips/${userId}/${contentId}/${voiceId}/audio.mp3`,
+  consentVideo: (userId: string, consentId: string) =>
+    `consent-videos/${userId}/${consentId}.webm`,
+  consentVideoPrefix: (userId: string) => `consent-videos/${userId}/`,
 } as const;

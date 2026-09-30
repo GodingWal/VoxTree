@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deleteVoice } from "@/lib/elevenlabs";
-import { deleteObjectPrefix } from "@/lib/gcp";
+import { deleteObjectPrefix, GCP_PATHS } from "@/lib/gcp";
 import { safeJson } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
 import { stripe } from "@/lib/stripe";
@@ -12,7 +12,9 @@ const schema = z.object({ confirmation: z.literal("DELETE"), email: z.string().e
 
 export async function POST(request: Request) {
   const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user || !user.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const json = await safeJson(request);
   if ("error" in json) return json.error;
@@ -34,14 +36,22 @@ export async function POST(request: Request) {
     await Promise.all([
       deleteObjectPrefix(`voice-samples/${user.id}/`),
       deleteObjectPrefix(`clips/${user.id}/`),
+      deleteObjectPrefix(GCP_PATHS.consentVideoPrefix(user.id)),
     ]);
+    // Mark all active consent records as revoked for audit before auth delete cascades them
+    await admin.from("consent_records").update({ revoked_at: new Date().toISOString() }).eq("user_id", user.id).is("revoked_at", null);
     const { error: authError } = await admin.auth.admin.deleteUser(user.id);
     if (authError) throw authError;
     logger.warn("account_deletion_completed", { userId: user.id });
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown deletion failure";
-    await admin.from("data_lifecycle_requests").update({ status: "failed", failure_reason: message }).eq("user_id", user.id).eq("request_type", "delete").eq("status", "processing");
+    await admin
+      .from("data_lifecycle_requests")
+      .update({ status: "failed", failure_reason: message })
+      .eq("user_id", user.id)
+      .eq("request_type", "delete")
+      .eq("status", "processing");
     logger.error("account_deletion_failed", { userId: user.id, message });
     return NextResponse.json({ error: "Deletion did not complete. Support has an auditable failure record." }, { status: 502 });
   }

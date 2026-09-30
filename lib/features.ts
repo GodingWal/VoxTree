@@ -1,5 +1,17 @@
 export type AdvancedFeature = "visualCloning" | "singingVoice" | "talkingVideo";
 
+export const TRIAL_WATERMARK = "TRIAL_WATERMARK";
+export const TRIAL_WATERMARK_TEXT = "VoxTree Trial";
+export const TRIAL_WATERMARK_ENABLED = true;
+
+export function isTrialWatermarkEnabled(): boolean {
+  return TRIAL_WATERMARK_ENABLED;
+}
+
+export function shouldApplyTrialWatermark({ isTrial, clipsUsed, trialLimit = 3 }: { isTrial: boolean; clipsUsed: number; trialLimit?: number }): boolean {
+  return isTrialWatermarkEnabled() && isTrial && clipsUsed < trialLimit;
+}
+
 const envKeys: Record<AdvancedFeature, string> = {
   visualCloning: "FEATURE_VISUAL_CLONING",
   singingVoice: "FEATURE_SINGING_VOICE",
