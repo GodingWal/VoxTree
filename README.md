@@ -2,22 +2,24 @@
 
 **Your family, starring in the lesson.**
 
-VoxTree clones an adult family member — face, voice, and body — into an avatar that replaces the master actor in Pixar-style educational videos for kids. A child doesn't just hear a story; they learn math, reading, and science from a cartoon version of mom, dad, grandma, an aunt or uncle — anyone 18 or older the family authorizes.
+VoxTree is building toward a product where an adult family member's face, voice, and body become an avatar that replaces the master actor in stylized educational videos for kids. The intended adult-only avatar policy requires age verification and capture enforcement before launch.
 
 ## How it works
 
-1. **Capture** — An adult (18+) provides a voice sample and photo reference, and grants explicit, recorded consent.
-2. **Clone** — VoxTree builds their personal avatar: a cloned voice plus a 3D character personalized from the master rig.
-3. **Star** — The avatar replaces the master actor in authored, Pixar-style educational scenes.
-4. **Render & deliver** — The personalized video is rendered and delivered to the family, with every asset governed by consent: export, revoke, and delete on demand.
+The planned avatar experience is:
+
+1. **Capture** — An adult (18+) provides a voice sample and photo reference after authorization and recorded consent.
+2. **Clone** — VoxTree builds a cloned voice and a 3D character personalized from the master rig.
+3. **Star** — The avatar replaces the master actor in authored, stylized educational scenes.
+4. **Render & deliver** — The personalized video is rendered and delivered to the family, subject to consent and data controls.
 
 The master-video model: artist-authored scenes are the canvas; the family's clones are the cast. Authored animation sidesteps the artifacts of fully generative video, so the result looks like a cartoon — not a deepfake filter.
 
 ### Safety by design
 
-- Only adults (18+) can be cloned — no minor voice or face cloning, ever.
-- Consent is recorded and checked at every stage: before capture, before rendering, before publishing.
-- Families can export or delete their data at any time: `/api/account/export`, `/api/account/delete`, `/api/account/revoke-consent`.
+- Adult-only avatar capture is the proposed policy. The current voice flow does not enforce an age gate, and the consent form permits processing minors; both need reconciliation before this policy can be presented as active.
+- Consent records and checks exist for parts of the voice and clip pipeline. Capture and talking-video routes still need active-consent checks before biometric processing; revocation is not yet enforced at every stage.
+- Account data export, deletion, and consent revocation endpoints exist at `/api/account/export`, `/api/account/delete`, and `/api/account/revoke-consent`. Export currently returns database records, not a package of stored media assets.
 
 ## Current status
 
@@ -25,7 +27,7 @@ VoxTree is in active development toward a production launch. What's real today:
 
 - **Voice pipeline (working):** voice cloning, text-to-speech narration, audio caching, plan-based usage limits, per-video cost tracking.
 - **Avatar pipeline (prototype):** `workers/avatar_pipeline` — offline Blender personalization under a strict contract: bounded identity weights, artist-validated rigs, asset-ID-bound cache keys, preflight validation before any mutation. Synthetic fixtures only; not wired to any public endpoint. No photo fitting, no production base character, and no production lip-sync solver yet.
-- **Consent & data lifecycle (working):** consent records, data-lifecycle requests, export/delete, verifiable parental consent.
+- **Consent & data lifecycle (partial):** consent records, data-lifecycle requests, database export/delete, and verifiable parental consent; the gaps above remain before avatar launch.
 - **App (working):** auth, dashboard, content browser, identity-capture and voice-setup wizards, Stripe subscriptions.
 
 ## Stack
