@@ -5,7 +5,7 @@
 - `npm ci`, lint, type-check, unit tests, end-to-end smoke tests, build, dependency audit, and secret scan must pass.
 - `SIMULATION_MODE` must be absent or `false`.
 - Visual cloning, singing voice, and talking video stay disabled until separately approved.
-- Apply every Supabase migration through the latest file in `supabase/migrations/` (currently `017`) before enabling signups.
+- Apply every Supabase migration through the latest file in `supabase/migrations/` (currently `018`) before enabling signups.
 - Qualified counsel must approve consent copy, privacy notice, retention, vendor terms, and launch geography.
 
 ## Health and alerts
