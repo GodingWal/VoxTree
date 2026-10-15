@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
+import { verifyReplicateWebhook } from "@/lib/webhook-signature";
+import { hasActiveConsent } from "@/lib/consent";
 
 /**
  * Replicate webhook for Flux LoRA training completion. Stores the trained
@@ -16,9 +18,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "voiceId required" }, { status: 400 });
   }
 
+  // Read the raw body once: the HMAC is computed over the exact bytes.
+  const rawBody = await request.text();
+  const verification = verifyReplicateWebhook({ rawBody, headers: request.headers });
+  if (!verification.ok) {
+    logger.warn("lora_webhook_rejected", { reason: verification.reason });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
   let payload: any;
   try {
-    payload = await request.json();
+    payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -34,6 +44,14 @@ export async function POST(request: NextRequest) {
     (typeof payload?.output === "string" ? payload.output : undefined);
 
   const admin = createAdminClient();
+
+  // Do not mark a clone ready for a user who has revoked consent.
+  const { data: owner } = await admin.from("family_voices").select("user_id").eq("id", voiceId).single();
+  if (owner?.user_id && !(await hasActiveConsent(owner.user_id))) {
+    await admin.from("family_voices").update({ lora_status: "failed", lora_version: null, lora_weights_url: null }).eq("id", voiceId);
+    logger.warn("lora_webhook_ignored_no_consent", { voiceId });
+    return NextResponse.json({ ok: true });
+  }
 
   if (status === "succeeded" && trainedVersion) {
     await admin

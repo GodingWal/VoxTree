@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
@@ -24,6 +25,9 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const consentBlocked = await requireActiveConsent(user.id);
+    if (consentBlocked) return consentBlocked;
 
     const parsedJson = await safeJson(request);
     if ("error" in parsedJson) return parsedJson.error;

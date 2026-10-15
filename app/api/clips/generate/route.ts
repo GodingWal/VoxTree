@@ -2,7 +2,7 @@ import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
-import { generateSpeech } from "@/lib/elevenlabs";
+import { generateSpeech } from "@/lib/voice-provider";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
 import { checkAbuse } from "@/lib/abuse-detection";
 import { applyWatermark } from "@/lib/watermark";
@@ -236,7 +236,7 @@ export async function POST(request: Request) {
         if (!costCheck.allowed) {
           throw new Error(costCheck.reason ?? "Cost cap reached");
         }
-        console.log(`[Clip Generation] Generating speech via ElevenLabs for clip ${clip.id}`);
+        logger.info(`Generating speech via ElevenLabs for clip ${clip.id}`);
         rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
         // P0 #3: inaudible watermark — embed clip/user identity into TTS output
         try {
@@ -255,7 +255,7 @@ export async function POST(request: Request) {
         if (!costCheck.allowed) {
           throw new Error(costCheck.reason ?? "Cost cap reached");
         }
-        console.log(`[Clip Generation] Triggering Replicate V2V workflow for clip ${clip.id}`);
+        logger.info(`Triggering Replicate V2V workflow for clip ${clip.id}`);
         
         // Replicate RVC inference
         const modelStr = `${voice.rvc_model_id}` as `${string}/${string}`;
@@ -288,20 +288,20 @@ export async function POST(request: Request) {
       }
 
       // Download instrumental
-      console.log(`[Clip Generation] Downloading instrumental for clip ${clip.id}`);
+      logger.info(`Downloading instrumental for clip ${clip.id}`);
       const bgRes = await fetch(content.instrumental_url);
       const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
       fs.writeFileSync(bgFile, bgBuffer);
 
       if (rawVocalsBuffer.length === 0) {
-        console.log(`[Clip Generation] Empty vocals buffer (simulation mode). Copying instrumental directly.`);
+        logger.info(`Empty vocals buffer (simulation mode). Copying instrumental directly.`);
         fs.copyFileSync(bgFile, outputFile);
       } else {
         // Save raw vocals to disk
         fs.writeFileSync(speechFile, rawVocalsBuffer);
 
         // Mix with FFmpeg
-        console.log(`[Clip Generation] Mixing audio via FFmpeg for clip ${clip.id}`);
+        logger.info(`Mixing audio via FFmpeg for clip ${clip.id}`);
         await new Promise<void>((resolve, reject) => {
           ffmpeg()
             .input(speechFile)
@@ -320,7 +320,7 @@ export async function POST(request: Request) {
       }
 
       // Upload to GCP
-      console.log(`[Clip Generation] Uploading output to GCP for clip ${clip.id}`);
+      logger.info(`Uploading output to GCP for clip ${clip.id}`);
       const outputBuffer = fs.readFileSync(outputFile);
       const gcpKey = GCP_PATHS.clipAudio(user.id, contentId, voiceId);
       const uploadUrl = await getPresignedUploadUrl(gcpKey, "audio/mpeg");
@@ -347,7 +347,7 @@ export async function POST(request: Request) {
       if (fs.existsSync(bgFile)) fs.unlinkSync(bgFile);
       if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
       
-      console.log(`[Clip Generation] Completed successfully for clip ${clip.id}`);
+      logger.info(`Completed successfully for clip ${clip.id}`);
 
     } catch (err: any) {
       logger.error("clip_generation_failed", {

@@ -34,7 +34,7 @@ export interface FamilyVoice {
   elevenlabs_voice_id: string | null;
   rvc_model_id: string | null;
   rvc_training_status: VoiceStatus | null;
-  sample_audio_url: string | null;
+  sample_audio_key: string | null;
   status: VoiceStatus;
   created_at: string;
   updated_at: string;

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cloneVoice } from "@/lib/elevenlabs";
+import { hasActiveConsent, requireActiveConsent } from "@/lib/consent";
+import { cloneVoice } from "@/lib/voice-provider";
 import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
 import path from "path";
@@ -33,6 +34,20 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const consentBlocked = await requireActiveConsent(user.id);
+    if (consentBlocked) return consentBlocked;
+
+    // Ownership: later writes use the admin client (bypasses RLS).
+    const { data: ownedVoice } = await supabase
+      .from("family_voices")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+    if (!ownedVoice) {
+      return NextResponse.json({ error: "Voice not found" }, { status: 404 });
     }
 
     const formData = await request.formData();
@@ -126,7 +141,7 @@ export async function POST(
         const { probeAudio, assertAudioWithinLimits } = await import(
           "@/lib/audio-validation"
         );
-        const { deleteVoice } = await import("@/lib/elevenlabs");
+        const { deleteVoice } = await import("@/lib/voice-provider");
         const audioData = await fs.readFile(wavPath);
 
         const probe = await probeAudio(audioData);
@@ -134,11 +149,17 @@ export async function POST(
 
         elevenlabsVoiceIdCreated = await cloneVoice(audioData, voiceName);
 
+        // Consent may have been revoked while cloning ran; do not persist then.
+        if (!(await hasActiveConsent(user.id))) {
+          await deleteVoice(elevenlabsVoiceIdCreated).catch(() => undefined);
+          throw new Error("Consent revoked during voice cloning");
+        }
+
         const { error: updateError } = await admin
           .from("family_voices")
           .update({
             elevenlabs_voice_id: elevenlabsVoiceIdCreated,
-            sample_audio_url: publicAudioUrl,
+            sample_audio_key: publicAudioUrl,
             sample_sha256: probe.sha256,
             sample_duration_seconds: probe.durationSeconds,
             sample_bytes: probe.bytes,
@@ -245,7 +266,7 @@ export async function POST(
       .from("family_voices")
       .update({
         avatar_url: publicImageUrl,
-        sample_audio_url: publicAudioUrl,
+        sample_audio_key: publicAudioUrl,
         idle_video_url: publicImageUrl,
         talking_video_url: publicImageUrl,
         status: "ready",

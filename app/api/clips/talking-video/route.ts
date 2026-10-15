@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
-import { generateSpeech } from "@/lib/elevenlabs";
+import { generateSpeech } from "@/lib/voice-provider";
 import {
   createTalkingVideo,
   isHedraConfigured,
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const consentBlocked = await requireActiveConsent(user.id);
+  if (consentBlocked) return consentBlocked;
 
   const parsedJson = await safeJson(request);
   if ("error" in parsedJson) return parsedJson.error;

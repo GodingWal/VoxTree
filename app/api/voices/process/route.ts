@@ -1,6 +1,6 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cloneVoice, deleteVoice } from "@/lib/elevenlabs";
+import { cloneVoice, deleteVoice } from "@/lib/voice-provider";
 import {
   getPresignedDownloadUrl,
   GCP_PATHS,
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
       .from("family_voices")
       .update({
         elevenlabs_voice_id: elevenlabsVoiceId,
-        sample_audio_url: gcpKey,
+        sample_audio_key: gcpKey,
         sample_sha256: probe.sha256,
         sample_duration_seconds: probe.durationSeconds,
         sample_bytes: probe.bytes,

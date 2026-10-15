@@ -130,6 +130,26 @@ export async function deleteObjectPrefix(prefix: string): Promise<number> {
   return files.length;
 }
 
+/** List a user's stored objects below the given prefixes with 1-hour signed download URLs. */
+export async function listObjectsWithDownloadUrls(
+  prefixes: string[]
+): Promise<Array<{ key: string; sizeBytes: number; url: string }>> {
+  if (!process.env.GCS_BUCKET_NAME) return [];
+  const bucket = storage.bucket(process.env.GCS_BUCKET_NAME);
+  const out: Array<{ key: string; sizeBytes: number; url: string }> = [];
+  for (const prefix of prefixes) {
+    const [files] = await bucket.getFiles({ prefix });
+    for (const file of files) {
+      out.push({
+        key: file.name,
+        sizeBytes: Number(file.metadata.size ?? 0),
+        url: await getPresignedDownloadUrl(file.name),
+      });
+    }
+  }
+  return out;
+}
+
 export async function deleteVoiceMedia(userId: string, voiceId: string): Promise<number> {
   const voiceFiles = await deleteObjectPrefix(`voice-samples/${userId}/${voiceId}/`);
   const [clipFiles] = await storage.bucket(process.env.GCS_BUCKET_NAME!).getFiles({ prefix: `clips/${userId}/` });
