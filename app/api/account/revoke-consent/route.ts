@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { deleteVoice } from "@/lib/elevenlabs";
 import { deleteVoiceMedia, deleteObjectPrefix, GCP_PATHS } from "@/lib/gcp";
 import { logger } from "@/lib/logger";
 
@@ -23,18 +24,35 @@ export async function POST() {
   // Best-effort: purge failures are logged but do not fail the revocation itself,
   // since the auditable revoked_at is the source of truth.
   try {
-    const { data: voices } = await admin.from("family_voices").select("id").eq("user_id", user.id);
-    const voiceIds: string[] = (voices ?? []).map((v: { id: string }) => v.id);
+    const { data: voices } = await admin
+      .from("family_voices")
+      .select("id, elevenlabs_voice_id")
+      .eq("user_id", user.id);
+    const voiceRows: { id: string; elevenlabs_voice_id: string | null }[] = voices ?? [];
+
+    // Delete the provider-side biometric voice clones, then neutralise the rows so a
+    // later re-consent cannot resurrect a revoked clone.
+    await Promise.all(
+      voiceRows
+        .filter((v) => v.elevenlabs_voice_id)
+        .map((v) => deleteVoice(v.elevenlabs_voice_id!))
+    );
+    if (voiceRows.length > 0) {
+      await admin
+        .from("family_voices")
+        .update({ elevenlabs_voice_id: null, status: "failed" })
+        .eq("user_id", user.id);
+    }
 
     // Delete each voice's sampled media and any clips that reference it
-    await Promise.all(voiceIds.map((voiceId) => deleteVoiceMedia(user.id, voiceId).catch(() => 0)));
+    await Promise.all(voiceRows.map((v) => deleteVoiceMedia(user.id, v.id)));
 
     // Catch any stray voice-samples/clips not tied to a known voice row
-    await deleteObjectPrefix(`voice-samples/${user.id}/`).catch(() => 0);
-    await deleteObjectPrefix(`clips/${user.id}/`).catch(() => 0);
+    await deleteObjectPrefix(`voice-samples/${user.id}/`);
+    await deleteObjectPrefix(`clips/${user.id}/`);
 
     // Purge consent video selfie proofs
-    await deleteObjectPrefix(GCP_PATHS.consentVideoPrefix(user.id)).catch(() => 0);
+    await deleteObjectPrefix(GCP_PATHS.consentVideoPrefix(user.id));
   } catch (e) {
     logger.error("revoke_consent_purge_failed", {
       userId: user.id,
