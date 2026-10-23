@@ -16,6 +16,7 @@ export default defineConfig([
       "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
-  { files: ["lib/logger.ts"], rules: { "no-console": "off" } },
+  // Logger implementation and CLI scripts write to stdout by design.
+  { files: ["lib/logger.ts", "scripts/**"], rules: { "no-console": "off" } },
   globalIgnores([".next/**", "node_modules/**", "coverage/**", ".gemini/**", "playwright-report/**", "test-results/**"]),
 ]);
