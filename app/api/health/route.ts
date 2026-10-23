@@ -37,15 +37,16 @@ async function checkGCS(): Promise<CheckResult> {
       projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
       credentials: {
         client_email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
-        private_key: process.env.GOOGLE_CLOUD_PRIVATE_KEY?.replace(/\n/g, "\n"),
+        private_key: process.env.GOOGLE_CLOUD_PRIVATE_KEY?.replace(/\\n/g, "\n"),
       },
     });
     // Lightweight bucket metadata check with timeout
     const bucket = storage.bucket(bucketName);
-    await Promise.race([
+    const [exists] = await Promise.race([
       bucket.exists(),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("GCS check timeout")), 4000)),
     ]);
+    if (!exists) throw new Error(`GCS bucket "${bucketName}" does not exist`);
     return { status: "ok", latencyMs: Date.now() - started };
   } catch (err) {
     return {
