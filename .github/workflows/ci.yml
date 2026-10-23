@@ -79,7 +79,7 @@ jobs:
           NEXT_PUBLIC_APP_URL: "https://example.com"
 
       - name: Dependency audit (high/critical)
-        run: npm audit --audit-level=high
+        run: node scripts/audit-gate.mjs
 
       - name: Install browser for end-to-end tests
         run: npx playwright install --with-deps chromium
