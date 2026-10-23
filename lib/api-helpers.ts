@@ -23,8 +23,9 @@ export async function safeJson(
  * (ElevenLabs, Replicate, GCS uploads). Limit is intentionally low
  * since each call costs money and/or compute.
  *
- * NOTE: in-memory, so it resets on restart and does not scale across
- * instances. Use enforceUserRateLimit() for per-user durable limits.
+ * Backed by the Postgres `check_rate_limit` RPC (serverless-safe); falls back
+ * to in-memory counting only in tests or when Supabase is unconfigured.
+ * Use enforceUserRateLimit() for per-user durable limits.
  */
 export const paidApiRateLimiter = new RateLimit({ limit: 10, windowMs: 60_000 });
 
@@ -33,7 +34,12 @@ export const paidApiRateLimiter = new RateLimit({ limit: 10, windowMs: 60_000 })
  * Returns a 429 NextResponse if the limit is exceeded, null otherwise.
  */
 export async function enforcePaidRateLimit(request: Request): Promise<NextResponse | null> {
-  const ip = request.headers.get("x-forwarded-for") ?? "unknown";
+  // Use only the first hop so clients cannot mint new buckets by appending
+  // arbitrary entries to the header.
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
   if (!(await paidApiRateLimiter.check(ip))) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }

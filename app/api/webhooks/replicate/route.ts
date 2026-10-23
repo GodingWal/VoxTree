@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyReplicateWebhook } from "@/lib/webhook-signature";
 import { logger } from "@/lib/logger";
+import { hasActiveConsent } from "@/lib/consent";
 
 export async function POST(request: Request) {
   // Read the raw body once for signature verification — JSON.parse would
@@ -39,11 +40,21 @@ export async function POST(request: Request) {
       // We temporarily stored the training id in rvc_model_id when we started the job
       const { data: voices } = await admin
         .from("family_voices")
-        .select("id")
+        .select("id, user_id")
         .eq("rvc_model_id", trainingId);
 
       if (voices && voices.length > 0) {
         const voiceId = voices[0].id;
+
+        // Never mark a singing model ready for a user who revoked consent.
+        if (!(await hasActiveConsent(voices[0].user_id))) {
+          await admin
+            .from("family_voices")
+            .update({ rvc_training_status: "failed", rvc_model_id: null })
+            .eq("id", voiceId);
+          logger.warn("replicate_webhook_ignored_no_consent", { voiceId });
+          return NextResponse.json({ success: true });
+        }
 
         await admin
           .from("family_voices")

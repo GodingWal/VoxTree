@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkLoraTrainingStatus } from "@/lib/replicate";
+import { hasActiveConsent } from "@/lib/consent";
 
 /**
  * Poll the LoRA training status for a voice. Falls back to syncing with
@@ -32,6 +33,14 @@ export async function GET(request: NextRequest) {
   // If still training and we have a training id, ask Replicate directly so
   // dev flows don't depend on webhook reachability.
   if (row.lora_status === "training" && row.lora_training_id) {
+    // Revoked consent must not be bypassed by the polling completion path.
+    if (!(await hasActiveConsent(user.id))) {
+      await createAdminClient()
+        .from("family_voices")
+        .update({ lora_status: "failed", lora_version: null, lora_weights_url: null })
+        .eq("id", voiceId);
+      return NextResponse.json({ status: "failed", consentRequired: true }, { status: 403 });
+    }
     try {
       const remote = await checkLoraTrainingStatus(row.lora_training_id);
       if (remote.status === "succeeded") {

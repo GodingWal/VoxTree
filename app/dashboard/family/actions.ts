@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { isSimulationEnabled } from "@/lib/features";
+import { logger } from "@/lib/logger";
 
 export async function inviteFamilyMember(formData: FormData) {
   const email = formData.get("email") as string;
@@ -65,7 +66,7 @@ export async function inviteFamilyMember(formData: FormData) {
     };
   }
 
-  console.log(`Successfully sent email invitation to: ${email}`);
+  logger.info("family_invitation_email_sent");
 
   revalidatePath("/dashboard/family");
   return { success: true, email };

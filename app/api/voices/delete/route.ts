@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteVoice } from "@/lib/elevenlabs";
+import { deleteVoice } from "@/lib/voice-provider";
 import { safeJson } from "@/lib/api-helpers";
 import { logger } from "@/lib/logger";
 import { z } from "zod";

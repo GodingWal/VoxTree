@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforcePaidRateLimit } from "@/lib/api-helpers";
+import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { trainCharacterLora } from "@/lib/replicate";
 import { promises as fs } from "fs";
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const consentBlocked = await requireActiveConsent(user.id);
+  if (consentBlocked) return consentBlocked;
 
   const formData = await request.formData();
   const voiceId = formData.get("voiceId");

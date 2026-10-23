@@ -42,7 +42,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-vi.mock("@/lib/elevenlabs", () => ({
+vi.mock("@/lib/voice-provider", () => ({
   deleteVoice: (...args: unknown[]) => mockDeleteVoice(...args),
 }));
 
