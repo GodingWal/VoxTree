@@ -79,6 +79,8 @@ jobs:
           NEXT_PUBLIC_APP_URL: "https://example.com"
 
       - name: Dependency audit (high/critical)
+        # Gate script allowlists only GHSA-vfj7-8cjw-p6xm (braces, no patched
+        # release; build-tooling only) — see scripts/audit-gate.mjs.        
         run: node scripts/audit-gate.mjs
 
       - name: Install browser for end-to-end tests
