@@ -172,7 +172,7 @@ describe("POST /api/voices/delete — IDOR guard", () => {
 
   it("404 when voice does not exist", async () => {
     // No row returned → handler returns 404
-    const res = await deleteVoiceRoute(reqJson({ voiceId: "00000000-0000-0000-0000-000000000099" }));
+    const res = await deleteVoiceRoute(reqJson({ voiceId: "3f2b8c1e-5a4d-4e6f-9b7a-1c2d3e4f5a6b" }));
     // Implementation does `if (!voice || voice.user_id !== user.id) return 404`
     // With default mock returning null, this is 404
     expect(res.status).toBe(404);
