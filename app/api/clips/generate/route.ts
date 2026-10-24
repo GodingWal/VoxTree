@@ -238,16 +238,6 @@ export async function POST(request: Request) {
         }
         logger.info(`Generating speech via ElevenLabs for clip ${clip.id}`);
         rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
-        // P0 #3: inaudible watermark — embed clip/user identity into TTS output
-        try {
-          rawVocalsBuffer = applyWatermark(rawVocalsBuffer, {
-            clipId: clip.id,
-            userId: user.id,
-            timestamp: Date.now(),
-          });
-        } catch (wmErr) {
-          console.warn("[Clip Generation] Watermark failed (non-fatal):", wmErr);
-        }
         await recordUsage(user.id, { kind: "elevenlabs_chars", chars: charCount });
       } else if (content.content_mode === "v2v") {
         if (!voice.rvc_model_id) throw new Error("V2V singing voice not set up");
@@ -272,16 +262,6 @@ export async function POST(request: Request) {
         // Download the output from Replicate
         const repRes = await fetch(output);
         rawVocalsBuffer = Buffer.from(await repRes.arrayBuffer());
-        // Watermark V2V output as well
-        try {
-          rawVocalsBuffer = applyWatermark(rawVocalsBuffer, {
-            clipId: clip.id,
-            userId: user.id,
-            timestamp: Date.now(),
-          });
-        } catch (wmErr) {
-          console.warn("[Clip Generation] Watermark failed (non-fatal, V2V):", wmErr);
-        }
         await recordUsage(user.id, { kind: "replicate_inference" });
       } else {
         throw new Error("Unsupported content mode");
@@ -321,14 +301,28 @@ export async function POST(request: Request) {
 
       // Upload to GCP
       logger.info(`Uploading output to GCP for clip ${clip.id}`);
-      const outputBuffer = fs.readFileSync(outputFile);
+      let outputBuffer: Buffer = fs.readFileSync(outputFile);
+      // Watermark the final mixed output: FFmpeg re-encoding would strip a trailer
+      // applied to the raw vocals.
+      try {
+        outputBuffer = applyWatermark(outputBuffer, {
+          clipId: clip.id,
+          userId: user.id,
+          timestamp: Date.now(),
+        });
+      } catch (wmErr) {
+        logger.warn("clip_watermark_failed", {
+          clipId: clip.id,
+          error: wmErr instanceof Error ? wmErr.message : String(wmErr),
+        });
+      }        
       const gcpKey = GCP_PATHS.clipAudio(user.id, contentId, voiceId);
       const uploadUrl = await getPresignedUploadUrl(gcpKey, "audio/mpeg");
       
       await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": "audio/mpeg" },
-        body: outputBuffer,
+        body: new Uint8Array(outputBuffer),
       });
 
       // Update DB
