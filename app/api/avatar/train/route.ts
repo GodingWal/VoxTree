@@ -1,10 +1,16 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { enforcePaidRateLimit } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { trainCharacterLora } from "@/lib/replicate";
+import { signedUploadUrl } from "@/lib/upload-token";
+import { UPLOADS_DIR } from "@/lib/uploads";
 import { promises as fs } from "fs";
 import { createWriteStream } from "fs";
 import path from "path";
@@ -19,9 +25,11 @@ import archiver from "archiver";
  *   - images: 5–20 reference photos of the same person (varied angles,
  *     expressions, lighting). More variety = better identity capture.
  *
- * The trainer needs a publicly fetchable ZIP of the images. In production
- * the zip is uploaded to GCS; in dev it is served from /public/uploads via
- * NEXT_PUBLIC_APP_URL so Replicate can pull it.
+ * The trainer needs a fetchable ZIP of the images. It is served from the
+ * local uploads store (data/uploads) via NEXT_PUBLIC_APP_URL so Replicate
+ * can pull it; because the trainer cannot present a session, the URL
+ * carries a short-lived HMAC-signed token bound to exactly that file
+ * (see lib/upload-token.ts and app/uploads/[...path]/route.ts).
  */
 export const maxDuration = 60;
 
@@ -33,13 +41,11 @@ export async function POST(request: NextRequest) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userId };
 
   const consentBlocked = await requireActiveConsent(user.id);
   if (consentBlocked) return consentBlocked;
@@ -67,23 +73,26 @@ export async function POST(request: NextRequest) {
   }
 
   // Confirm the voice row belongs to the caller.
-  const { data: voiceRow, error: voiceErr } = await supabase
-    .from("family_voices")
-    .select("id, user_id, lora_status")
-    .eq("id", voiceId)
-    .eq("user_id", user.id)
-    .single();
-  if (voiceErr || !voiceRow) {
+  const [voiceRow] = await db
+    .select({
+      id: familyVoices.id,
+      userId: familyVoices.userId,
+      loraStatus: familyVoices.loraStatus,
+    })
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+    .limit(1);
+  if (!voiceRow) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
-  if (voiceRow.lora_status === "training") {
+  if (voiceRow.loraStatus === "training") {
     return NextResponse.json(
       { error: "A LoRA training is already in progress for this voice." },
       { status: 409 }
     );
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "lora", voiceId);
+  const uploadsDir = path.join(UPLOADS_DIR, "lora", voiceId);
   await fs.mkdir(uploadsDir, { recursive: true });
 
   const referenceUrls: string[] = [];
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
   await zipDirectory(uploadsDir, zipPath, (name) => name.startsWith("ref_"));
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const inputImagesUrl = `${appUrl}/uploads/lora/${voiceId}/dataset.zip`;
+  const inputImagesUrl = signedUploadUrl(appUrl, `lora/${voiceId}/dataset.zip`);
   const webhookUrl = `${appUrl}/api/avatar/train/webhook?voiceId=${voiceId}`;
 
   // Unique trigger word per voice so prompts can address this specific clone.
@@ -114,17 +123,16 @@ export async function POST(request: NextRequest) {
       webhookUrl,
     });
 
-    const admin = createAdminClient();
-    await admin
-      .from("family_voices")
-      .update({
-        lora_training_id: training.id,
-        lora_destination: training.destination,
-        lora_trigger_word: triggerWord,
-        lora_status: "training",
-        character_reference_images: referenceUrls,
+    await db
+      .update(familyVoices)
+      .set({
+        loraTrainingId: training.id,
+        loraDestination: training.destination,
+        loraTriggerWord: triggerWord,
+        loraStatus: "training",
+        characterReferenceImages: referenceUrls,
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
     return NextResponse.json({
       success: true,

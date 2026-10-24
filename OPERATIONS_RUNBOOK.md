@@ -5,7 +5,7 @@
 - `npm ci`, lint, type-check, unit tests, end-to-end smoke tests, build, dependency audit, and secret scan must pass.
 - `SIMULATION_MODE` must be absent or `false`.
 - Visual cloning, singing voice, and talking video stay disabled until separately approved.
-- Apply every Supabase migration through the latest file in `supabase/migrations/` (currently `018`) before enabling signups.
+- Apply the local schema (`db/init/01_schema.sql` — auto-applied by docker-compose on a fresh volume; includes everything through former migration 018) before enabling signups.
 - Qualified counsel must approve consent copy, privacy notice, retention, vendor terms, and launch geography.
 
 ## Health and alerts
@@ -27,11 +27,11 @@ Disable generation by turning off the relevant feature flag. If the core voice p
 ## Data requests
 
 - Export, revocation, and deletion are available in Profile & Billing settings.
-- Failed deletion attempts create an auditable lifecycle record and an operational error log. Investigate external ElevenLabs and GCS cleanup before marking resolved.
+- Failed deletion attempts create an auditable lifecycle record and an operational error log. Investigate Chatterbox voice-service and GCS cleanup before marking resolved.
 - Account deletion is complete only when authentication, database rows, private storage, and vendor voice resources are gone.
 
 ## Recovery
 
 - Roll back application code to the last green release without rolling database migrations backward.
-- Restore the database into a separate project first and verify row counts and RLS before cutover.
-- Rotate affected vendor and service-role credentials after any suspected exposure.
+- Restore the database into a separate instance first and verify row counts and app-level authorization (`lib/authz.ts`) before cutover.
+- Rotate affected vendor and database credentials after any suspected exposure.

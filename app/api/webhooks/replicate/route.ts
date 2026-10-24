@@ -1,8 +1,11 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { verifyReplicateWebhook } from "@/lib/webhook-signature";
-import { logger } from "@/lib/logger";
+
 import { hasActiveConsent } from "@/lib/consent";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { logger } from "@/lib/logger";
+import { verifyReplicateWebhook } from "@/lib/webhook-signature";
 
 export async function POST(request: Request) {
   // Read the raw body once for signature verification — JSON.parse would
@@ -32,45 +35,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing training id" }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-
     if (body.status === "succeeded" && body.version) {
       const modelVersion = body.version;
 
       // We temporarily stored the training id in rvc_model_id when we started the job
-      const { data: voices } = await admin
-        .from("family_voices")
-        .select("id, user_id")
-        .eq("rvc_model_id", trainingId);
+      const voices = await db
+        .select({ id: familyVoices.id, userId: familyVoices.userId })
+        .from(familyVoices)
+        .where(eq(familyVoices.rvcModelId, trainingId));
 
-      if (voices && voices.length > 0) {
+      if (voices.length > 0) {
         const voiceId = voices[0].id;
 
         // Never mark a singing model ready for a user who revoked consent.
-        if (!(await hasActiveConsent(voices[0].user_id))) {
-          await admin
-            .from("family_voices")
-            .update({ rvc_training_status: "failed", rvc_model_id: null })
-            .eq("id", voiceId);
+        if (!(await hasActiveConsent(voices[0].userId))) {
+          await db
+            .update(familyVoices)
+            .set({ rvcTrainingStatus: "failed", rvcModelId: null })
+            .where(eq(familyVoices.id, voiceId));
           logger.warn("replicate_webhook_ignored_no_consent", { voiceId });
           return NextResponse.json({ success: true });
         }
 
-        await admin
-          .from("family_voices")
-          .update({
-            rvc_training_status: "ready",
-            rvc_model_id: modelVersion,
+        await db
+          .update(familyVoices)
+          .set({
+            rvcTrainingStatus: "ready",
+            rvcModelId: modelVersion,
           })
-          .eq("id", voiceId);
+          .where(eq(familyVoices.id, voiceId));
       }
     } else if (body.status === "failed" || body.status === "canceled") {
-      await admin
-        .from("family_voices")
-        .update({
-          rvc_training_status: body.status === "canceled" ? "cancelled" : "failed",
+      await db
+        .update(familyVoices)
+        .set({
+          rvcTrainingStatus: body.status === "canceled" ? "cancelled" : "failed",
         })
-        .eq("rvc_model_id", trainingId);
+        .where(eq(familyVoices.rvcModelId, trainingId));
     }
 
     return NextResponse.json({ success: true });

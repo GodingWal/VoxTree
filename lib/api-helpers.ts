@@ -20,11 +20,11 @@ export async function safeJson(
 
 /**
  * Per-IP rate limiter shared across paid external-API endpoints
- * (ElevenLabs, Replicate, GCS uploads). Limit is intentionally low
+ * (voice service, Replicate, GCS uploads). Limit is intentionally low
  * since each call costs money and/or compute.
  *
  * Backed by the Postgres `check_rate_limit` RPC (serverless-safe); falls back
- * to in-memory counting only in tests or when Supabase is unconfigured.
+ * to in-memory counting only in tests or when the database is unconfigured.
  * Use enforceUserRateLimit() for per-user durable limits.
  */
 export const paidApiRateLimiter = new RateLimit({ limit: 10, windowMs: 60_000 });

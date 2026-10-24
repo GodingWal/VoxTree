@@ -4,7 +4,7 @@ import { useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { User, Settings, LogOut, CreditCard } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 interface ProfileDropdownProps {
@@ -15,11 +15,10 @@ interface ProfileDropdownProps {
 
 export function ProfileDropdown({ userEmail, userName, plan }: ProfileDropdownProps) {
   const router = useRouter();
-  const supabase = createClient();
   const [isOpen, setIsOpen] = useState(false);
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
+    await signOut({ redirect: false });
     router.push("/login");
     router.refresh();
   }

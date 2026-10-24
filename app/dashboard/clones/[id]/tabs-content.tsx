@@ -94,7 +94,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (data.simulated) {
-          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled, speaking simulated for 3 seconds)");
+          alert("Simulation Mode: Testing voice requires the Chatterbox voice service to be running. (Audio disabled, speaking simulated for 3 seconds)");
           setAudioLoading(false);
           setIsTalking(true);
           setTimeout(() => setIsTalking(false), 3000);
@@ -546,9 +546,9 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
 
             <TalkingVideoGenerator
               voiceId={voice.id}
-              disabled={!voice.elevenlabs_voice_id}
+              disabled={!voice.provider_voice_id}
               disabledReason={
-                !voice.elevenlabs_voice_id
+                !voice.provider_voice_id
                   ? "Voice clone isn't ready yet. Finish onboarding first."
                   : undefined
               }

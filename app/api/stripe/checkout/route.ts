@@ -1,4 +1,7 @@
-import { getRouteClient } from "@/lib/supabase/auth";
+import { getCurrentUser } from "@/lib/auth/session";
+import { selfUser } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { stripe } from "@/lib/stripe";
 import { safeJson } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
@@ -28,10 +31,7 @@ function getPriceId(priceKey: string): string {
 }
 
 export async function POST(request: Request) {
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -50,25 +50,28 @@ export async function POST(request: Request) {
   const priceKey = `${plan}_${billing}`;
 
   // Get or create Stripe customer
-  const { data: profile } = await supabase
-    .from("users")
-    .select("stripe_customer_id")
-    .eq("id", user.id)
-    .single();
+  const [profile] = await db
+    .select({ stripeCustomerId: users.stripeCustomerId })
+    .from(users)
+    .where(selfUser(user.id))
+    .limit(1);
 
-  let customerId = profile?.stripe_customer_id;
+  let customerId = profile?.stripeCustomerId;
 
   if (!customerId) {
     const customer = await stripe.customers.create({
-      email: user.email,
+      email: user.email ?? undefined,
+      // Metadata key name is a Stripe-side contract shared with the
+      // webhook handler and already stamped on existing customers —
+      // it is kept verbatim despite the legacy name.
       metadata: { supabase_user_id: user.id },
     });
     customerId = customer.id;
 
-    await supabase
-      .from("users")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", user.id);
+    await db
+      .update(users)
+      .set({ stripeCustomerId: customerId })
+      .where(selfUser(user.id));
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -81,6 +84,8 @@ export async function POST(request: Request) {
     success_url: `${appUrl}/dashboard?upgraded=true${isTrialConversion ? "&trial_converted=true" : ""}`,
     cancel_url: `${appUrl}/pricing${isTrialConversion ? "?trial=true" : ""}`,
     metadata: {
+      // Legacy key name is a Stripe-side contract (see customer metadata
+      // above + the webhook handler); kept verbatim.
       supabase_user_id: user.id,
       plan,
       ...(isTrialConversion ? {

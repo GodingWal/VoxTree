@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { PLAN_LIMITS, planLabel } from "@/lib/limits";
 import type { Plan } from "@/types/database";
 import { redirect } from "next/navigation";
@@ -6,27 +6,20 @@ import Link from "next/link";
 import { Section } from "@/components/twilight-ui";
 import { AccountDataControls } from "@/components/account-data-controls";
 import { BillingPortalButton } from "@/components/billing-portal-button";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The session user IS the users row under Auth.js (RLS: self-only).
+  const profile = await getCurrentUser();
 
-  if (!user) {
+  if (!profile) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const plan = (profile.plan ?? "free") as Plan;
 
-  const plan = (profile?.plan ?? "free") as Plan;
-  
-  const userName = profile?.name || user.user_metadata?.full_name || "Not provided";
-  const userEmail = user.email;
+  const userName = profile.name || "Not provided";
+  const userEmail = profile.email;
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>
@@ -64,18 +57,7 @@ export default async function SettingsPage() {
             </div>
             
             <div style={{ paddingTop: 24, borderTop: "1px solid var(--ink-3)" }}>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  style={{
-                    background: "none", border: 0, padding: 0,
-                    color: "var(--rose)", fontSize: 14, fontWeight: 500,
-                    cursor: "pointer"
-                  }}
-                >
-                  Sign out
-                </button>
-              </form>
+              <SignOutButton />
             </div>
           </div>
         </Section>

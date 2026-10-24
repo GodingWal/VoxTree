@@ -4,7 +4,7 @@ import os from "node:os";
 
 /**
  * Transcode an arbitrary audio buffer (webm/wav/m4a/etc.) to a clean,
- * normalized MP3 that's safe to ship to ElevenLabs and RVC.
+ * normalized MP3 that's safe to ship to the voice service and RVC.
  *
  * - 22.05 kHz mono is sufficient for speech cloning and roughly halves the
  *   payload vs 44.1 kHz stereo.

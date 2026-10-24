@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { TwilightShell } from "@/components/twilight-layout";
 import { ShieldCheck, Calendar, FileText, CheckCircle2, UserCheck } from "lucide-react";
 import Link from "next/link";
@@ -10,25 +10,15 @@ export const metadata = {
 };
 
 export default async function ConsentPage() {
-  const supabase = await createClient();
-  
-  // Get active session
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Get the signed-in user's row (the users row carries the consent flag).
+  const user = await getCurrentUser();
 
   let consentVerified = false;
   let userName = "Parent/Guardian";
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("consent_verified, name")
-      .eq("id", user.id)
-      .single();
-
-    consentVerified = !!profile?.consent_verified;
-    userName = profile?.name || user.email?.split("@")[0] || "Parent/Guardian";
+    consentVerified = !!user.consentVerified;
+    userName = user.name || user.email?.split("@")[0] || "Parent/Guardian";
   }
 
   return (

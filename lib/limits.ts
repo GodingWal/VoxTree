@@ -1,5 +1,8 @@
-import { createAdminClient } from "./supabase/admin";
 import type { Plan } from "@/types/database";
+
+import { selfUser } from "./authz";
+import { db } from "./db";
+import { users } from "./db/schema";
 
 export const TRIAL_CLIPS_LIMIT = 3;
 export const TRIAL_CLIP_MAX_DURATION_SEC = 30;
@@ -71,15 +74,29 @@ export async function checkLimit(
   userId: string,
   action: Action
 ): Promise<LimitCheckResult> {
-  const supabase = createAdminClient();
+  let user: {
+    plan: string;
+    voiceSlotsUsed: number;
+    videosUsed: number;
+    storiesUsed: number;
+  } | null = null;
+  try {
+    const [row] = await db
+      .select({
+        plan: users.plan,
+        voiceSlotsUsed: users.voiceSlotsUsed,
+        videosUsed: users.videosUsed,
+        storiesUsed: users.storiesUsed,
+      })
+      .from(users)
+      .where(selfUser(userId))
+      .limit(1);
+    user = row ?? null;
+  } catch {
+    user = null;
+  }
 
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("plan, voice_slots_used, videos_used, stories_used")
-    .eq("id", userId)
-    .single();
-
-  if (error || !user) {
+  if (!user) {
     return { allowed: false, reason: "User not found" };
   }
 
@@ -88,7 +105,7 @@ export async function checkLimit(
 
   switch (action) {
     case "add_voice": {
-      if (limits.voice_slots !== null && user.voice_slots_used >= limits.voice_slots) {
+      if (limits.voice_slots !== null && user.voiceSlotsUsed >= limits.voice_slots) {
         return {
           allowed: false,
           reason: `You've used all ${limits.voice_slots} voice profile${limits.voice_slots === 1 ? "" : "s"} on your ${plan === "free" ? "Free" : "Family"} plan.`,
@@ -104,7 +121,7 @@ export async function checkLimit(
     }
 
     case "add_video": {
-      if (limits.videos !== null && user.videos_used >= limits.videos) {
+      if (limits.videos !== null && user.videosUsed >= limits.videos) {
         return {
           allowed: false,
           reason: `You've reached the ${limits.videos}-video limit on the Free plan.`,
@@ -116,7 +133,7 @@ export async function checkLimit(
     }
 
     case "add_story": {
-      if (limits.stories !== null && user.stories_used >= limits.stories) {
+      if (limits.stories !== null && user.storiesUsed >= limits.stories) {
         return {
           allowed: false,
           reason: `You've reached the ${limits.stories}-story limit on the Free plan.`,

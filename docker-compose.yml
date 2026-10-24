@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: voxtree-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: voxtree
+      POSTGRES_PASSWORD: voxtree_dev
+      POSTGRES_DB: voxtree
+    ports:
+      - "5432:5432"
+    volumes:
+      - voxtree-pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voxtree -d voxtree"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  voxtree-pgdata:

@@ -68,26 +68,42 @@ const mockUpdateProfile = vi.fn();
 const mockCustomersCreate = vi.fn();
 const mockSessionsCreate = vi.fn();
 
-vi.mock("@/lib/supabase/auth", () => ({
-  getRouteClient: () => ({
-    auth: { getUser: mockGetUser },
-    from: (table: string) => {
-      if (table === "users") {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: () => mockSelectProfile(),
-            }),
-          }),
-          update: () => ({
-            eq: () => mockUpdateProfile(),
-          }),
-        };
-      }
-      return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null }) }) }) };
-    },
-  }),
+// Phase 4: checkout reads identity from lib/auth/session and the
+// profile through Drizzle (lib/db). mockGetUser now resolves the
+// Auth.js user object directly; mockSelectProfile keeps its old
+// { data: { stripe_customer_id } } shape and is translated here.
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser: () => mockGetUser(),
+  getCurrentUserId: async () => (await mockGetUser())?.id ?? null,
 }));
+
+vi.mock("@/lib/db", () => {
+  const selectChain = () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ["from", "where", "limit"]) chain[m] = () => chain;
+    chain.then = (res: (v: unknown) => void, rej: (e: unknown) => void) =>
+      mockSelectProfile()
+        .then((r: { data: { stripe_customer_id: string | null } | null }) =>
+          r.data ? [{ stripeCustomerId: r.data.stripe_customer_id }] : [],
+        )
+        .then(res, rej);
+    return chain;
+  };
+  return {
+    db: {
+      select: () => selectChain(),
+      update: () => ({
+        set: () => ({
+          where: async () => {
+            const r = (await mockUpdateProfile()) as { error: unknown };
+            if (r?.error) throw r.error;
+            return [];
+          },
+        }),
+      }),
+    },
+  };
+});
 
 vi.mock("@/lib/stripe", () => ({
   stripe: {
@@ -117,7 +133,7 @@ function reqJson(body: unknown) {
 describe("POST /api/stripe/checkout — trial conversion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetUser.mockResolvedValue({ data: { user: { id: "user-trial", email: "trial@test.com" } } });
+    mockGetUser.mockResolvedValue({ id: "user-trial", email: "trial@test.com" });
     mockSelectProfile.mockResolvedValue({ data: { stripe_customer_id: "cus_123" } });
     mockCustomersCreate.mockResolvedValue({ id: "cus_new" });
     mockSessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/session_test" });

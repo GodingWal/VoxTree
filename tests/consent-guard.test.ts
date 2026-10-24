@@ -14,19 +14,54 @@ vi.mock("@/lib/consent", async () => {
   };
 });
 
-const client = () => ({
-  auth: { getUser },
-  from: () => {
-    const chain: Record<string, unknown> = {};
-    chain.select = () => chain;
-    chain.eq = () => chain;
-    chain.single = () => Promise.resolve({ data: { id: "v", user_id: "u1", lora_status: "idle" }, error: null });
-    return chain;
+// Phase 4: routes resolve identity via lib/auth/session and data via
+// Drizzle (lib/db). The db mock is a universal thenable chain resolving
+// a plausible owned row for selects (the Drizzle analogue of the old
+// PostgREST chain mock, in camelCase).
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUserId: async () => (await getUser()).data.user?.id ?? null,
+  getCurrentUser: async () => {
+    const u = (await getUser()).data.user;
+    return u ? { id: u.id, email: "u1@example.com", name: "U One", plan: "premium" } : null;
   },
+  requireUserId: async () => "u1",
+  requireUser: async () => ({ id: "u1" }),
+}));
+
+vi.mock("@/lib/db", () => {
+  const row = {
+    id: "11111111-1111-4111-8111-111111111111",
+    userId: "u1",
+    status: "ready",
+    loraStatus: "idle",
+    plan: "premium",
+    consentVerified: true,
+    voiceSlotsUsed: 0,
+    videosUsed: 0,
+    storiesUsed: 0,
+    value: 0,
+  };
+  const chain = (result: unknown) => {
+    const c: Record<string, unknown> = {};
+    for (const m of [
+      "from", "where", "limit", "orderBy", "leftJoin", "innerJoin",
+      "groupBy", "values", "set", "returning", "onConflictDoUpdate",
+      "onConflictDoNothing",
+    ]) c[m] = () => c;
+    c.then = (res: (v: unknown) => void, rej: (e: unknown) => void) =>
+      Promise.resolve(result).then(res, rej);
+    return c;
+  };
+  return {
+    db: {
+      select: () => chain([row]),
+      insert: () => chain([row]),
+      update: () => chain([{ id: row.id }]),
+      delete: () => chain([]),
+      execute: async () => ({ rows: [{ allowed: true }] }),
+    },
+  };
 });
-vi.mock("@/lib/supabase/auth", () => ({ getRouteClient: () => client() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => client() }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => ({}) }) }));
 vi.mock("@/lib/api-helpers", async (orig) => ({
   ...((await orig()) as object),
   enforcePaidRateLimit: async () => null,

@@ -1,21 +1,24 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteVoice } from "@/lib/voice-provider";
-import { safeJson } from "@/lib/api-helpers";
-import { logger } from "@/lib/logger";
 import { z } from "zod";
+
+import { safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { familyVoices, generatedClips } from "@/lib/db/schema";
 import { deleteVoiceMedia } from "@/lib/gcp";
+import { logger } from "@/lib/logger";
+import { deleteVoice } from "@/lib/voice-provider";
 
 const deleteSchema = z.object({
   voiceId: z.string().uuid(),
 });
 
 export async function POST(request: Request) {
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const parsedJson = await safeJson(request);
   if ("error" in parsedJson) return parsedJson.error;
@@ -27,26 +30,28 @@ export async function POST(request: Request) {
   const { voiceId } = parsed.data;
 
   // Verify ownership
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, user_id, elevenlabs_voice_id")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      userId: familyVoices.userId,
+      providerVoiceId: familyVoices.providerVoiceId,
+    })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== user.id) {
+  if (!voice || voice.userId !== user.id) {
     return NextResponse.json({ error: "Not found or not authorized" }, { status: 404 });
   }
 
-  const admin = createAdminClient();
-
   try {
-    // Delete from ElevenLabs if it exists
-    if (voice.elevenlabs_voice_id) {
+    // Delete from the voice provider if it exists
+    if (voice.providerVoiceId) {
       try {
-        await deleteVoice(voice.elevenlabs_voice_id);
+        await deleteVoice(voice.providerVoiceId);
       } catch (elError) {
-        logger.warn("elevenlabs_voice_delete_failed", {
-          elevenlabsVoiceId: voice.elevenlabs_voice_id,
+        logger.warn("provider_voice_delete_failed", {
+          providerVoiceId: voice.providerVoiceId,
           voiceId,
           message: elError instanceof Error ? elError.message : "Unknown error",
         });
@@ -54,13 +59,13 @@ export async function POST(request: Request) {
     }
 
     // Delete related clips to prevent orphaned data
-    await admin.from("generated_clips").delete().eq("voice_id", voiceId);
+    await db.delete(generatedClips).where(eq(generatedClips.voiceId, voiceId));
 
     // Delete the original sample, normalized sample, and every generated clip for this voice.
     await deleteVoiceMedia(user.id, voiceId);
 
     // Delete the voice record
-    await admin.from("family_voices").delete().eq("id", voiceId);
+    await db.delete(familyVoices).where(eq(familyVoices.id, voiceId));
 
     return NextResponse.json({ success: true });
   } catch (error) {

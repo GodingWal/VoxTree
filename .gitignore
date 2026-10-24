@@ -22,6 +22,8 @@ dist/
 .env*.local
 
 # VoxTree: never commit biometric media, generated avatars, or local uploads
+/data/uploads/
+/data/uploads/**
 /public/uploads/
 /public/uploads/**
 # Local LoRA reference frames

@@ -3,133 +3,146 @@ import fs from "fs";
 import path from "path";
 
 /**
- * P0 #6 — Migration + backup/restore proof
- * Verifies all migrations apply in order on a fresh DB and documents the
- * snapshot/restore procedure (pg_dump → restore to second project).
+ * Schema integrity — successor to the migration-ordering tests.
+ *
+ * History: this suite guarded the hosted migration files (001–018 apply
+ * in order, no gaps). The schema now ships as a single ported file,
+ * db/init/01_schema.sql, applied to a fresh local Postgres by
+ * docker-compose. The invariants that still matter are pinned here:
+ * every table/function the migrations created exists in the port, the
+ * consent + attestation semantics of migrations 012/016/017/018 survived
+ * the port, and the DDL stays idempotent so a pg_dump snapshot can be
+ * restored by replaying the schema (see OPERATIONS_RUNBOOK.md).
  */
 
-const MIGRATIONS_DIR = path.join(process.cwd(), "supabase/migrations");
+const SCHEMA_PATH = path.join(process.cwd(), "db/init/01_schema.sql");
+const sql = fs.readFileSync(SCHEMA_PATH, "utf8");
 
-function migrationFiles() {
-  return fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
+function definedTables(source: string): string[] {
+  const names: string[] = [];
+  const re = /create table(?:\s+if not exists)?\s+(?:public\.)?([a-z_]+)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(source)) !== null) names.push(m[1]);
+  return names;
 }
 
-describe("migrations — file integrity", () => {
-  it("expected 18 migrations present in lex order", () => {
-    const files = migrationFiles();
-    expect(files).toEqual([
-      "001_initial_schema.sql",
-      "002_fix_schema.sql",
-      "003_hybrid_voice_schema.sql",
-      "004_family_invitations.sql",
-      "005_add_visual_cloning_columns.sql",
-      "006_children_and_bedtime.sql",
-      "007_library_enhancements.sql",
-      "008_add_character_lora.sql",
-      "009_add_talking_video.sql",
-      "010_cloning_improvements.sql",
-      "011_sync_slots_and_rate_limits.sql",
-      "012_consent_and_data_lifecycle.sql",
-      "013_consent_video.sql",
-      "014_invites.sql",
-      "015_digital_actors.sql",
-      "016_adult_attestation.sql",
-      "017_rename_sample_audio_key.sql",
-      "018_require_adult_reconsent.sql",
-    ]);
+const EXPECTED_TABLES = [
+  "users",
+  "family_voices",
+  "content_library",
+  "generated_clips",
+  "family_invitations",
+  "family_children",
+  "user_saved_stories",
+  "user_story_progress",
+  "voice_jobs",
+  "rate_limits",
+  "consent_records",
+  "data_lifecycle_requests",
+  "invites",
+  "digital_actors",
+  "digital_actor_versions",
+  "digital_actor_assets",
+  "digital_actor_jobs",
+];
+
+describe("local schema — completeness of the migration port", () => {
+  it("schema file starts with a comment header", () => {
+    expect(sql.trimStart().startsWith("--")).toBe(true);
   });
 
-  it("no duplicate numeric prefix", () => {
-    const files = migrationFiles();
-    const prefixes = files.map((f) => f.slice(0, 3));
-    expect(new Set(prefixes).size).toBe(prefixes.length);
-  });
-
-  it("no gaps in numeric sequence (001..018 contiguous)", () => {
-    const files = migrationFiles();
-    const nums = files.map((f) => Number(f.slice(0, 3)));
-    for (let i = 0; i < nums.length; i++) {
-      expect(nums[i]).toBe(i + 1);
+  it("defines all 17 application tables from migrations 001–018", () => {
+    const tables = definedTables(sql);
+    for (const t of EXPECTED_TABLES) {
+      expect(tables, `missing table ${t}`).toContain(t);
     }
   });
 
-  it("each migration starts with a comment header", () => {
-    for (const f of migrationFiles()) {
-      const content = fs.readFileSync(path.join(MIGRATIONS_DIR, f), "utf8");
-      expect(content.trimStart().startsWith("--"), `${f} missing header comment`).toBe(true);
+  it("also defines the Auth.js identity tables (accounts, sessions, verification_tokens)", () => {
+    const tables = definedTables(sql);
+    expect(tables).toContain("accounts");
+    expect(tables).toContain("sessions");
+    expect(tables).toContain("verification_tokens");
+  });
+
+  it("no table is defined twice", () => {
+    const tables = definedTables(sql);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
+
+  it("defines all ported functions, including the four former RPCs", () => {
+    for (const fn of [
+      "check_rate_limit", // lib/rate-limit.ts
+      "increment_usage", // lib/cost-tracking.ts
+      "reset_usage_if_stale", // lib/cost-tracking.ts
+      "lease_voice_job", // lib/voice-jobs.ts
+      "increment_voice_slots",
+      "decrement_voice_slots",
+      "sync_voice_slots",
+      "update_updated_at",
+      "handle_new_user",
+    ]) {
+      expect(sql, `missing function ${fn}`).toMatch(
+        new RegExp(`create or replace function public\\.${fn}`, "i"),
+      );
     }
   });
+});
 
-  it("001 enables RLS on core tables and 011 enables it on rate_limits", () => {
-    const m001 = fs.readFileSync(path.join(MIGRATIONS_DIR, "001_initial_schema.sql"), "utf8");
-    expect(m001).toContain("enable row level security");
-    const m011 = fs.readFileSync(path.join(MIGRATIONS_DIR, "011_sync_slots_and_rate_limits.sql"), "utf8");
-    expect(m011).toContain("rate_limits");
-    expect(m011).toContain("ENABLE ROW LEVEL SECURITY");
+describe("local schema — consent integrity (migrations 012/016/017/018)", () => {
+  it("012: auditable consent + lifecycle tables ported", () => {
+    expect(sql).toContain("public.consent_records");
+    expect(sql).toContain("voice_owner_authorized_at");
+    expect(sql).toContain("public.data_lifecycle_requests");
   });
 
-  it("011 contains sync_voice_slots trigger and check_rate_limit function", () => {
-    const m011 = fs.readFileSync(path.join(MIGRATIONS_DIR, "011_sync_slots_and_rate_limits.sql"), "utf8");
-    expect(m011).toContain("sync_voice_slots");
-    expect(m011).toContain("check_rate_limit");
-    expect(m011).toContain("trg_sync_voice_slots");
+  it("016: adult attestation column present on consent_records", () => {
+    expect(sql).toContain("adult_confirmed_at");
   });
 
-  it("012 adds auditable consent, authorization, and lifecycle requests with RLS", () => {
-    const m012 = fs.readFileSync(path.join(MIGRATIONS_DIR, "012_consent_and_data_lifecycle.sql"), "utf8");
-    expect(m012).toContain("consent_records");
-    expect(m012).toContain("voice_owner_authorized_at");
-    expect(m012).toContain("data_lifecycle_requests");
-    expect(m012).toContain("ENABLE ROW LEVEL SECURITY");
+  it("017: sample_audio_url was renamed to sample_audio_key", () => {
+    expect(sql).toMatch(/rename column sample_audio_url to sample_audio_key/i);
+  });
+
+  it("018: legacy consents are reset so users must re-consent with attestation", () => {
+    expect(sql).toMatch(/set consent_verified = false/i);
+    expect(sql).toContain("adult_confirmed_at IS NOT NULL");
+  });
+
+  it("no database-level policies remain — consent is enforced in app code", () => {
+    expect(sql).not.toMatch(/create policy/i);
+    expect(sql).not.toContain("auth.uid()");
+  });
+});
+
+describe("local schema — feature invariants from individual migrations", () => {
+  it("011: rate_limits table, sync_voice_slots trigger and check_rate_limit exist", () => {
+    expect(sql).toContain("public.rate_limits");
+    expect(sql).toContain("sync_voice_slots");
+    expect(sql).toContain("trg_sync_voice_slots");
+    expect(sql).toContain("check_rate_limit");
   });
 });
 
 describe("backup/restore — procedural proof", () => {
   /**
-   * Real backup/restore is a Supabase ops runbook, not a unit test that hits prod.
-   * This test codifies the invariant: migrations are idempotent (IF NOT EXISTS /
-   * CREATE OR REPLACE) so a snapshot can be restored to a second project by
-   * replaying migrations in order.
+   * Backup/restore is an ops procedure (pg_dump → restore → verify row
+   * counts), documented in OPERATIONS_RUNBOOK.md. The invariant this
+   * suite can pin statically: the schema DDL is idempotent, so a fresh
+   * database can be brought to the current shape by replaying it, and
+   * the runbook documents the restore path.
    */
-  it("all migrations use idempotent DDL (IF NOT EXISTS or OR REPLACE) where applicable", () => {
-    const files = migrationFiles();
-    let idempotentHits = 0;
-    for (const f of files) {
-      const content = fs.readFileSync(path.join(MIGRATIONS_DIR, f), "utf8");
-      if (/IF NOT EXISTS|OR REPLACE|CREATE TABLE IF NOT EXISTS/i.test(content)) {
-        idempotentHits++;
-      }
-    }
-    // At least the schema-creating migrations must be idempotent for restore replay
-    expect(idempotentHits).toBeGreaterThanOrEqual(6);
+  it("schema DDL is idempotent (IF NOT EXISTS / OR REPLACE throughout)", () => {
+    const hits = sql.match(/if not exists|or replace/gi) ?? [];
+    expect(hits.length).toBeGreaterThanOrEqual(6);
   });
 
-  it("runbook exists: pg_dump → restore to second project restores all rows", () => {
-    // This is the documented proof that would be performed once against real projects:
-    // 1. supabase db dump --db-url "$PROD_URL" -f prod.dump
-    // 2. supabase db reset --linked --project-ref "$STAGING_REF" && psql "$STAGING_URL" < prod.dump
-    // 3. Verify row counts match: SELECT count(*) FROM family_voices, generated_clips, etc.
-    // We assert the runbook file was recorded.
-    const runbook = path.join(process.cwd(), "supabase/BACKUP_RESTORE_PROOF.md");
-    // If the runbook hasn't been written yet, expect this to guide creation
-    // After one manual run, this file should exist with timestamps + row counts.
-    const exists = fs.existsSync(runbook);
-    if (!exists) {
-      // Create a placeholder runbook so CI does not stay red forever
-      fs.writeFileSync(
-        runbook,
-        `# Backup/Restore Proof — VoxTree\n\n` +
-          `Runbook to validate migrations and snapshot restore (P0 #6).\n\n` +
-          `## Steps\n` +
-          `1. Apply all migrations to a fresh project: \`supabase db reset\` — verifies 001..011 in order with no gaps/duplicates.\n` +
-          `2. Snapshot: \`supabase db dump --db-url "$PROD_URL" -f prod.dump\`\n` +
-          `3. Restore to second project: \`supabase db reset --linked --project-ref "$STAGING_REF" && psql "$STAGING_URL" < prod.dump\`\n` +
-          `4. Verify counts: \`SELECT count(*) FROM family_voices; SELECT count(*) FROM generated_clips;\` must match source.\n` +
-          `5. Verify RLS still enforced: run tests/rls.test.ts negative tests against restored DB.\n\n` +
-          `## Last verified\n` +
-          `_Pending first manual execution — migrations verified statically in tests/migrations-integrity.test.ts._\n`
-      );
-    }
-    expect(fs.existsSync(runbook)).toBe(true);
+  it("runbook documents the restore procedure", () => {
+    const runbook = fs.readFileSync(
+      path.join(process.cwd(), "OPERATIONS_RUNBOOK.md"),
+      "utf8",
+    );
+    expect(runbook).toMatch(/restore the database/i);
+    expect(runbook).toMatch(/row counts/i);
   });
 });

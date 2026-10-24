@@ -1,8 +1,11 @@
+import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+
+import { hasActiveConsent } from "@/lib/consent";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
 import { logger } from "@/lib/logger";
 import { verifyReplicateWebhook } from "@/lib/webhook-signature";
-import { hasActiveConsent } from "@/lib/consent";
 
 /**
  * Replicate webhook for Flux LoRA training completion. Stores the trained
@@ -43,35 +46,37 @@ export async function POST(request: NextRequest) {
     payload?.output?.weights ||
     (typeof payload?.output === "string" ? payload.output : undefined);
 
-  const admin = createAdminClient();
-
   // Do not mark a clone ready for a user who has revoked consent.
-  const { data: owner } = await admin.from("family_voices").select("user_id").eq("id", voiceId).single();
-  if (owner?.user_id && !(await hasActiveConsent(owner.user_id))) {
-    await admin.from("family_voices").update({ lora_status: "failed", lora_version: null, lora_weights_url: null }).eq("id", voiceId);
+  const [owner] = await db
+    .select({ userId: familyVoices.userId })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
+  if (owner?.userId && !(await hasActiveConsent(owner.userId))) {
+    await db.update(familyVoices).set({ loraStatus: "failed", loraVersion: null, loraWeightsUrl: null }).where(eq(familyVoices.id, voiceId));
     logger.warn("lora_webhook_ignored_no_consent", { voiceId });
     return NextResponse.json({ ok: true });
   }
 
   if (status === "succeeded" && trainedVersion) {
-    await admin
-      .from("family_voices")
-      .update({
-        lora_status: "ready",
-        lora_version: trainedVersion,
-        lora_weights_url: weightsUrl ?? null,
+    await db
+      .update(familyVoices)
+      .set({
+        loraStatus: "ready",
+        loraVersion: trainedVersion,
+        loraWeightsUrl: weightsUrl ?? null,
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
     logger.info("lora_training_succeeded", { voiceId, trainingId, trainedVersion });
     return NextResponse.json({ ok: true });
   }
 
   if (status === "failed" || status === "canceled") {
-    await admin
-      .from("family_voices")
-      .update({ lora_status: "failed" })
-      .eq("id", voiceId);
+    await db
+      .update(familyVoices)
+      .set({ loraStatus: "failed" })
+      .where(eq(familyVoices.id, voiceId));
 
     logger.warn("lora_training_failed", {
       voiceId,

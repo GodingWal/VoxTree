@@ -1,10 +1,15 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { selfUser, voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices, users } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { runPixarLoraInference } from "@/lib/replicate";
+import { UPLOADS_DIR } from "@/lib/uploads";
 import { promises as fs } from "fs";
 import path from "path";
 import { z } from "zod";
@@ -27,11 +32,9 @@ export async function POST(request: NextRequest) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const consentBlocked = await requireActiveConsent(user.id);
   if (consentBlocked) return consentBlocked;
@@ -47,26 +50,30 @@ export async function POST(request: NextRequest) {
   }
   const { voiceId, prompt, aspectRatio } = parsed.data;
 
-  const { data: row } = await supabase
-    .from("family_voices")
-    .select(
-      "id, user_id, lora_status, lora_destination, lora_version, lora_trigger_word"
-    )
-    .eq("id", voiceId)
-    .eq("user_id", user.id)
-    .single();
+  const [row] = await db
+    .select({
+      id: familyVoices.id,
+      userId: familyVoices.userId,
+      loraStatus: familyVoices.loraStatus,
+      loraDestination: familyVoices.loraDestination,
+      loraVersion: familyVoices.loraVersion,
+      loraTriggerWord: familyVoices.loraTriggerWord,
+    })
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+    .limit(1);
   if (!row) return NextResponse.json({ error: "Voice not found" }, { status: 404 });
 
   if (
-    row.lora_status !== "ready" ||
-    !row.lora_destination ||
-    !row.lora_version ||
-    !row.lora_trigger_word
+    row.loraStatus !== "ready" ||
+    !row.loraDestination ||
+    !row.loraVersion ||
+    !row.loraTriggerWord
   ) {
     return NextResponse.json(
       {
         error: "Character LoRA is not ready yet. Train it via /api/avatar/train.",
-        status: row.lora_status ?? "not_started",
+        status: row.loraStatus ?? "not_started",
       },
       { status: 409 }
     );
@@ -74,9 +81,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const outputUrl = await runPixarLoraInference({
-      destination: row.lora_destination,
-      version: row.lora_version,
-      triggerWord: row.lora_trigger_word,
+      destination: row.loraDestination,
+      version: row.loraVersion,
+      triggerWord: row.loraTriggerWord,
       prompt,
       aspectRatio,
     });
@@ -87,7 +94,7 @@ export async function POST(request: NextRequest) {
       const response = await fetch(outputUrl);
       if (response.ok) {
         const buffer = Buffer.from(await response.arrayBuffer());
-        const uploadsDir = path.join(process.cwd(), "public", "uploads");
+        const uploadsDir = UPLOADS_DIR;
         await fs.mkdir(uploadsDir, { recursive: true });
         const filename = `pixar_lora_${voiceId}_${Date.now()}.png`;
         await fs.writeFile(path.join(uploadsDir, filename), buffer);
@@ -95,17 +102,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const admin = createAdminClient();
-    await admin
-      .from("family_voices")
-      .update({
-        avatar_url: pixarUrl,
-        idle_video_url: pixarUrl,
-        talking_video_url: pixarUrl,
+    await db
+      .update(familyVoices)
+      .set({
+        avatarUrl: pixarUrl,
+        idleVideoUrl: pixarUrl,
+        talkingVideoUrl: pixarUrl,
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
-    await admin.from("users").update({ avatar_url: pixarUrl }).eq("id", user.id);
+    await db.update(users).set({ avatarUrl: pixarUrl }).where(selfUser(user.id));
 
     return NextResponse.json({ success: true, avatarUrl: pixarUrl });
   } catch (error: any) {

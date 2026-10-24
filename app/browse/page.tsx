@@ -1,4 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { and, arrayContains, desc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { contentLibrary, familyVoices } from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { BrowseClient } from "./browse-client";
 
 type ContentItem = {
@@ -35,23 +39,29 @@ export default async function BrowsePage({
   const durationFilter = params.duration?.trim() || null;
   const qFilter = params.q?.trim().toLowerCase() || null;
 
-  const supabase = await createClient();
+  // RLS: content_library is readable by any authenticated user (and this
+  // page historically rendered for anonymous visitors too).
+  const conditions = [];
+  if (ageFilter) conditions.push(eq(contentLibrary.ageRange, ageFilter));
+  if (tagFilter) conditions.push(arrayContains(contentLibrary.tags, [tagFilter]));
 
-  let query = supabase.from("content_library").select("*").order("created_at", { ascending: false });
+  const rawContent = await db
+    .select()
+    .from(contentLibrary)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(contentLibrary.createdAt));
 
-  if (ageFilter) {
-    query = query.eq("age_range", ageFilter);
-  }
+  // NOTE: `curriculum` is not a column in the schema (it never existed on
+  // content_library — PostgREST errored on the eq filter and the page saw
+  // an empty list whenever a curriculum filter was set). Expose it as
+  // null and apply the filter below, preserving that observable result.
+  let content = toSnakeRows(rawContent).map((row) => ({
+    ...row,
+    curriculum: null as string | null,
+  })) as unknown as ContentItem[];
   if (curriculumFilter) {
-    query = query.eq("curriculum", curriculumFilter);
+    content = content.filter((c) => c.curriculum === curriculumFilter);
   }
-  if (tagFilter) {
-    query = query.contains("tags", [tagFilter]);
-  }
-
-  const { data: rawContent } = await query;
-
-  let content = (rawContent ?? []) as ContentItem[];
 
   if (durationFilter) {
     if (durationFilter === "short") {
@@ -76,17 +86,22 @@ export default async function BrowsePage({
   }
 
   let voices: Voice[] = [];
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    const { data: voiceData } = await supabase
-      .from("family_voices")
-      .select("id, name, status, relation")
-      .eq("user_id", user.id)
-      .eq("status", "ready")
-      .order("created_at", { ascending: false });
-    voices = voiceData ?? [];
+  const userId = await getCurrentUserId();
+  if (userId) {
+    // RLS owner policy: user_id = uid. `relation` never existed on
+    // family_voices (the old select errored and always returned no
+    // voices); expose it as null to keep the prop shape while returning
+    // the user's real ready voices.
+    const voiceData = await db
+      .select({
+        id: familyVoices.id,
+        name: familyVoices.name,
+        status: familyVoices.status,
+      })
+      .from(familyVoices)
+      .where(and(eq(familyVoices.userId, userId), eq(familyVoices.status, "ready")))
+      .orderBy(desc(familyVoices.createdAt));
+    voices = voiceData.map((row) => ({ ...row, relation: null }));
   }
 
   return (

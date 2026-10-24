@@ -1,41 +1,34 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
+import { desc } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users as usersTable } from "@/lib/db/schema";
+import { toSnakeRow } from "@/lib/db/to-snake";
 import { redirect } from "next/navigation";
 import { UserActions } from "./user-actions";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminUsersPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   const admin = await isAdmin(user.email);
   if (!admin) redirect("/");
 
-  const adminClient = createAdminClient();
+  // Fetch all users. Email now lives on the users row itself (Auth.js),
+  // so the old auth-admin listUsers merge is unnecessary.
+  const publicUsers = await db
+    .select()
+    .from(usersTable)
+    .orderBy(desc(usersTable.createdAt));
 
-  // Fetch all users from public.users
-  const { data: publicUsers } = await adminClient
-    .from("users")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  // Fetch auth users to get emails (requires service role)
-  const {
-    data: { users: authUsers },
-  } = await adminClient.auth.admin.listUsers();
-
-  // Merge the data
-  const users = publicUsers?.map((pu) => {
-    const authUser = authUsers.find((au) => au.id === pu.id);
+  const users = publicUsers.map((pu) => {
+    const row = toSnakeRow(pu) as any;
     return {
-      ...pu,
-      email: authUser?.email ?? "Unknown",
+      ...row,
+      email: (pu.email as string | null) ?? "Unknown",
     };
-  }) ?? [];
+  });
 
   return (
     <Section eyebrow="Management" title={<>All <span className="serif-italic">Users</span> ({users.length})</>}>

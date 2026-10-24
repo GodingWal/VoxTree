@@ -1,5 +1,15 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { asc, desc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import {
+  familyChildren,
+  familyInvitations,
+  familyVoices,
+  invites,
+  users,
+} from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import Link from "next/link";
 import { Section, CloneFullCard } from "@/components/twilight-ui";
 import { VoxMark } from "@/components/voxtree-logo";
@@ -9,21 +19,33 @@ import { InviteGrandmaButton } from "./invite-grandma-button";
 import { isSimulationEnabled } from "@/lib/features";
 
 export default async function FamilyPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
   // 1. Fetch user profile to check subscription plan and bedtime settings
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan, name, bedtime_time, bedtime_autodim, default_background_audio")
-    .eq("id", user.id)
-    .single();
+  // (RLS: users row is self-only, id = uid)
+  const [profileRow] = await db
+    .select({
+      plan: users.plan,
+      name: users.name,
+      bedtimeTime: users.bedtimeTime,
+      bedtimeAutodim: users.bedtimeAutodim,
+      defaultBackgroundAudio: users.defaultBackgroundAudio,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const profile = profileRow
+    ? {
+        plan: profileRow.plan,
+        bedtime_time: profileRow.bedtimeTime,
+        bedtime_autodim: profileRow.bedtimeAutodim,
+        default_background_audio: profileRow.defaultBackgroundAudio,
+      }
+    : null;
 
   const userPlan = profile?.plan || "free";
   const isPremium = userPlan === "premium";
@@ -42,14 +64,12 @@ export default async function FamilyPage() {
   // Fetch children list from database
   let childrenList: any[] = [];
   try {
-    const { data, error } = await supabase
-      .from("family_children")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true });
-    if (!error && data) {
-      childrenList = data;
-    }
+    const data = await db
+      .select()
+      .from(familyChildren)
+      .where(eq(familyChildren.userId, userId))
+      .orderBy(asc(familyChildren.name));
+    childrenList = toSnakeRows(data);
   } catch (e) {
     if (!isSimulationEnabled()) throw e;
     console.warn("Could not query family_children table in development simulation.", e);
@@ -96,58 +116,58 @@ export default async function FamilyPage() {
   };
   const backgroundAudioLabel = backgroundAudioLabels[defaultBackgroundAudio] || "Soft rain by default";
 
-  // 2. Fetch voices
-  const { data: voices } = await supabase
-    .from("family_voices")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  // 2. Fetch voices (RLS owner policy: user_id = uid)
+  const voices = await db
+    .select()
+    .from(familyVoices)
+    .where(eq(familyVoices.userId, userId))
+    .orderBy(desc(familyVoices.createdAt));
 
-  // 3. Fetch family invitations
+  // 3. Fetch family invitations (RLS owner policy: user_id = uid)
   let invitations: any[] = [];
   try {
-    const { data, error } = await supabase
-      .from("family_invitations")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    if (!error && data) {
-      invitations = data;
-    }
+    const data = await db
+      .select()
+      .from(familyInvitations)
+      .where(eq(familyInvitations.userId, userId))
+      .orderBy(desc(familyInvitations.createdAt));
+    invitations = toSnakeRows(data);
   } catch (e) {
     console.warn("Could not query family_invitations table.", e);
   }
 
   // 3b. Fetch grandparent invites (viral loop)
+  // (RLS owner policy: inviter_id = uid)
   let grandparentInvites: any[] = [];
   try {
-    const { data, error } = await supabase
-      .from("invites")
-      .select("*")
-      .eq("inviter_id", user.id)
-      .order("created_at", { ascending: false })
+    const data = await db
+      .select()
+      .from(invites)
+      .where(eq(invites.inviterId, userId))
+      .orderBy(desc(invites.createdAt))
       .limit(10);
-    if (!error && data) grandparentInvites = data;
+    grandparentInvites = toSnakeRows(data);
   } catch (e) {
     console.warn("Could not query invites table.", e);
   }
 
-  // Map supabase voices to Twilight format
-  const clones = voices?.map((v, i) => {
+  // Map voices to Twilight format
+  const clones = voices.map((v, i) => {
     const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8"];
     return {
       id: v.id,
       name: v.name,
       relation: "Relative", // Mock or retrieve from DB
-      recorded: new Date(v.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      recorded: v.createdAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
       status: v.status || "processing",
       lastUsed: "—",
       stories: 0,
       color: colors[i % colors.length],
-      avatar_url: v.avatar_url,
-      model_3d_url: v.model_3d_url || null,
+      avatar_url: v.avatarUrl,
+      // model_3d_url never existed as a column; it was always null.
+      model_3d_url: null as string | null,
     };
-  }) || [];
+  });
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 24px" }}>

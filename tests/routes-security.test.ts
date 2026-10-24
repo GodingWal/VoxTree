@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 
-// ── Helpers to mock Supabase route/admin clients ──
+// ── Helpers to mock the Auth.js session + Drizzle db (Phase 4) ──
 
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
@@ -10,37 +10,79 @@ const mockGetPresignedUploadUrl = vi.fn();
 const mockRateLimit = vi.fn(() => Promise.resolve(null as Response | null));
 const mockUserRateLimit = vi.fn(() => Promise.resolve(null as Response | null));
 
-vi.mock("@/lib/supabase/auth", () => ({
-  getRouteClient: () => ({
-    auth: { getUser: mockGetUser },
-    from: (table: string) => ({
-      insert: (row: unknown) => ({
-        select: () => ({
-          single: () => mockInsert(table, row),
-        }),
-      }),
-      select: () => ({
-        eq: () => ({
-          single: () =>
-            table === "users"
-              ? Promise.resolve({ data: { consent_verified: true, consent_notice_version: "test" }, error: null })
-              : Promise.resolve({ data: (vi as unknown as { _voiceRow?: unknown })._voiceRow ?? null }),
-        }),
-      }),
-    }),
-  }),
+// Voice row returned by family_voices selects in the delete tests.
+const state = vi.hoisted(() => ({ voiceRow: null as Record<string, unknown> | null }));
+
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser: async () => {
+    const u = (await mockGetUser()).data.user;
+    return u ? { id: u.id, email: "user-a@example.com", name: "User A" } : null;
+  },
+  getCurrentUserId: async () => (await mockGetUser()).data.user?.id ?? null,
 }));
 
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: () => ({
-      delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
-      update: () => ({ eq: () => Promise.resolve({ error: null }) }),
-      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) }) }),
-    }),
-    rpc: () => Promise.resolve({ error: null }),
-  }),
-}));
+vi.mock("@/lib/db", async () => {
+  const { getTableName } = await import("drizzle-orm");
+  const chain = (rows: unknown[]) => {
+    const c: Record<string, unknown> = {};
+    for (const m of ["where", "limit", "orderBy", "returning"]) c[m] = () => c;
+    c.then = (res: (v: unknown) => void, rej: (e: unknown) => void) =>
+      Promise.resolve(rows).then(res, rej);
+    return c;
+  };
+  return {
+    db: {
+      select: () => ({
+        from: (table: unknown) => {
+          const name = getTableName(table as never);
+          if (name === "users") {
+            return chain([{ consentVerified: true, consentNoticeVersion: "test" }]);
+          }
+          if (name === "family_voices") {
+            return chain(state.voiceRow ? [state.voiceRow] : []);
+          }
+          return chain([]);
+        },
+      }),
+      insert: (table: unknown) => ({
+        values: (v: Record<string, unknown>) => ({
+          returning: async () => {
+            const name = getTableName(table as never);
+            if (name === "family_voices") {
+              const r = (await mockInsert("family_voices", v)) as {
+                data: Record<string, unknown> | null;
+                error: unknown;
+              };
+              if (r.error) throw r.error;
+              return [r.data];
+            }
+            // voice_jobs (enqueueJob): synthesize a full job row.
+            return [{
+              id: "job-1",
+              userId: v.userId,
+              type: v.type,
+              payload: v.payload ?? {},
+              status: v.status ?? "queued",
+              attempts: 0,
+              maxAttempts: v.maxAttempts ?? 3,
+              lastError: null,
+              workerId: null,
+              result: null,
+              idempotencyKey: v.idempotencyKey ?? null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              completedAt: null,
+              lockedUntil: null,
+            }];
+          },
+        }),
+      }),
+      update: () => ({ set: () => chain([]) }),
+      delete: () => chain([]),
+      execute: async () => ({ rows: [] }),
+    },
+  };
+});
 
 vi.mock("@/lib/voice-provider", () => ({
   deleteVoice: (...args: unknown[]) => mockDeleteVoice(...args),
@@ -98,8 +140,7 @@ beforeEach(() => {
   mockCheckLimit.mockResolvedValue({ allowed: true });
   mockGetPresignedUploadUrl.mockResolvedValue("https://storage.googleapis.com/bucket/voices/user-a/v1.mp3?sig=xxx");
   mockInsert.mockResolvedValue({ data: { id: "voice-1", user_id: "user-a" }, error: null });
-  // @ts-ignore
-  (vi as unknown as { _voiceRow?: unknown })._voiceRow = null;
+  state.voiceRow = null;
 });
 
 describe("POST /api/voices/create", () => {
@@ -146,23 +187,11 @@ describe("POST /api/voices/create", () => {
 });
 
 describe("POST /api/voices/delete — IDOR guard", () => {
-  function setVoiceRow(row: unknown) {
-    // @ts-ignore — thread through mock
-    (vi as unknown as Record<string, unknown>)._voiceRow = row;
-    // Re-mock getRouteClient to return the row
-    vi.doMock("@/lib/supabase/auth", () => ({
-      getRouteClient: () => ({
-        auth: { getUser: mockGetUser },
-        from: () => ({
-          select: () => ({
-            eq: () => ({
-              single: () => Promise.resolve({ data: row }),
-            }),
-          }),
-        }),
-      }),
-    }));
+  function setVoiceRow(row: Record<string, unknown> | null) {
+    // Thread through the db mock's family_voices select.
+    state.voiceRow = row;
   }
+  void setVoiceRow;
 
   it("401 when unauthenticated", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });

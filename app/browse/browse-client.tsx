@@ -102,8 +102,8 @@ export function BrowseClient({ initialStories, voices = [] }: { initialStories: 
     return () => window.removeEventListener("stories-selection-changed", handleChange);
   }, [initialStories]);
 
-  // Persist selections to Supabase (fire-and-forget)
-  const syncSelectionsToSupabase = useCallback(async (ids: string[]) => {
+  // Persist selections to the server (fire-and-forget)
+  const syncSelectionsToServer = useCallback(async (ids: string[]) => {
     try {
       await fetch("/api/library/selections", {
         method: "POST",
@@ -117,14 +117,14 @@ export function BrowseClient({ initialStories, voices = [] }: { initialStories: 
     const newIds = selectedIds.filter(s => s !== id);
     setSelectedIds(newIds);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newIds));
-    syncSelectionsToSupabase(newIds);
+    syncSelectionsToServer(newIds);
   };
 
   const updateProgress = useCallback((contentId: string, seconds: number, completed: boolean) => {
     setProgressMap(prev => {
       const updated = { ...prev, [contentId]: { content_id: contentId, progress_seconds: seconds, completed } };
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(updated));
-      // Sync to Supabase
+      // Sync to the server
       fetch("/api/library/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

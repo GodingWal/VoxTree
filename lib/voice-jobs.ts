@@ -1,11 +1,15 @@
-import { createAdminClient } from "./supabase/admin";
+import { and, eq, inArray, sql } from "drizzle-orm";
+
+import { jobOwnedBy } from "./authz";
+import { db } from "./db";
+import { voiceJobs } from "./db/schema";
 
 /**
  * Thin wrapper around the `voice_jobs` queue defined in migration 010.
  *
  * The queue is *durable*: each cloning step writes a row, and a worker
- * picks it up via the atomic `lease_voice_job()` RPC. If the worker
- * crashes mid-job the lease expires and another worker can retry,
+ * picks it up via the atomic `lease_voice_job()` SQL function. If the
+ * worker crashes mid-job the lease expires and another worker can retry,
  * up to `max_attempts`.
  *
  * Use `enqueueJob(... idempotencyKey)` to make retries safe — the same
@@ -36,6 +40,52 @@ export interface VoiceJob {
   completed_at: string | null;
 }
 
+type VoiceJobRow = typeof voiceJobs.$inferSelect;
+
+function iso(value: Date | string | null | undefined): string | null {
+  if (value == null) return null;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function toVoiceJob(row: VoiceJobRow): VoiceJob {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    type: row.type as VoiceJobType,
+    payload: row.payload,
+    status: row.status as VoiceJob["status"],
+    attempts: row.attempts,
+    max_attempts: row.maxAttempts,
+    last_error: row.lastError,
+    worker_id: row.workerId,
+    result: row.result,
+    idempotency_key: row.idempotencyKey,
+    created_at: iso(row.createdAt) ?? "",
+    updated_at: iso(row.updatedAt) ?? "",
+    completed_at: iso(row.completedAt),
+  };
+}
+
+/** Map a raw pg row (snake_case, from the lease_voice_job SQL function). */
+function rawToVoiceJob(row: Record<string, unknown>): VoiceJob {
+  return {
+    id: row.id as string,
+    user_id: row.user_id as string,
+    type: row.type as VoiceJobType,
+    payload: (row.payload ?? {}) as Record<string, unknown>,
+    status: row.status as VoiceJob["status"],
+    attempts: row.attempts as number,
+    max_attempts: row.max_attempts as number,
+    last_error: (row.last_error as string | null) ?? null,
+    worker_id: (row.worker_id as string | null) ?? null,
+    result: (row.result as Record<string, unknown> | null) ?? null,
+    idempotency_key: (row.idempotency_key as string | null) ?? null,
+    created_at: iso(row.created_at as Date | string) ?? "",
+    updated_at: iso(row.updated_at as Date | string) ?? "",
+    completed_at: iso(row.completed_at as Date | string | null),
+  };
+}
+
 export async function enqueueJob(params: {
   userId: string;
   type: VoiceJobType;
@@ -43,66 +93,60 @@ export async function enqueueJob(params: {
   idempotencyKey?: string;
   maxAttempts?: number;
 }): Promise<VoiceJob> {
-  const admin = createAdminClient();
-  const insert = {
-    user_id: params.userId,
-    type: params.type,
-    payload: params.payload,
-    idempotency_key: params.idempotencyKey ?? null,
-    max_attempts: params.maxAttempts ?? 3,
-    status: "queued" as const,
-  };
-
-  const { data, error } = await admin
-    .from("voice_jobs")
-    .insert(insert)
-    .select()
-    .single();
-
-  if (error) {
+  try {
+    const [row] = await db
+      .insert(voiceJobs)
+      .values({
+        userId: params.userId,
+        type: params.type,
+        payload: params.payload,
+        idempotencyKey: params.idempotencyKey ?? null,
+        maxAttempts: params.maxAttempts ?? 3,
+        status: "queued",
+      })
+      .returning();
+    return toVoiceJob(row);
+  } catch (error) {
     // Idempotency-key collision => return the existing row.
-    if (params.idempotencyKey && error.code === "23505") {
-      const { data: existing } = await admin
-        .from("voice_jobs")
-        .select("*")
-        .eq("idempotency_key", params.idempotencyKey)
-        .single();
-      if (existing) return existing as VoiceJob;
+    if (
+      params.idempotencyKey &&
+      (error as { code?: string })?.code === "23505"
+    ) {
+      const [existing] = await db
+        .select()
+        .from(voiceJobs)
+        .where(eq(voiceJobs.idempotencyKey, params.idempotencyKey))
+        .limit(1);
+      if (existing) return toVoiceJob(existing);
     }
     throw error;
   }
-
-  return data as VoiceJob;
 }
 
 export async function leaseNextJob(params: {
   workerId: string;
   leaseSeconds?: number;
 }): Promise<VoiceJob | null> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.rpc("lease_voice_job", {
-    p_worker_id: params.workerId,
-    p_lease_seconds: params.leaseSeconds ?? 300,
-  });
-  if (error) throw error;
-  const rows = data as VoiceJob[] | null;
-  return rows && rows.length > 0 ? rows[0] : null;
+  const result = await db.execute(
+    sql`select * from lease_voice_job(${params.workerId}, ${params.leaseSeconds ?? 300})`
+  );
+  const rows = result.rows as Array<Record<string, unknown>>;
+  return rows.length > 0 ? rawToVoiceJob(rows[0]) : null;
 }
 
 export async function completeJob(
   jobId: string,
   result: Record<string, unknown>
 ): Promise<void> {
-  const admin = createAdminClient();
-  await admin
-    .from("voice_jobs")
-    .update({
+  await db
+    .update(voiceJobs)
+    .set({
       status: "succeeded",
       result,
-      completed_at: new Date().toISOString(),
-      locked_until: null,
+      completedAt: new Date(),
+      lockedUntil: null,
     })
-    .eq("id", jobId);
+    .where(eq(voiceJobs.id, jobId));
 }
 
 export async function failJob(
@@ -110,41 +154,46 @@ export async function failJob(
   error: string,
   options?: { permanent?: boolean }
 ): Promise<void> {
-  const admin = createAdminClient();
-  const { data: job } = await admin
-    .from("voice_jobs")
-    .select("attempts, max_attempts")
-    .eq("id", jobId)
-    .single();
+  const [job] = await db
+    .select({ attempts: voiceJobs.attempts, maxAttempts: voiceJobs.maxAttempts })
+    .from(voiceJobs)
+    .where(eq(voiceJobs.id, jobId))
+    .limit(1);
 
   const reachedMax =
     !!options?.permanent ||
-    (job ? job.attempts >= job.max_attempts : true);
+    (job ? job.attempts >= job.maxAttempts : true);
 
-  await admin
-    .from("voice_jobs")
-    .update({
+  await db
+    .update(voiceJobs)
+    .set({
       status: reachedMax ? "failed" : "queued",
-      last_error: error,
-      locked_until: null,
-      completed_at: reachedMax ? new Date().toISOString() : null,
+      lastError: error,
+      lockedUntil: null,
+      completedAt: reachedMax ? new Date() : null,
     })
-    .eq("id", jobId);
+    .where(eq(voiceJobs.id, jobId));
 }
 
 export async function cancelJob(jobId: string, userId: string): Promise<boolean> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("voice_jobs")
-    .update({
-      status: "cancelled",
-      completed_at: new Date().toISOString(),
-      locked_until: null,
-    })
-    .eq("id", jobId)
-    .eq("user_id", userId)
-    .in("status", ["queued", "running"])
-    .select("id");
-  if (error) return false;
-  return (data?.length ?? 0) > 0;
+  try {
+    const rows = await db
+      .update(voiceJobs)
+      .set({
+        status: "cancelled",
+        completedAt: new Date(),
+        lockedUntil: null,
+      })
+      .where(
+        and(
+          eq(voiceJobs.id, jobId),
+          jobOwnedBy(userId),
+          inArray(voiceJobs.status, ["queued", "running"])
+        )
+      )
+      .returning({ id: voiceJobs.id });
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
 }

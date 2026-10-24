@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TwilightShell } from "@/components/twilight-layout";
 import { Section } from "@/components/twilight-ui";
+
+import { registerUser } from "./actions";
 
 export default function SignUpPage() {
   const [name, setName] = useState("");
@@ -15,7 +17,6 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
@@ -23,24 +24,28 @@ export default function SignUpPage() {
     setError(null);
     setSuccess(null);
 
-    const { data, error } = await supabase.auth.signUp({
+    const result = await registerUser({ name, email, password });
+
+    if ("error" in result) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
+
+    // No email-confirmation step in the local stack: sign in directly.
+    const signInResult = await signIn("credentials", {
       email,
       password,
-      options: {
-        data: { name },
-        emailRedirectTo: `${window.location.origin}/callback`,
-      },
+      redirect: false,
     });
 
-    if (error) {
-      setError(error.message);
+    if (signInResult?.error) {
+      setSuccess("Account created successfully! Sign in to continue.");
       setLoading(false);
-    } else if (data.session) {
+      router.push("/login");
+    } else {
       router.push("/dashboard");
       router.refresh();
-    } else {
-      setSuccess("Account created successfully! We have sent a confirmation email to " + email + ". Please check your inbox and click the verification link.");
-      setLoading(false);
     }
   }
 

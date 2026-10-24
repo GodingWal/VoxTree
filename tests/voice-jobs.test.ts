@@ -39,71 +39,169 @@ function asJob(partial: Partial<Job>): Job {
   };
 }
 
-vi.mock("../lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-    from: () => ({
-      insert: (row: Partial<Job>) => ({
-        select: () => ({
-          single: () => {
-            if (
-              row.idempotency_key &&
-              Array.from(store.values()).some(
-                (j) => j.idempotency_key === row.idempotency_key
-              )
-            ) {
-              return Promise.resolve({
-                data: null,
-                error: { code: "23505", message: "duplicate" },
-              });
-            }
-            const job = asJob(row);
-            store.set(job.id, job);
-            return Promise.resolve({ data: job, error: null });
-          },
-        }),
-      }),
-      select: () => {
-        const filters: { col: string; val: unknown }[] = [];
-        const builder = {
-          eq(col: string, val: unknown) {
-            filters.push({ col, val });
-            return builder;
-          },
-          in() {
-            return builder;
-          },
-          single() {
-            const match = Array.from(store.values()).find((j) =>
-              filters.every((f) => (j as any)[f.col] === f.val)
+// Phase 4: lib/voice-jobs runs on Drizzle (lib/db). This mock keeps the
+// same in-memory store behind the Drizzle chain surface, translating
+// between the store's snake_case rows and Drizzle's camelCase rows.
+// Recorded update patches stay in the Drizzle (camelCase) shape the lib
+// now sends — the assertions below only inspect `status` and `result`,
+// whose keys are unchanged.
+type CamelJob = {
+  id: string;
+  userId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  status: string;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  workerId: string | null;
+  result: Record<string, unknown> | null;
+  idempotencyKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+  lockedUntil: Date | null;
+};
+
+function toCamel(j: Job): CamelJob {
+  return {
+    id: j.id,
+    userId: j.user_id,
+    type: j.type,
+    payload: j.payload,
+    status: j.status,
+    attempts: j.attempts,
+    maxAttempts: j.max_attempts,
+    lastError: j.last_error,
+    workerId: j.worker_id,
+    result: j.result,
+    idempotencyKey: j.idempotency_key,
+    createdAt: new Date(j.created_at),
+    updatedAt: new Date(j.updated_at),
+    completedAt: j.completed_at ? new Date(j.completed_at) : null,
+    lockedUntil: null,
+  };
+}
+
+/** Positional params bound in a Drizzle SQL condition, in order. Only
+ *  descends through SQL queryChunks — Columns hold circular table refs. */
+function sqlParams(cond: unknown): unknown[] {
+  const out: unknown[] = [];
+  const walk = (node: unknown, depth: number): void => {
+    if (!node || typeof node !== "object" || depth > 8) return;
+    if ((node as object).constructor?.name === "Param") {
+      out.push((node as { value: unknown }).value);
+      return;
+    }
+    const chunks = (node as { queryChunks?: unknown[] }).queryChunks;
+    if (Array.isArray(chunks)) {
+      for (const c of chunks) walk(c, depth + 1);
+    }
+  };
+  walk(cond, 0);
+  return out;
+}
+
+function applyPatch(id: string, patch: Record<string, unknown>) {
+  updates.push({ id, patch: patch as Partial<Job> });
+  const existing = store.get(id);
+  if (!existing) return;
+  const merged: Job = { ...existing };
+  if (patch.status !== undefined) merged.status = patch.status as string;
+  if (patch.result !== undefined) merged.result = patch.result as Job["result"];
+  if (patch.lastError !== undefined) merged.last_error = patch.lastError as string | null;
+  if (patch.completedAt !== undefined) {
+    merged.completed_at =
+      patch.completedAt instanceof Date
+        ? patch.completedAt.toISOString()
+        : (patch.completedAt as string | null);
+  }
+  store.set(id, merged);
+}
+
+vi.mock("../lib/db", () => ({
+  db: {
+    insert: () => ({
+      values: (v: {
+        userId: string;
+        type: string;
+        payload: Record<string, unknown>;
+        idempotencyKey?: string | null;
+        maxAttempts?: number;
+        status?: string;
+      }) => ({
+        returning: () => {
+          if (
+            v.idempotencyKey &&
+            Array.from(store.values()).some(
+              (j) => j.idempotency_key === v.idempotencyKey
+            )
+          ) {
+            // node-postgres surfaces unique violations as a thrown
+            // error with code 23505 — lib/voice-jobs keys off that.
+            return Promise.reject(
+              Object.assign(new Error("duplicate"), { code: "23505" })
             );
-            return Promise.resolve({ data: match ?? null, error: null });
-          },
-        };
-        return builder;
-      },
-      update: (patch: Partial<Job>) => ({
-        eq(_col: string, val: string) {
-          updates.push({ id: val, patch });
-          const existing = store.get(val);
-          if (existing) store.set(val, { ...existing, ...patch });
-          return {
-            eq() {
-              return {
-                in() {
-                  return {
-                    select() {
-                      return Promise.resolve({ data: [{ id: val }], error: null });
-                    },
-                  };
-                },
-              };
-            },
-          };
+          }
+          const job = asJob({
+            user_id: v.userId,
+            type: v.type,
+            payload: v.payload,
+            idempotency_key: v.idempotencyKey ?? null,
+            max_attempts: v.maxAttempts ?? 3,
+            status: v.status ?? "queued",
+          });
+          store.set(job.id, job);
+          return Promise.resolve([toCamel(job)]);
         },
       }),
     }),
-  }),
+    select: () => {
+      let params: unknown[] = [];
+      const chain: Record<string, unknown> = {};
+      chain.from = () => chain;
+      chain.where = (cond: unknown) => {
+        params = sqlParams(cond);
+        return chain;
+      };
+      chain.limit = () => chain;
+      chain.then = (res: (v: unknown) => void, rej: (e: unknown) => void) => {
+        const key = params[0];
+        const match = Array.from(store.values()).find(
+          (j) => j.id === key || j.idempotency_key === key
+        );
+        return Promise.resolve(match ? [toCamel(match)] : []).then(res, rej);
+      };
+      return chain;
+    },
+    update: () => ({
+      set: (patch: Record<string, unknown>) => {
+        let params: unknown[] = [];
+        const chain: Record<string, unknown> = {};
+        chain.where = (cond: unknown) => {
+          params = sqlParams(cond);
+          return chain;
+        };
+        chain.returning = () => {
+          // cancelJob: params are [jobId, userId, ...statuses]; the
+          // update only lands for an owned, still-active job.
+          const [jobId, userId] = params as [string, string];
+          const job = store.get(jobId);
+          if (job && job.user_id === userId && (job.status === "queued" || job.status === "running")) {
+            applyPatch(jobId, patch);
+            return Promise.resolve([{ id: jobId }]);
+          }
+          return Promise.resolve([]);
+        };
+        chain.then = (res: (v: unknown) => void, rej: (e: unknown) => void) => {
+          applyPatch(params[0] as string, patch);
+          return Promise.resolve([]).then(res, rej);
+        };
+        return chain;
+      },
+    }),
+    execute: () => Promise.resolve({ rows: [] }),
+  },
 }));
 
 import { enqueueJob, completeJob, failJob, cancelJob } from "../lib/voice-jobs";
@@ -150,11 +248,11 @@ describe("completeJob", () => {
       type: "voice_clone",
       payload: {},
     });
-    await completeJob(job.id, { elevenlabsVoiceId: "el_1" });
+    await completeJob(job.id, { providerVoiceId: "cb_1" });
     const patch = updates.find((u) => u.id === job.id);
     expect(patch).toBeDefined();
     expect(patch!.patch.status).toBe("succeeded");
-    expect(patch!.patch.result).toEqual({ elevenlabsVoiceId: "el_1" });
+    expect(patch!.patch.result).toEqual({ providerVoiceId: "cb_1" });
   });
 });
 

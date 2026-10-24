@@ -1,8 +1,12 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { checkLoraTrainingStatus } from "@/lib/replicate";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { voiceOwnedBy } from "@/lib/authz";
 import { hasActiveConsent } from "@/lib/consent";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { checkLoraTrainingStatus } from "@/lib/replicate";
 
 /**
  * Poll the LoRA training status for a voice. Falls back to syncing with
@@ -10,39 +14,40 @@ import { hasActiveConsent } from "@/lib/consent";
  * local dev where webhooks aren't reachable, and as a safety net in prod).
  */
 export async function GET(request: NextRequest) {
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const voiceId = request.nextUrl.searchParams.get("voiceId");
   if (!voiceId) return NextResponse.json({ error: "voiceId required" }, { status: 400 });
 
-  const { data: row } = await supabase
-    .from("family_voices")
-    .select(
-      "lora_status, lora_training_id, lora_version, lora_trigger_word, lora_weights_url"
-    )
-    .eq("id", voiceId)
-    .eq("user_id", user.id)
-    .single();
+  const [row] = await db
+    .select({
+      loraStatus: familyVoices.loraStatus,
+      loraTrainingId: familyVoices.loraTrainingId,
+      loraVersion: familyVoices.loraVersion,
+      loraTriggerWord: familyVoices.loraTriggerWord,
+      loraWeightsUrl: familyVoices.loraWeightsUrl,
+    })
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+    .limit(1);
 
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // If still training and we have a training id, ask Replicate directly so
   // dev flows don't depend on webhook reachability.
-  if (row.lora_status === "training" && row.lora_training_id) {
+  if (row.loraStatus === "training" && row.loraTrainingId) {
     // Revoked consent must not be bypassed by the polling completion path.
     if (!(await hasActiveConsent(user.id))) {
-      await createAdminClient()
-        .from("family_voices")
-        .update({ lora_status: "failed", lora_version: null, lora_weights_url: null })
-        .eq("id", voiceId);
+      await db
+        .update(familyVoices)
+        .set({ loraStatus: "failed", loraVersion: null, loraWeightsUrl: null })
+        .where(eq(familyVoices.id, voiceId));
       return NextResponse.json({ status: "failed", consentRequired: true }, { status: 403 });
     }
     try {
-      const remote = await checkLoraTrainingStatus(row.lora_training_id);
+      const remote = await checkLoraTrainingStatus(row.loraTrainingId);
       if (remote.status === "succeeded") {
         const trainedVersion =
           (remote as any).version ||
@@ -54,28 +59,26 @@ export async function GET(request: NextRequest) {
             ? (remote as any).output
             : null);
 
-        const admin = createAdminClient();
-        await admin
-          .from("family_voices")
-          .update({
-            lora_status: "ready",
-            lora_version: trainedVersion,
-            lora_weights_url: weightsUrl,
+        await db
+          .update(familyVoices)
+          .set({
+            loraStatus: "ready",
+            loraVersion: trainedVersion,
+            loraWeightsUrl: weightsUrl,
           })
-          .eq("id", voiceId);
+          .where(eq(familyVoices.id, voiceId));
 
         return NextResponse.json({
           status: "ready",
           version: trainedVersion,
-          triggerWord: row.lora_trigger_word,
+          triggerWord: row.loraTriggerWord,
         });
       }
       if (remote.status === "failed") {
-        const admin = createAdminClient();
-        await admin
-          .from("family_voices")
-          .update({ lora_status: "failed" })
-          .eq("id", voiceId);
+        await db
+          .update(familyVoices)
+          .set({ loraStatus: "failed" })
+          .where(eq(familyVoices.id, voiceId));
         return NextResponse.json({ status: "failed" });
       }
     } catch {
@@ -84,8 +87,8 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({
-    status: row.lora_status ?? "not_started",
-    version: row.lora_version,
-    triggerWord: row.lora_trigger_word,
+    status: row.loraStatus ?? "not_started",
+    version: row.loraVersion,
+    triggerWord: row.loraTriggerWord,
   });
 }

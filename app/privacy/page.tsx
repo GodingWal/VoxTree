@@ -82,7 +82,7 @@ export default function PrivacyPage() {
                   The browser captures a short 1-minute audio recording and optional 5-second video frame.
                 </li>
                 <li>
-                  These inputs are split server-side: the audio is fed to private ElevenLabs API synthesis pipelines, and the visual snapshots are converted to stylized avatars.
+                  These inputs are split server-side: the audio is processed by our self-hosted Chatterbox voice service on our own infrastructure (it never leaves our servers), and the visual snapshots are converted to stylized avatars.
                 </li>
                 <li>
                   Completed video/audio files are generated on demand and stored in private cloud storage buckets protected by unique authorization tokens.

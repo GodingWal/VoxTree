@@ -1,4 +1,6 @@
-import { createAdminClient } from "./supabase/admin";
+import { sql } from "drizzle-orm";
+
+import { db } from "./db";
 
 const ADMIN_EMAILS = ["gwal325@gmail.com"];
 
@@ -12,13 +14,14 @@ export async function isAdmin(email: string | undefined | null): Promise<boolean
   if (ADMIN_EMAILS.includes(email.toLowerCase())) return true;
 
   try {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("users")
-      .select("role")
-      .eq("email", email.toLowerCase())
-      .single();
-    return data?.role === "admin";
+    // The local schema has no `role` column (it was an optional pre-migration
+    // add-on); the query throws in that case and we fall back to false,
+    // exactly as the PostgREST version did when the column was absent.
+    const result = await db.execute(
+      sql`select role from users where email = ${email.toLowerCase()} limit 1`
+    );
+    const row = result.rows[0] as { role?: string } | undefined;
+    return row?.role === "admin";
   } catch {
     // If the column doesn't exist yet, fall back to false
     return false;

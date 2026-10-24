@@ -1,36 +1,26 @@
-import { createClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
+import { getCurrentUser } from "@/lib/auth/session";
+import { count } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { contentLibrary, familyVoices, generatedClips, users } from "@/lib/db/schema";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) redirect("/login");
 
   const admin = await isAdmin(user.email);
   if (!admin) redirect("/");
 
-  // Fetch aggregate stats
-  const { count: userCount } = await supabase
-    .from("users")
-    .select("*", { count: "exact", head: true });
-
-  const { count: voiceCount } = await supabase
-    .from("family_voices")
-    .select("*", { count: "exact", head: true });
-
-  const { count: contentCount } = await supabase
-    .from("content_library")
-    .select("*", { count: "exact", head: true });
-
-  const { count: clipCount } = await supabase
-    .from("generated_clips")
-    .select("*", { count: "exact", head: true });
+  // Fetch aggregate stats (admin-gated above; these tables were read with
+  // the service-role client, i.e. no owner scoping, by design).
+  const [{ value: userCount }] = await db.select({ value: count() }).from(users);
+  const [{ value: voiceCount }] = await db.select({ value: count() }).from(familyVoices);
+  const [{ value: contentCount }] = await db.select({ value: count() }).from(contentLibrary);
+  const [{ value: clipCount }] = await db.select({ value: count() }).from(generatedClips);
 
   const stats = [
     { label: "Total Users", value: userCount ?? 0, color: "var(--moss)" },

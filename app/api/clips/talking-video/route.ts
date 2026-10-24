@@ -1,9 +1,14 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices, generatedClips } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
+import { localMediaPath } from "@/lib/uploads";
 import { generateSpeech } from "@/lib/voice-provider";
 import {
   createTalkingVideo,
@@ -23,7 +28,7 @@ const schema = z.object({
 
 /**
  * Generate a talking-head video of a family member's Pixar clone speaking the
- * given text. ElevenLabs renders the audio with the cloned voice; Hedra
+ * given text. Chatterbox renders the audio with the cloned voice; Hedra
  * Character-3 then drives the Pixar still with that audio.
  *
  * The endpoint returns a Hedra generation ID immediately; the client polls
@@ -33,11 +38,9 @@ export async function POST(request: NextRequest) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const consentBlocked = await requireActiveConsent(user.id);
   if (consentBlocked) return consentBlocked;
@@ -53,20 +56,24 @@ export async function POST(request: NextRequest) {
   }
   const { voiceId, text, aspectRatio, resolution } = parsed.data;
 
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, elevenlabs_voice_id, avatar_url, user_id")
-    .eq("id", voiceId)
-    .eq("user_id", user.id)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      providerVoiceId: familyVoices.providerVoiceId,
+      avatarUrl: familyVoices.avatarUrl,
+      userId: familyVoices.userId,
+    })
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+    .limit(1);
   if (!voice) return NextResponse.json({ error: "Voice not found" }, { status: 404 });
-  if (!voice.elevenlabs_voice_id) {
+  if (!voice.providerVoiceId) {
     return NextResponse.json(
-      { error: "Voice clone is not ready (missing elevenlabs_voice_id)." },
+      { error: "Voice clone is not ready (missing provider_voice_id)." },
       { status: 409 }
     );
   }
-  if (!voice.avatar_url) {
+  if (!voice.avatarUrl) {
     return NextResponse.json(
       { error: "Pixar avatar is required before generating a talking video." },
       { status: 409 }
@@ -78,37 +85,44 @@ export async function POST(request: NextRequest) {
   }
 
   // Create a clip row up front so the UI can poll by clip id if needed.
-  const admin = createAdminClient();
-  const { data: clip, error: clipErr } = await admin
-    .from("generated_clips")
-    .insert({
-      user_id: user.id,
-      voice_id: voiceId,
-      status: "queued",
-    })
-    .select("id")
-    .single();
+  let clip: { id: string } | undefined;
+  let clipErr: unknown = null;
+  try {
+    [clip] = await db
+      .insert(generatedClips)
+      .values({
+        userId: user.id,
+        voiceId,
+        status: "queued",
+      })
+      .returning({ id: generatedClips.id });
+  } catch (e) {
+    clipErr = e;
+  }
   if (clipErr || !clip) {
     return NextResponse.json(
-      { error: "Failed to create clip record", details: clipErr?.message },
+      {
+        error: "Failed to create clip record",
+        details: clipErr instanceof Error ? clipErr.message : undefined,
+      },
       { status: 500 }
     );
   }
 
   try {
     // 1) Render the speech audio with the cloned voice.
-    const audio = await generateSpeech(voice.elevenlabs_voice_id, text);
+    const audio = await generateSpeech(voice.providerVoiceId, text);
     if (audio.length === 0) {
-      // ElevenLabs is in simulation mode — surface a useful error instead of
-      // sending an empty buffer to Hedra (which would 400).
-      await admin
-        .from("generated_clips")
-        .update({ status: "failed" })
-        .eq("id", clip.id);
+      // The voice service returned no audio — surface a useful error
+      // instead of sending an empty buffer to Hedra (which would 400).
+      await db
+        .update(generatedClips)
+        .set({ status: "failed" })
+        .where(eq(generatedClips.id, clip.id));
       return NextResponse.json(
         {
           error:
-            "ElevenLabs is in simulation mode (no API key). Configure ELEVENLABS_API_KEY to generate real audio.",
+            "Voice service returned no audio. Check that the Chatterbox voice service is running (CHATTERBOX_SERVICE_URL).",
           simulated: true,
         },
         { status: 503 }
@@ -120,14 +134,14 @@ export async function POST(request: NextRequest) {
     let imageBuffer: Buffer;
     let imageContentType = "image/png";
     let imageFilename = "avatar.png";
-    if (voice.avatar_url.startsWith("http")) {
-      const res = await fetch(voice.avatar_url);
+    if (voice.avatarUrl.startsWith("http")) {
+      const res = await fetch(voice.avatarUrl);
       if (!res.ok) throw new Error(`avatar fetch failed: ${res.status}`);
       imageBuffer = Buffer.from(await res.arrayBuffer());
       imageContentType = res.headers.get("content-type") ?? "image/png";
-      imageFilename = path.basename(new URL(voice.avatar_url).pathname) || imageFilename;
+      imageFilename = path.basename(new URL(voice.avatarUrl).pathname) || imageFilename;
     } else {
-      const localPath = path.join(process.cwd(), "public", voice.avatar_url);
+      const localPath = localMediaPath(voice.avatarUrl);
       imageBuffer = await fs.readFile(localPath);
       const ext = path.extname(localPath).toLowerCase();
       imageContentType = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : "image/png";
@@ -147,13 +161,13 @@ export async function POST(request: NextRequest) {
       resolution,
     });
 
-    await admin
-      .from("generated_clips")
-      .update({
+    await db
+      .update(generatedClips)
+      .set({
         status: "processing",
-        hedra_generation_id: generation.generationId,
+        hedraGenerationId: generation.generationId,
       })
-      .eq("id", clip.id);
+      .where(eq(generatedClips.id, clip.id));
 
     return NextResponse.json({
       clipId: clip.id,
@@ -167,10 +181,10 @@ export async function POST(request: NextRequest) {
       clipId: clip.id,
       message: error?.message ?? "Unknown error",
     });
-    await admin
-      .from("generated_clips")
-      .update({ status: "failed" })
-      .eq("id", clip.id);
+    await db
+      .update(generatedClips)
+      .set({ status: "failed" })
+      .where(eq(generatedClips.id, clip.id));
 
     return NextResponse.json(
       { error: "Talking video generation failed", details: error?.message },

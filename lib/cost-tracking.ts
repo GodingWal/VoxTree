@@ -1,5 +1,10 @@
-import { createAdminClient } from "./supabase/admin";
+import { sql } from "drizzle-orm";
+
 import type { Plan } from "@/types/database";
+
+import { selfUser } from "./authz";
+import { db } from "./db";
+import { users } from "./db/schema";
 
 /**
  * Per-plan monthly external-API caps. These protect against runaway costs
@@ -10,29 +15,29 @@ import type { Plan } from "@/types/database";
  * detect catastrophic bugs, not throttle normal usage.
  */
 export const COST_CAPS: Record<Plan, {
-  elevenlabsChars: number;
+  ttsChars: number;
   replicateTrainings: number;
   replicateInferences: number;
 }> = {
   free: {
-    elevenlabsChars: 10_000,
+    ttsChars: 10_000,
     replicateTrainings: 1,
     replicateInferences: 10,
   },
   family: {
-    elevenlabsChars: 500_000,
+    ttsChars: 500_000,
     replicateTrainings: 5,
     replicateInferences: 200,
   },
   premium: {
-    elevenlabsChars: 2_000_000,
+    ttsChars: 2_000_000,
     replicateTrainings: 20,
     replicateInferences: 1_000,
   },
 };
 
 export type CostAction =
-  | { kind: "elevenlabs_chars"; chars: number }
+  | { kind: "tts_chars"; chars: number }
   | { kind: "replicate_training" }
   | { kind: "replicate_inference" };
 
@@ -45,23 +50,28 @@ export interface CostCheckResult {
  * Check whether a user can perform a cost-incurring action this month.
  * Resets monthly counters first if the stored usage_reset_at is older than
  * the current month, so a billing-period rollover happens lazily on demand.
+ *
+ * Usage counters live on the `users` row; the speech-character counter is
+ * the `tts_chars_used` column, metered by the `tts_chars` action kind.
  */
 export async function checkCostCap(
   userId: string,
   action: CostAction
 ): Promise<CostCheckResult> {
-  const admin = createAdminClient();
-  await admin.rpc("reset_usage_if_stale", { p_user_id: userId });
+  await db.execute(sql`select reset_usage_if_stale(${userId})`);
 
-  const { data: user, error } = await admin
-    .from("users")
-    .select(
-      "plan, elevenlabs_chars_used, replicate_trainings_used, replicate_inferences_used"
-    )
-    .eq("id", userId)
-    .single();
+  const [user] = await db
+    .select({
+      plan: users.plan,
+      ttsCharsUsed: users.ttsCharsUsed,
+      replicateTrainingsUsed: users.replicateTrainingsUsed,
+      replicateInferencesUsed: users.replicateInferencesUsed,
+    })
+    .from(users)
+    .where(selfUser(userId))
+    .limit(1);
 
-  if (error || !user) {
+  if (!user) {
     return { allowed: false, reason: "User not found" };
   }
 
@@ -69,18 +79,18 @@ export async function checkCostCap(
   const caps = COST_CAPS[plan];
 
   switch (action.kind) {
-    case "elevenlabs_chars": {
-      const projected = (user.elevenlabs_chars_used ?? 0) + action.chars;
-      if (projected > caps.elevenlabsChars) {
+    case "tts_chars": {
+      const projected = (user.ttsCharsUsed ?? 0) + action.chars;
+      if (projected > caps.ttsChars) {
         return {
           allowed: false,
-          reason: `Monthly speech-generation cap reached (${caps.elevenlabsChars.toLocaleString()} characters).`,
+          reason: `Monthly speech-generation cap reached (${caps.ttsChars.toLocaleString()} characters).`,
         };
       }
       return { allowed: true };
     }
     case "replicate_training": {
-      if ((user.replicate_trainings_used ?? 0) + 1 > caps.replicateTrainings) {
+      if ((user.replicateTrainingsUsed ?? 0) + 1 > caps.replicateTrainings) {
         return {
           allowed: false,
           reason: `Monthly model-training cap reached (${caps.replicateTrainings}).`,
@@ -89,7 +99,7 @@ export async function checkCostCap(
       return { allowed: true };
     }
     case "replicate_inference": {
-      if ((user.replicate_inferences_used ?? 0) + 1 > caps.replicateInferences) {
+      if ((user.replicateInferencesUsed ?? 0) + 1 > caps.replicateInferences) {
         return {
           allowed: false,
           reason: `Monthly model-inference cap reached (${caps.replicateInferences}).`,
@@ -107,11 +117,11 @@ export async function recordUsage(
   userId: string,
   action: CostAction
 ): Promise<void> {
-  const admin = createAdminClient();
-  await admin.rpc("increment_usage", {
-    p_user_id: userId,
-    p_elevenlabs_chars: action.kind === "elevenlabs_chars" ? action.chars : 0,
-    p_replicate_trainings: action.kind === "replicate_training" ? 1 : 0,
-    p_replicate_inferences: action.kind === "replicate_inference" ? 1 : 0,
-  });
+  await db.execute(
+    sql`select increment_usage(${userId}, ${
+      action.kind === "tts_chars" ? action.chars : 0
+    }, ${action.kind === "replicate_training" ? 1 : 0}, ${
+      action.kind === "replicate_inference" ? 1 : 0
+    })`
+  );
 }

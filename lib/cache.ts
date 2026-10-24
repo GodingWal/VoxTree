@@ -1,27 +1,35 @@
-import { createAdminClient } from "./supabase/admin";
+import { and, eq } from "drizzle-orm";
+
+import { db } from "./db";
+import { generatedClips } from "./db/schema";
 import { getPublicUrl, GCP_PATHS } from "./gcp";
 
 /**
  * Check if audio has already been generated for a content + voice combination.
  * Returns the public URL if cached, null otherwise.
+ *
+ * This is a cache lookup across users by design (it ran on the
+ * service-role client before the local-stack migration): a ready, cached clip
+ * for the same content+voice pair is reusable regardless of who asks.
  */
 export async function getCachedAudio(
   contentId: string,
   voiceId: string
 ): Promise<string | null> {
-  const supabase = createAdminClient();
+  const [row] = await db
+    .select({ outputVideoUrl: generatedClips.outputVideoUrl })
+    .from(generatedClips)
+    .where(
+      and(
+        eq(generatedClips.contentId, contentId),
+        eq(generatedClips.voiceId, voiceId),
+        eq(generatedClips.status, "ready"),
+        eq(generatedClips.cached, true)
+      )
+    )
+    .limit(1);
 
-  const { data } = await supabase
-    .from("generated_clips")
-    .select("output_video_url")
-    .eq("content_id", contentId)
-    .eq("voice_id", voiceId)
-    .eq("status", "ready")
-    .eq("cached", true)
-    .limit(1)
-    .single();
-
-  return data?.output_video_url ?? null;
+  return row?.outputVideoUrl ?? null;
 }
 
 /**
@@ -34,18 +42,17 @@ export async function markAsCached(
   contentId: string,
   voiceId: string
 ): Promise<string> {
-  const supabase = createAdminClient();
   const videoKey = GCP_PATHS.clipVideo(userId, contentId, voiceId);
   const publicUrl = getPublicUrl(videoKey);
 
-  await supabase
-    .from("generated_clips")
-    .update({
+  await db
+    .update(generatedClips)
+    .set({
       cached: true,
-      output_video_url: publicUrl,
+      outputVideoUrl: publicUrl,
       status: "ready",
     })
-    .eq("id", clipId);
+    .where(eq(generatedClips.id, clipId));
 
   return publicUrl;
 }

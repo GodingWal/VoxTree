@@ -1,10 +1,15 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { selfUser, voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices, users } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
+import { localMediaPath, UPLOADS_DIR } from "@/lib/uploads";
 import { promises as fs } from "fs";
 import path from "path";
 import { z } from "zod";
@@ -27,9 +32,9 @@ export async function POST(request: NextRequest) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const consentBlocked = await requireActiveConsent(user.id);
   if (consentBlocked) return consentBlocked;
@@ -45,13 +50,12 @@ export async function POST(request: NextRequest) {
   }
   const { voiceId, imageUrl } = parsed.data;
 
-  // Ownership: the admin client below bypasses RLS, so verify it here.
-  const { data: ownedVoice } = await supabase
-    .from("family_voices")
-    .select("id")
-    .eq("id", voiceId)
-    .eq("user_id", user.id)
-    .single();
+  // Ownership: the writes below are unscoped by id, so verify it here.
+  const [ownedVoice] = await db
+    .select({ id: familyVoices.id })
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+    .limit(1);
   if (!ownedVoice) return NextResponse.json({ error: "Voice not found" }, { status: 404 });
 
   try {
@@ -70,7 +74,7 @@ export async function POST(request: NextRequest) {
         imageInput = imageUrl;
       } else {
         // Local file — read it and encode as data URI
-        const localPath = path.join(process.cwd(), "public", imageUrl);
+        const localPath = localMediaPath(imageUrl);
         const fileData = await fs.readFile(localPath);
         const ext = path.extname(localPath).toLowerCase();
         const mimeType = ext === ".png" ? "image/png" : "image/jpeg";
@@ -120,7 +124,7 @@ export async function POST(request: NextRequest) {
       if (!response.ok) throw new Error(`Failed to download avatar: ${response.status}`);
       const buffer = Buffer.from(await response.arrayBuffer());
 
-      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      const uploadsDir = UPLOADS_DIR;
       await fs.mkdir(uploadsDir, { recursive: true });
 
       const filename = `pixar_avatar_${voiceId}.png`;
@@ -131,21 +135,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 5: Update the database with the Pixar avatar
-    const admin = createAdminClient();
-    await admin
-      .from("family_voices")
-      .update({
-        avatar_url: pixarUrl,
-        idle_video_url: pixarUrl,
-        talking_video_url: pixarUrl,
+    await db
+      .update(familyVoices)
+      .set({
+        avatarUrl: pixarUrl,
+        idleVideoUrl: pixarUrl,
+        talkingVideoUrl: pixarUrl,
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
     // Update user's profile avatar
-    await admin
-      .from("users")
-      .update({ avatar_url: pixarUrl })
-      .eq("id", user.id);
+    await db
+      .update(users)
+      .set({ avatarUrl: pixarUrl })
+      .where(selfUser(user.id));
 
     return NextResponse.json({ success: true, avatarUrl: pixarUrl });
   } catch (error: any) {
@@ -156,15 +159,14 @@ export async function POST(request: NextRequest) {
     });
 
     // Fallback: keep the raw captured frame as avatar
-    const admin = createAdminClient();
-    await admin
-      .from("family_voices")
-      .update({
-        avatar_url: imageUrl,
-        idle_video_url: imageUrl,
-        talking_video_url: imageUrl,
+    await db
+      .update(familyVoices)
+      .set({
+        avatarUrl: imageUrl,
+        idleVideoUrl: imageUrl,
+        talkingVideoUrl: imageUrl,
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
     return NextResponse.json({
       success: true,

@@ -14,11 +14,6 @@ const envSchema = z.object({
   // App
   NEXT_PUBLIC_APP_URL: z.string().url(),
 
-  // Supabase
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-
   // Stripe
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1),
   STRIPE_SECRET_KEY: z.string().min(1),
@@ -28,8 +23,9 @@ const envSchema = z.object({
   STRIPE_PREMIUM_MONTHLY_PRICE_ID: z.string().min(1),
   STRIPE_PREMIUM_ANNUAL_PRICE_ID: z.string().min(1),
 
-  // ElevenLabs
-  ELEVENLABS_API_KEY: z.string().min(1),
+  // Voice — self-hosted Chatterbox service (workers/chatterbox).
+  // Optional: lib/chatterbox.ts defaults to http://localhost:8001.
+  CHATTERBOX_SERVICE_URL: z.string().url().optional(),
 
   // Replicate
   REPLICATE_API_TOKEN: z.string().min(1),

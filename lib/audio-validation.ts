@@ -3,7 +3,7 @@ import { writeFileSync, unlinkSync, existsSync, mkdtempSync, rmSync } from "node
 import { join } from "node:path";
 import os from "node:os";
 
-// Configured caps. Keep these conservative — ElevenLabs accepts much larger
+// Configured caps. Keep these conservative — The voice service accepts much larger
 // samples, but a 25 MB ceiling matches the GCS signed-PUT default and keeps
 // the cost of a bad upload bounded.
 export const AUDIO_LIMITS = {

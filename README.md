@@ -33,9 +33,10 @@ VoxTree is in active development toward a production launch. What's real today:
 ## Stack
 
 - **Frontend/API:** Next.js 16 (App Router) on Vercel, React 19
-- **Database/Auth/Storage:** Supabase (Postgres + Auth + Storage)
+- **Database/Auth:** PostgreSQL 16 (local, `docker-compose.yml`) via Drizzle ORM; Auth.js (NextAuth v5) — credentials + Google OAuth
+- **Local media:** `data/uploads`, served only through the authenticated `/uploads` route
 - **Media storage:** Google Cloud Storage
-- **Voice:** ElevenLabs today behind `lib/voice-provider.ts` (select with `VOICE_PROVIDER`; add — F5-TTS / XTTS v2 / Chatterbox as new implementations)
+- **Voice:** Self-hosted [Chatterbox](https://github.com/resemble-ai/chatterbox) service (`workers/chatterbox/`, the only voice engine) behind `lib/voice-provider.ts`; the app reaches it at `CHATTERBOX_SERVICE_URL` (default `http://localhost:8001`)
 - **Video/render:** Blender avatar pipeline + RenderMan worker (prototype); Hedra / Replicate for hosted rendering
 - **Payments:** Stripe (subscriptions)
 - **Styling:** Tailwind CSS + shadcn/ui
@@ -55,9 +56,23 @@ npm install
 cp .env.local.example .env.local
 ```
 
-3. Apply the Supabase migrations **in order** (`supabase/migrations/` — the schema is broken without 002+).
+3. Start local Postgres — the schema applies automatically on a fresh volume:
 
-4. Start the dev server:
+```bash
+docker compose up -d db
+```
+
+4. Start the Chatterbox voice service (voice cloning/TTS runs locally; see
+   `workers/chatterbox/README.md` for env vars and hardware notes — a GPU is
+   strongly recommended, CPU works slowly):
+
+```bash
+python3 -m venv workers/chatterbox/.venv
+workers/chatterbox/.venv/bin/pip install -r workers/chatterbox/requirements.txt
+workers/chatterbox/.venv/bin/python workers/chatterbox/server.py
+```
+
+5. Start the dev server:
 
 ```bash
 npm run dev
@@ -79,20 +94,23 @@ app/                    # Next.js App Router pages & API routes
   onboarding/           # Identity capture & voice setup wizard
 components/             # UI components (shadcn/ui + product components)
 lib/                    # Shared server utilities
-  supabase/             # Supabase clients (browser + server + middleware)
-  elevenlabs.ts         # Voice cloning & TTS (ElevenLabs)
+  auth/                 # Auth.js setup, session helpers, password reset
+  db/                   # Drizzle schema + Postgres connection
+  authz.ts              # App-level authorization predicates (former RLS)
+  chatterbox.ts         # Voice cloning & TTS client (self-hosted Chatterbox service)
   hedra.ts              # Hosted video generation (Hedra)
   replicate.ts          # Hosted model inference (Replicate)
   voice-jobs.ts         # Voice job orchestration
   consent.ts            # Consent guard (requireActiveConsent)
-  voice-provider.ts     # Provider-neutral voice API (ElevenLabs adapter)
+  voice-provider.ts     # Provider-neutral voice API (Chatterbox implementation)
   cost-tracking.ts      # Per-video cost accounting
   cache.ts              # Audio caching layer
   limits.ts             # Plan-based usage limits
   rate-limit.ts retry.ts webhook-signature.ts
 workers/
   avatar_pipeline/      # Blender avatar personalization prototype (Python)
-supabase/migrations/    # Database schema & RLS policies (run in order)
+  chatterbox/           # Self-hosted Chatterbox voice service (Python)
+db/init/                # Local Postgres schema (single ported file, auto-applied by compose)
 tests/                  # Vitest suites
 types/                  # TypeScript type definitions
 ```
@@ -105,14 +123,14 @@ types/                  # TypeScript type definitions
 | Clips/month | 10 | 100 | 500 |
 | Content | Basic | All | All |
 
-## Database migrations
+## Database
 
-Apply `supabase/migrations/*.sql` **in numeric order** against every environment (`supabase db push`, or run each file in the SQL editor). Migrations are idempotent and are never rolled back with app rollbacks. `tests/migrations-integrity.test.ts` guards ordering and gaps.
+The schema ships as a single file, `db/init/01_schema.sql` (ported from the former hosted migrations 001–018), and docker-compose applies it automatically on a fresh volume. The row-level-security policies the hosted schema enforced are re-expressed as application-level predicates in `lib/authz.ts` (full inventory in `db/rls-policy-map.md`). The DDL is idempotent and is never rolled back with app rollbacks. `tests/migrations-integrity.test.ts` guards schema completeness and the consent semantics of the port.
 
 ## Deploying
 
 1. Set every variable from `.env.local.example` in the Vercel project (`lib/env.ts` fails the boot in production if one is missing; `SIMULATION_MODE` must not be `true`).
-2. Apply new migrations first, then deploy (`main` deploys after green CI).
+2. Apply schema changes first, then deploy (`main` deploys after green CI).
 3. Register the Stripe webhook (`/api/stripe/webhook`) and Replicate webhooks (`/api/webhooks/replicate`, `/api/avatar/train/webhook`); both Replicate endpoints verify `REPLICATE_WEBHOOK_SECRET` signatures.
 4. Smoke-check `GET /api/health`, then follow `OPERATIONS_RUNBOOK.md`.
 

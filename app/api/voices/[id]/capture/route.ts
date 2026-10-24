@@ -1,10 +1,15 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { selfUser, voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices, users } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
+import { UPLOADS_DIR } from "@/lib/uploads";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -17,14 +22,12 @@ export async function POST(
   if (rateLimited) return rateLimited;
 
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const userId = await getCurrentUserId();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const user = { id: userId };
 
     const consentBlocked = await requireActiveConsent(user.id);
     if (consentBlocked) return consentBlocked;
@@ -43,28 +46,40 @@ export async function POST(
 
     // 2. Save the file locally
     const filename = `visual_clone_${id}_${Date.now()}.png`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const uploadDir = UPLOADS_DIR;
     await fs.mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, filename);
     await fs.writeFile(filePath, buffer);
 
     const publicUrl = `/uploads/${filename}`;
 
-    // 3. Update family_voices with captured frame immediately
-    const { error: dbError } = await supabase
-      .from("family_voices")
-      .update({
-        avatar_url: publicUrl,
-        idle_video_url: publicUrl,
-        talking_video_url: publicUrl,
-      })
-      .eq("id", id);
+    // 3. Update family_voices with captured frame immediately.
+    // Owner-scoped: this write previously ran under the family_voices RLS
+    // policies, which only let a user update their own voices.
+    let dbError: unknown = null;
+    try {
+      await db
+        .update(familyVoices)
+        .set({
+          avatarUrl: publicUrl,
+          idleVideoUrl: publicUrl,
+          talkingVideoUrl: publicUrl,
+        })
+        .where(and(eq(familyVoices.id, id), voiceOwnedBy(user.id)));
+    } catch (e) {
+      dbError = e;
+    }
 
     // 4. Update current user's profile avatar_url
-    const { error: userDbError } = await supabase
-      .from("users")
-      .update({ avatar_url: publicUrl })
-      .eq("id", user.id);
+    let userDbError: unknown = null;
+    try {
+      await db
+        .update(users)
+        .set({ avatarUrl: publicUrl })
+        .where(selfUser(user.id));
+    } catch (e) {
+      userDbError = e;
+    }
 
     // 5. Trigger Pixar avatar generation in background (non-blocking, inline)
     (async () => {
@@ -73,7 +88,6 @@ export async function POST(
 
         // Pass the raw image directly as base64 data URI to Replicate
         const dataUri = `data:image/png;base64,${base64Data}`;
-        const admin = createAdminClient();
 
         const output = await replicate.run(
           "fofr/face-to-many:a07f252abbbd832009640b27f063ea52d87d7a23a185ca165bec23b5adc8deaf",
@@ -105,14 +119,14 @@ export async function POST(
             await fs.writeFile(path.join(uploadDir, pixarFilename), pixarBuffer);
 
             const pixarUrl = `/uploads/${pixarFilename}`;
-            await admin
-              .from("family_voices")
-              .update({ avatar_url: pixarUrl, idle_video_url: pixarUrl, talking_video_url: pixarUrl })
-              .eq("id", id);
-            await admin
-              .from("users")
-              .update({ avatar_url: pixarUrl })
-              .eq("id", user.id);
+            await db
+              .update(familyVoices)
+              .set({ avatarUrl: pixarUrl, idleVideoUrl: pixarUrl, talkingVideoUrl: pixarUrl })
+              .where(eq(familyVoices.id, id));
+            await db
+              .update(users)
+              .set({ avatarUrl: pixarUrl })
+              .where(selfUser(user.id));
           }
         }
       } catch (err) {

@@ -21,7 +21,6 @@ export function TwilightShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-import { createClient } from "@/lib/supabase/client";
 import { getAmbientSynth } from "@/lib/ambient-synth";
 import { Volume2, VolumeX, Menu, X } from "lucide-react";
 
@@ -30,7 +29,6 @@ function TopBar() {
   const [initials, setInitials] = React.useState("U");
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
   const [session, setSession] = React.useState<any>(null);
-  const supabase = createClient();
 
   // Bedtime reactive states
   const [bedtimeAudio, setBedtimeAudio] = React.useState<string>("none");
@@ -73,16 +71,13 @@ function TopBar() {
       config = JSON.parse(stored);
     } else {
       try {
-        const { data } = await supabase
-          .from("users")
-          .select("bedtime_time, bedtime_autodim, default_background_audio")
-          .eq("id", userId)
-          .single();
+        const res = await fetch("/api/me/settings");
+        const data = res.ok ? await res.json() : null;
         if (data) {
           config = {
-            time: data.bedtime_time || "21:00",
-            autodim: data.bedtime_autodim !== false,
-            audio: data.default_background_audio || "soft_rain"
+            time: data.bedtimeTime || "21:00",
+            autodim: data.bedtimeAutodim !== false,
+            audio: data.defaultBackgroundAudio || "soft_rain"
           };
           localStorage.setItem(localKey, JSON.stringify(config));
         }
@@ -107,43 +102,45 @@ function TopBar() {
         setIsAmbientPlaying(true);
       } catch (err) {}
     }
-  }, [supabase]);
+  }, []);
 
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) {
-        const email = data.session.user.email || "";
-        const name = data.session.user.user_metadata?.full_name || email.split("@")[0] || "User";
-        setInitials(name.substring(0, 2).toUpperCase());
+    // Auth.js session (same JSON the next-auth client reads).
+    fetch("/api/auth/session")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const sessionData = data?.user ? data : null;
+        setSession(sessionData);
+        if (sessionData?.user) {
+          const email = sessionData.user.email || "";
+          const name = sessionData.user.name || email.split("@")[0] || "User";
+          setInitials(name.substring(0, 2).toUpperCase());
 
-        // Load bedtime configurations
-        fetchBedtimeSettings(data.session.user.id);
+          // Load bedtime configurations
+          fetchBedtimeSettings(sessionData.user.id);
 
-        // Fetch avatar_url from public.users table
-        const fetchAvatar = async () => {
-          try {
-            const { data: profile } = await supabase
-              .from("users")
-              .select("avatar_url")
-              .eq("id", data.session.user.id)
-              .single();
-            if (profile?.avatar_url) {
-              setAvatarUrl(profile.avatar_url);
-            } else {
-              const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
+          // Fetch avatar_url from the users table (via /api/me/settings)
+          const fetchAvatar = async () => {
+            try {
+              const res = await fetch("/api/me/settings");
+              const profile = res.ok ? await res.json() : null;
+              if (profile?.avatarUrl) {
+                setAvatarUrl(profile.avatarUrl);
+              } else {
+                const simulated = localStorage.getItem(`sim_avatar_user_${sessionData.user.id}`);
+                if (simulated) setAvatarUrl(simulated);
+              }
+            } catch (err) {
+              console.warn("Failed to fetch user avatar in TopBar", err);
+              const simulated = localStorage.getItem(`sim_avatar_user_${sessionData.user.id}`);
               if (simulated) setAvatarUrl(simulated);
             }
-          } catch (err) {
-            console.warn("Failed to fetch user avatar in TopBar", err);
-            const simulated = localStorage.getItem(`sim_avatar_user_${data.session.user.id}`);
-            if (simulated) setAvatarUrl(simulated);
-          }
-        };
-        fetchAvatar();
-      }
-    });
-  }, [fetchBedtimeSettings, supabase]);
+          };
+          fetchAvatar();
+        }
+      })
+      .catch(() => {});
+  }, [fetchBedtimeSettings]);
 
   // Listen to custom settings update events to dynamically adapt UI
   React.useEffect(() => {

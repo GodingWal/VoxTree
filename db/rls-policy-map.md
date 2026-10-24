@@ -1,0 +1,38 @@
+# RLS policies removed in the local port — each becomes an app-level check in Phase 4
+
+- **Users can read own data** — `create policy "Users can read own data" on public.users for select using (auth.uid() = id);`
+- **Users can update own data** — `create policy "Users can update own data" on public.users for update using (auth.uid() = id);`
+- **Users can read own voices** — `create policy "Users can read own voices" on public.family_voices for select using (auth.uid() = user_id);`
+- **Users can insert own voices** — `create policy "Users can insert own voices" on public.family_voices for insert with check (auth.uid() = user_i`
+- **Users can update own voices** — `create policy "Users can update own voices" on public.family_voices for update using (auth.uid() = user_id);`
+- **Users can delete own voices** — `create policy "Users can delete own voices" on public.family_voices for delete using (auth.uid() = user_id);`
+- **Authenticated users can read content** — `create policy "Authenticated users can read content" on public.content_library for select using (auth.role() =`
+- **Users can read own clips** — `create policy "Users can read own clips" on public.generated_clips for select using (auth.uid() = user_id);`
+- **Users can insert own clips** — `create policy "Users can insert own clips" on public.generated_clips for insert with check (auth.uid() = user_`
+- **Users can update own clips** — `create policy "Users can update own clips" on public.generated_clips for update using (auth.uid() = user_id);`
+- **Users can delete own clips** — `create policy "Users can delete own clips" on public.generated_clips for delete using (auth.uid() = user_id);`
+- **Users can view own family invitations** — `CREATE POLICY "Users can view own family invitations" ON public.family_invitations FOR SELECT USING (auth.uid(`
+- **Users can insert own family invitations** — `CREATE POLICY "Users can insert own family invitations" ON public.family_invitations FOR INSERT WITH CHECK (au`
+- **Users can delete own family invitations** — `CREATE POLICY "Users can delete own family invitations" ON public.family_invitations FOR DELETE USING (auth.ui`
+- **Users can view own children** — `CREATE POLICY "Users can view own children" ON public.family_children FOR SELECT USING (auth.uid() = user_id);`
+- **Users can insert own children** — `CREATE POLICY "Users can insert own children" ON public.family_children FOR INSERT WITH CHECK (auth.uid() = us`
+- **Users can update own children** — `CREATE POLICY "Users can update own children" ON public.family_children FOR UPDATE USING (auth.uid() = user_id`
+- **Users can delete own children** — `CREATE POLICY "Users can delete own children" ON public.family_children FOR DELETE USING (auth.uid() = user_id`
+- **Users can read own saved stories** — `CREATE POLICY "Users can read own saved stories" ON public.user_saved_stories FOR SELECT USING (auth.uid() = u`
+- **Users can insert own saved stories** — `CREATE POLICY "Users can insert own saved stories" ON public.user_saved_stories FOR INSERT WITH CHECK (auth.ui`
+- **Users can delete own saved stories** — `CREATE POLICY "Users can delete own saved stories" ON public.user_saved_stories FOR DELETE USING (auth.uid() =`
+- **Users can read own progress** — `CREATE POLICY "Users can read own progress" ON public.user_story_progress FOR SELECT USING (auth.uid() = user_`
+- **Users can insert own progress** — `CREATE POLICY "Users can insert own progress" ON public.user_story_progress FOR INSERT WITH CHECK (auth.uid() `
+- **Users can update own progress** — `CREATE POLICY "Users can update own progress" ON public.user_story_progress FOR UPDATE USING (auth.uid() = use`
+- **Users can read own jobs** — `CREATE POLICY "Users can read own jobs" ON public.voice_jobs FOR SELECT USING (auth.uid() = user_id);`
+- **Users can view own consent records** — `CREATE POLICY "Users can view own consent records" ON public.consent_records FOR SELECT USING (auth.uid() = us`
+- **Users can insert own consent records** — `CREATE POLICY "Users can insert own consent records" ON public.consent_records FOR INSERT WITH CHECK (auth.uid`
+- **Users can view own lifecycle requests** — `CREATE POLICY "Users can view own lifecycle requests" ON public.data_lifecycle_requests FOR SELECT USING (auth`
+- **Users can create own lifecycle requests** — `CREATE POLICY "Users can create own lifecycle requests" ON public.data_lifecycle_requests FOR INSERT WITH CHEC`
+- **Users can read own invites** — `CREATE POLICY "Users can read own invites" ON public.invites FOR SELECT USING (auth.uid() = inviter_id);`
+- **Users can create own invites** — `CREATE POLICY "Users can create own invites" ON public.invites FOR INSERT WITH CHECK (auth.uid() = inviter_id)`
+- **Users can update own invites** — `CREATE POLICY "Users can update own invites" ON public.invites FOR UPDATE USING (auth.uid() = inviter_id) WITH`
+- **actor_owner on public** — `create policy actor_owner on public.digital_actors for all using(user_id = auth.uid()) with check(user_id = au`
+- **actor_version_owner on public** — `create policy actor_version_owner on public.digital_actor_versions for select using(user_id = auth.uid());`
+- **actor_asset_owner on public** — `create policy actor_asset_owner on public.digital_actor_assets for select using(user_id = auth.uid());`
+- **actor_job_owner on public** — `create policy actor_job_owner on public.digital_actor_jobs for select using(user_id = auth.uid());`

@@ -32,7 +32,7 @@ export function TestVoiceButton({ voiceId }: { voiceId: string }) {
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (data.simulated) {
-          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled)");
+          alert("Simulation Mode: Testing voice requires the Chatterbox voice service to be running. (Audio disabled)");
           setLoading(false);
           return;
         }
