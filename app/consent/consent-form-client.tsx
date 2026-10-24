@@ -16,6 +16,7 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
   const [signature, setSignature] = useState("");
   const [relationship, setRelationship] = useState("");
   const [voiceOwnerAuthorization, setVoiceOwnerAuthorization] = useState(false);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +24,10 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
     e.preventDefault();
     if (!agree) {
       setError("You must agree to the terms of the Parental Consent Agreement.");
+      return;
+    }
+    if (!adultConfirmed) {
+      setError("Voice and face capture is limited to adults (18+). Please confirm.");
       return;
     }
     if (signature.trim().toLowerCase() !== name.trim().toLowerCase()) {
@@ -40,6 +45,7 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
         signature,
         agreementAccepted: agree,
         voiceOwnerAuthorizationConfirmed: voiceOwnerAuthorization,
+        adultConfirmed,
       });
       if (res.success) {
         router.refresh();
@@ -77,13 +83,13 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
         textAlign: "left"
       }}>
         <p style={{ marginTop: 0 }}>
-          <strong>Parental Consent for Child Audio/Visual Processing</strong>
+          <strong>Consent for Adult Voice and Likeness Processing</strong>
         </p>
         <p>
           By signing this agreement, you authorize VoxTree to capture, store, and process:
         </p>
         <ul style={{ paddingLeft: 16, margin: "8px 0" }}>
-          <li>Audio recordings of family members (including minors) to train voice clones.</li>
+          <li>Audio recordings of adult (18+) family members to train voice clones. Voices and likenesses of minors are never captured.</li>
           <li>Webcam snapshots and visual frames to create Pixar-style illustrative storytellers.</li>
           <li>Synthesized bedtime story playbacks containing voice and visual overlays.</li>
         </ul>
@@ -93,7 +99,7 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
           All data generated through VoxTree is encrypted during transit and at rest. Snapshots and audio samples are kept strictly private inside your family tree and are never shared, sold, or used to train third-party public AI models. You retain absolute ownership and control, and can permanently delete child profiles or voice clones at any time.
         </p>
         <p style={{ marginBottom: 0 }}>
-          I certify that I am the parent or legal guardian of the child/children registered under this family account, and I have the authority to grant this consent.
+          I certify that I am the account holder, that every person whose voice or likeness is captured is 18 or older and has authorized it, and that the children in my family account will only watch content, never be recorded.
         </p>
       </div>
 
@@ -152,6 +158,13 @@ export function ConsentFormClient({ parentName }: ConsentFormClientProps) {
           <input type="checkbox" checked={voiceOwnerAuthorization} onChange={(e) => setVoiceOwnerAuthorization(e.target.checked)} style={{ marginTop: 3, cursor: "pointer" }} />
           <span style={{ fontSize: 13, color: "var(--paper-dim)", lineHeight: 1.4 }}>
             I will only upload a voice or likeness when I have authorization from that person or lawful authority to act for them.
+          </span>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", userSelect: "none" }}>
+          <input type="checkbox" checked={adultConfirmed} onChange={(e) => setAdultConfirmed(e.target.checked)} style={{ marginTop: 3, cursor: "pointer" }} />
+          <span style={{ fontSize: 13, color: "var(--paper-dim)", lineHeight: 1.4 }}>
+            Every person whose voice or likeness I upload is 18 or older.
           </span>
         </label>
 

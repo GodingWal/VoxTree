@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkTrainingStatus } from "@/lib/replicate";
+import { hasActiveConsent } from "@/lib/consent";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +24,15 @@ export async function GET(request: Request) {
 
   if (voice.rvc_training_status !== "processing" || !voice.rvc_model_id) {
     return NextResponse.json({ status: voice.rvc_training_status });
+  }
+
+  // Revoked consent must not be bypassed by the polling completion path.
+  if (!(await hasActiveConsent(user.id))) {
+    await createAdminClient()
+      .from("family_voices")
+      .update({ rvc_training_status: "failed", rvc_model_id: null })
+      .eq("id", voiceId);
+    return NextResponse.json({ status: "failed", consentRequired: true }, { status: 403 });
   }
 
   // Currently, rvc_model_id holds the Replicate training ID during processing

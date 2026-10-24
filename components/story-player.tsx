@@ -8,7 +8,7 @@ interface Voice {
   id: string;
   name: string;
   status: string;
-  sample_audio_url?: string | null;
+  sample_audio_key?: string | null;
   relation?: string | null;
 }
 

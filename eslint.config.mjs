@@ -12,7 +12,11 @@ export default defineConfig([
       "@typescript-eslint/ban-ts-comment": "off",
       "@typescript-eslint/no-require-imports": "off",
       "react-hooks/set-state-in-effect": "off",
+      // Use lib/logger.ts for structured output; warn/error remain allowed.
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
+  // Logger implementation and CLI scripts write to stdout by design.
+  { files: ["lib/logger.ts", "scripts/**"], rules: { "no-console": "off" } },
   globalIgnores([".next/**", "node_modules/**", "coverage/**", ".gemini/**", "playwright-report/**", "test-results/**"]),
 ]);

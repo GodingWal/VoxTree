@@ -1,6 +1,6 @@
 import { getRouteClient } from "@/lib/supabase/auth";
 import { hasActiveConsent } from "@/lib/consent";
-import { generateSpeech } from "@/lib/elevenlabs";
+import { generateSpeech } from "@/lib/voice-provider";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 

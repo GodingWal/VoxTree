@@ -6,6 +6,7 @@ import {
   safeJson,
 } from "@/lib/api-helpers";
 import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
+import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const consentBlocked = await requireActiveConsent(user.id);
+  if (consentBlocked) return consentBlocked;
 
   const parsedJson = await safeJson(request);
   if ("error" in parsedJson) return parsedJson.error;
@@ -57,7 +61,7 @@ export async function POST(request: Request) {
   // 1. Verify ownership
   const { data: voice } = await supabase
     .from("family_voices")
-    .select("id, user_id, sample_audio_url, rvc_training_status, rvc_model_id")
+    .select("id, user_id, sample_audio_key, rvc_training_status, rvc_model_id")
     .eq("id", voiceId)
     .single();
 
@@ -82,7 +86,7 @@ export async function POST(request: Request) {
     });
   }
 
-  if (!voice.sample_audio_url) {
+  if (!voice.sample_audio_key) {
     return NextResponse.json({ error: "No audio sample available to train on" }, { status: 400 });
   }
 
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
 
   try {
     // 2. Generate a public URL for Replicate to download the audio from GCP
-    const audioUrl = await getPresignedDownloadUrl(voice.sample_audio_url);
+    const audioUrl = await getPresignedDownloadUrl(voice.sample_audio_key);
 
     // 3. Setup the Webhook URL
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

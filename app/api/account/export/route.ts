@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logger } from "@/lib/logger";
+import { GCP_PATHS, listObjectsWithDownloadUrls } from "@/lib/gcp";
 
 const TABLES = [
   "users",
@@ -35,12 +36,25 @@ export async function GET() {
     data[table] = error ? { unavailable: true } : rows;
   }
 
+  // Stored media (voice samples, rendered clips, consent proof) as expiring signed URLs.
+  let media: unknown;
+  try {
+    media = await listObjectsWithDownloadUrls([
+      `voice-samples/${user.id}/`,
+      `clips/${user.id}/`,
+      GCP_PATHS.consentVideoPrefix(user.id),
+    ]);
+  } catch (e) {
+    logger.error("account_export_media_failed", { userId: user.id, message: e instanceof Error ? e.message : String(e) });
+    media = { unavailable: true };
+  }
+
   logger.info("account_export_completed", { userId: user.id });
   if (lifecycleRequest?.id) {
     await admin.from("data_lifecycle_requests").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", lifecycleRequest.id);
   }
   return NextResponse.json(
-    { exportedAt: new Date().toISOString(), accountEmail: user.email, data },
+    { exportedAt: new Date().toISOString(), accountEmail: user.email, data, media, mediaLinksExpireInSeconds: 3600 },
     {
       headers: {
         "Content-Disposition": `attachment; filename="voxtree-export-${new Date().toISOString().slice(0, 10)}.json"`,

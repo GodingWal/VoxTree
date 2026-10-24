@@ -17,9 +17,9 @@ The master-video model: artist-authored scenes are the canvas; the family's clon
 
 ### Safety by design
 
-- Adult-only avatar capture is the proposed policy. The current voice flow does not enforce an age gate, and the consent form permits processing minors; both need reconciliation before this policy can be presented as active.
-- Consent records and checks exist for parts of the voice and clip pipeline. Capture and talking-video routes still need active-consent checks before biometric processing; revocation is not yet enforced at every stage.
-- Account data export, deletion, and consent revocation endpoints exist at `/api/account/export`, `/api/account/delete`, and `/api/account/revoke-consent`. Export currently returns database records, not a package of stored media assets.
+- Adult-only capture: the consent form requires an 18+ attestation (stored as `consent_records.adult_confirmed_at`) and no longer authorizes processing minors. This is an attestation, not identity/age verification; add that before a public avatar launch.
+- Every route that processes a voice, face, or body goes through `requireActiveConsent()` (`lib/consent.ts`); Replicate/LoRA webhooks re-check consent before marking a model ready, and background voice cloning re-checks before persisting. `tests/consent-guard.test.ts` enforces this per route.
+- Account data export, deletion, and consent revocation endpoints exist at `/api/account/export`, `/api/account/delete`, and `/api/account/revoke-consent`. Export returns database records plus expiring signed links to stored media (voice samples, clips, consent video).
 
 ## Current status
 
@@ -35,7 +35,7 @@ VoxTree is in active development toward a production launch. What's real today:
 - **Frontend/API:** Next.js 16 (App Router) on Vercel, React 19
 - **Database/Auth/Storage:** Supabase (Postgres + Auth + Storage)
 - **Media storage:** Google Cloud Storage
-- **Voice:** ElevenLabs today (provider abstraction planned — F5-TTS / XTTS v2 / Chatterbox candidates)
+- **Voice:** ElevenLabs today behind `lib/voice-provider.ts` (select with `VOICE_PROVIDER`; add — F5-TTS / XTTS v2 / Chatterbox as new implementations)
 - **Video/render:** Blender avatar pipeline + RenderMan worker (prototype); Hedra / Replicate for hosted rendering
 - **Payments:** Stripe (subscriptions)
 - **Styling:** Tailwind CSS + shadcn/ui
@@ -84,7 +84,8 @@ lib/                    # Shared server utilities
   hedra.ts              # Hosted video generation (Hedra)
   replicate.ts          # Hosted model inference (Replicate)
   voice-jobs.ts         # Voice job orchestration
-  consent.ts            # Consent helpers
+  consent.ts            # Consent guard (requireActiveConsent)
+  voice-provider.ts     # Provider-neutral voice API (ElevenLabs adapter)
   cost-tracking.ts      # Per-video cost accounting
   cache.ts              # Audio caching layer
   limits.ts             # Plan-based usage limits
@@ -104,10 +105,22 @@ types/                  # TypeScript type definitions
 | Clips/month | 10 | 100 | 500 |
 | Content | Basic | All | All |
 
+## Database migrations
+
+Apply `supabase/migrations/*.sql` **in numeric order** against every environment (`supabase db push`, or run each file in the SQL editor). Migrations are idempotent and are never rolled back with app rollbacks. `tests/migrations-integrity.test.ts` guards ordering and gaps.
+
+## Deploying
+
+1. Set every variable from `.env.local.example` in the Vercel project (`lib/env.ts` fails the boot in production if one is missing; `SIMULATION_MODE` must not be `true`).
+2. Apply new migrations first, then deploy (`main` deploys after green CI).
+3. Register the Stripe webhook (`/api/stripe/webhook`) and Replicate webhooks (`/api/webhooks/replicate`, `/api/avatar/train/webhook`); both Replicate endpoints verify `REPLICATE_WEBHOOK_SECRET` signatures.
+4. Smoke-check `GET /api/health`, then follow `OPERATIONS_RUNBOOK.md`.
+
 ## Docs
 
-- `Voice_Cloning_Architecture.md` — voice pipeline design
+- `docs/architecture/Voice_Cloning_Architecture.md` — voice pipeline design
+- `docs/architecture/Face_Body_Cloning_Architecture.md` and `docs/architecture/VOXTREE_VISUAL_STYLE_GUIDE.md` — avatar architecture and visual style
 - `workers/avatar_pipeline/README.md` + `RENDERING_RULES.md` — avatar worker contract and render rules
-- `PRODUCTION_LAUNCH_PLAN_30_DAYS.md` — launch checklist and release process (PRs into `main`, green CI required)
+- `docs/planning/PRODUCTION_LAUNCH_PLAN_30_DAYS.md` — launch checklist and release process (PRs into `main`, green CI required)
 - `OPERATIONS_RUNBOOK.md` — operating the service
 - `IMPROVEMENTS.md` — known gaps and suggested order of attack

@@ -21,16 +21,16 @@ export async function GET(request: Request) {
 
   const { data: voice } = await supabase
     .from("family_voices")
-    .select("id, sample_audio_url, user_id")
+    .select("id, sample_audio_key, user_id")
     .eq("id", voiceId)
     .single();
 
-  if (!voice || voice.user_id !== user.id || !voice.sample_audio_url) {
+  if (!voice || voice.user_id !== user.id || !voice.sample_audio_key) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    let key = voice.sample_audio_url;
+    let key = voice.sample_audio_key;
     // Fallback if existing record has a full URL
     if (key.startsWith("http")) {
       const url = new URL(key);

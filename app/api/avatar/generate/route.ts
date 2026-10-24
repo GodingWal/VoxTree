@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRouteClient } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enforcePaidRateLimit, safeJson } from "@/lib/api-helpers";
+import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { replicate } from "@/lib/replicate";
 import { promises as fs } from "fs";
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const consentBlocked = await requireActiveConsent(user.id);
+  if (consentBlocked) return consentBlocked;
+
   const parsedJson = await safeJson(request);
   if ("error" in parsedJson) return parsedJson.error;
   const parsed = generateSchema.safeParse(parsedJson.body);
@@ -40,6 +44,15 @@ export async function POST(request: NextRequest) {
     );
   }
   const { voiceId, imageUrl } = parsed.data;
+
+  // Ownership: the admin client below bypasses RLS, so verify it here.
+  const { data: ownedVoice } = await supabase
+    .from("family_voices")
+    .select("id")
+    .eq("id", voiceId)
+    .eq("user_id", user.id)
+    .single();
+  if (!ownedVoice) return NextResponse.json({ error: "Voice not found" }, { status: 404 });
 
   try {
     let pixarUrl: string;
