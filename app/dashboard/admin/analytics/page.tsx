@@ -1,46 +1,57 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
+import { count, eq, inArray } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { contentLibrary, familyVoices, generatedClips, users } from "@/lib/db/schema";
 import { redirect } from "next/navigation";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminAnalyticsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   const admin = await isAdmin(user.email);
   if (!admin) redirect("/");
 
-  const adminClient = createAdminClient();
-
-  // Basic counts
-  const { count: userCount } = await adminClient.from("users").select("*", { count: "exact", head: true });
-  const { count: premiumUserCount } = await adminClient.from("users").select("*", { count: "exact", head: true }).eq("plan", "premium");
-  const { count: voiceCount } = await adminClient.from("family_voices").select("*", { count: "exact", head: true });
-  const { count: clipCount } = await adminClient.from("generated_clips").select("*", { count: "exact", head: true });
-  const { count: contentCount } = await adminClient.from("content_library").select("*", { count: "exact", head: true });
+  // Basic counts (admin-gated above; service-role semantics before).
+  const [{ value: userCount }] = await db.select({ value: count() }).from(users);
+  const [{ value: premiumUserCount }] = await db
+    .select({ value: count() })
+    .from(users)
+    .where(eq(users.plan, "premium"));
+  void premiumUserCount;
+  const [{ value: voiceCount }] = await db.select({ value: count() }).from(familyVoices);
+  const [{ value: clipCount }] = await db.select({ value: count() }).from(generatedClips);
+  const [{ value: contentCount }] = await db.select({ value: count() }).from(contentLibrary);
 
   // Most active users
-  const { data: clips } = await adminClient.from("generated_clips").select("user_id, content_id");
-  const userClipCounts = (clips || []).reduce((acc: Record<string, number>, clip) => {
-    acc[clip.user_id] = (acc[clip.user_id] || 0) + 1;
+  const clips = await db
+    .select({ userId: generatedClips.userId, contentId: generatedClips.contentId })
+    .from(generatedClips);
+  const userClipCounts = clips.reduce((acc: Record<string, number>, clip) => {
+    acc[clip.userId] = (acc[clip.userId] || 0) + 1;
     return acc;
   }, {});
   const topUserIds = Object.entries(userClipCounts)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
     .map(([id]) => id);
-  
-  const { data: topUsersData } = topUserIds.length > 0 
-    ? await adminClient.from("users").select("id, name, email").in("id", topUserIds)
-    : { data: [] };
+
+  // Email lives on the users row now; the old select("id, name, email")
+  // against hosted public.users (which had no email column) errored and
+  // this list always rendered empty.
+  const topUsersData = topUserIds.length > 0
+    ? await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(inArray(users.id, topUserIds))
+    : [];
 
   // Popular Content
-  const contentCounts = (clips || []).reduce((acc: Record<string, number>, clip) => {
-    acc[clip.content_id] = (acc[clip.content_id] || 0) + 1;
+  const contentCounts = clips.reduce((acc: Record<string, number>, clip) => {
+    // Clips with no content_id could never match a content row (the old
+    // code keyed them under "null"); skip them.
+    if (clip.contentId) acc[clip.contentId] = (acc[clip.contentId] || 0) + 1;
     return acc;
   }, {});
   const topContentIds = Object.entries(contentCounts)
@@ -48,13 +59,16 @@ export default async function AdminAnalyticsPage() {
     .slice(0, 5)
     .map(([id]) => id);
 
-  const { data: topContentData } = topContentIds.length > 0
-    ? await adminClient.from("content_library").select("id, title, content_type").in("id", topContentIds)
-    : { data: [] };
+  const topContentData = topContentIds.length > 0
+    ? await db
+        .select({ id: contentLibrary.id, title: contentLibrary.title, content_type: contentLibrary.contentType })
+        .from(contentLibrary)
+        .where(inArray(contentLibrary.id, topContentIds))
+    : [];
 
   // Sort them to match the counts
-  const topUsers = topUsersData?.map(u => ({ ...u, count: userClipCounts[u.id] })).sort((a, b) => b.count - a.count) || [];
-  const topContent = topContentData?.map(c => ({ ...c, count: contentCounts[c.id] })).sort((a, b) => b.count - a.count) || [];
+  const topUsers = topUsersData.map(u => ({ ...u, count: userClipCounts[u.id] })).sort((a, b) => b.count - a.count);
+  const topContent = topContentData.map(c => ({ ...c, count: contentCounts[c.id] })).sort((a, b) => b.count - a.count);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 56 }}>

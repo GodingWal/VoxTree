@@ -1,45 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { getTalkingVideoStatus } from "@/lib/hedra";
+import { and, eq } from "drizzle-orm";
 import { promises as fs } from "fs";
+import { NextRequest, NextResponse } from "next/server";
 import path from "path";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { clipOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices, generatedClips } from "@/lib/db/schema";
+import { getTalkingVideoStatus } from "@/lib/hedra";
+import { UPLOADS_DIR } from "@/lib/uploads";
 
 /**
  * Poll the Hedra talking-video status for a given clip and, once complete,
  * persist the playable URL on the clip row + on the family_voices record.
  */
 export async function GET(request: NextRequest) {
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
   const clipId = request.nextUrl.searchParams.get("clipId");
   if (!clipId) return NextResponse.json({ error: "clipId required" }, { status: 400 });
 
-  const { data: clip } = await supabase
-    .from("generated_clips")
-    .select("id, voice_id, status, hedra_generation_id, talking_video_url")
-    .eq("id", clipId)
-    .eq("user_id", user.id)
-    .single();
+  const [clip] = await db
+    .select({
+      id: generatedClips.id,
+      voiceId: generatedClips.voiceId,
+      status: generatedClips.status,
+      hedraGenerationId: generatedClips.hedraGenerationId,
+      talkingVideoUrl: generatedClips.talkingVideoUrl,
+    })
+    .from(generatedClips)
+    .where(and(eq(generatedClips.id, clipId), clipOwnedBy(user.id)))
+    .limit(1);
   if (!clip) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (clip.status === "ready" && clip.talking_video_url) {
+  if (clip.status === "ready" && clip.talkingVideoUrl) {
     return NextResponse.json({
       status: "ready",
-      videoUrl: clip.talking_video_url,
+      videoUrl: clip.talkingVideoUrl,
     });
   }
 
-  if (!clip.hedra_generation_id) {
+  if (!clip.hedraGenerationId) {
     return NextResponse.json({ status: clip.status });
   }
 
-  const remote = await getTalkingVideoStatus(clip.hedra_generation_id);
-  const admin = createAdminClient();
+  const remote = await getTalkingVideoStatus(clip.hedraGenerationId);
 
   if (remote.status === "complete" && remote.videoUrl) {
     // Mirror the video locally so subsequent loads don't depend on Hedra's
@@ -50,7 +57,7 @@ export async function GET(request: NextRequest) {
         const res = await fetch(remote.videoUrl);
         if (res.ok) {
           const buf = Buffer.from(await res.arrayBuffer());
-          const uploadsDir = path.join(process.cwd(), "public", "uploads");
+          const uploadsDir = UPLOADS_DIR;
           await fs.mkdir(uploadsDir, { recursive: true });
           const filename = `talking_${clip.id}.mp4`;
           await fs.writeFile(path.join(uploadsDir, filename), buf);
@@ -61,26 +68,26 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await admin
-      .from("generated_clips")
-      .update({ status: "ready", talking_video_url: storedUrl })
-      .eq("id", clip.id);
+    await db
+      .update(generatedClips)
+      .set({ status: "ready", talkingVideoUrl: storedUrl })
+      .where(eq(generatedClips.id, clip.id));
 
-    if (clip.voice_id) {
-      await admin
-        .from("family_voices")
-        .update({ talking_video_url: storedUrl })
-        .eq("id", clip.voice_id);
+    if (clip.voiceId) {
+      await db
+        .update(familyVoices)
+        .set({ talkingVideoUrl: storedUrl })
+        .where(eq(familyVoices.id, clip.voiceId));
     }
 
     return NextResponse.json({ status: "ready", videoUrl: storedUrl });
   }
 
   if (remote.status === "error") {
-    await admin
-      .from("generated_clips")
-      .update({ status: "failed" })
-      .eq("id", clip.id);
+    await db
+      .update(generatedClips)
+      .set({ status: "failed" })
+      .where(eq(generatedClips.id, clip.id));
     return NextResponse.json({ status: "failed" });
   }
 

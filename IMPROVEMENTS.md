@@ -16,7 +16,7 @@ Living list of what is done and what remains. Replaces the June 2026 review and
 1. **Real age/identity verification** — the 18+ gate is an attestation only. Needed before public avatar launch.
 2. **Biometric files in `public/uploads`** — `omni-upload`, `capture`, and avatar routes still write recordings/frames to the web-served `public/uploads`. Move to private GCS with signed URLs (same as `voices/process`).
 3. **Durable job queue** — clip/clone/render work runs in route handlers and `async` IIFEs that die with the serverless instance. Move to a queue with idempotent webhooks.
-4. **Second voice provider** — implement F5-TTS/XTTS/Chatterbox behind `VoiceProvider`.
+4. **Voice provider** — done: self-hosted Chatterbox is the only implementation behind `VoiceProvider` (`workers/chatterbox/`).
 5. **Test coverage** — `clips/generate`, `account/delete`, `account/export`, `revoke-consent` route tests; webhook idempotency for Stripe events.
 6. **Cost alerts** — warn at 80% of a user's cap and of the vendor budget.
 7. Counsel review of consent/privacy copy (see runbook).

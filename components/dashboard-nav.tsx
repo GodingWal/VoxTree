@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { planLabel } from "@/lib/limits";
 import { isAdminEmail } from "@/lib/admin";
 import type { Plan } from "@/types/database";
@@ -8,10 +8,8 @@ import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { ProfileDropdown } from "@/components/profile-dropdown";
 
 export async function DashboardNav() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // The session user IS the users row under Auth.js (RLS: self-only).
+  const user = await getCurrentUser();
 
   let plan: Plan = "free";
   let userName = "User";
@@ -19,16 +17,8 @@ export async function DashboardNav() {
 
   if (user) {
     userEmail = user.email ?? "";
-    const { data: profile } = await supabase
-      .from("users")
-      .select("plan, name")
-      .eq("id", user.id)
-      .single();
-
-    if (profile) {
-      plan = (profile.plan ?? "free") as Plan;
-      userName = profile.name || user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-    }
+    plan = (user.plan ?? "free") as Plan;
+    userName = user.name || user.email?.split("@")[0] || "User";
   }
 
   const showAdmin = isAdminEmail(userEmail);

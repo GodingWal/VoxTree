@@ -1,0 +1,6 @@
+# Chatterbox TTS by Resemble AI (MIT). Verified package/API: chatterbox-tts
+# 0.1.7 exposes chatterbox.mtl_tts.ChatterboxMultilingualTTS with
+# from_pretrained(device=...) and generate(text, language_id,
+# audio_prompt_path=...). torch/torchaudio/transformers come in transitively
+# and are large; install into a dedicated venv (see README).
+chatterbox-tts==0.1.7

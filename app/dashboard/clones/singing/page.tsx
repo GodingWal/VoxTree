@@ -1,23 +1,26 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { desc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { Mic2, Music, UploadCloud, AlertCircle } from "lucide-react";
 
 export default async function SingingClonesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
   // Fetch voices to show their singing model status
-  const { data: voices } = await supabase
-    .from("family_voices")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  // (RLS owner policy: user_id = uid).
+  const voiceRows = await db
+    .select()
+    .from(familyVoices)
+    .where(eq(familyVoices.userId, userId))
+    .orderBy(desc(familyVoices.createdAt));
+  const voices = toSnakeRows(voiceRows) as any[];
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

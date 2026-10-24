@@ -1,5 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { BedtimeClient } from "./bedtime-client";
 import { isSimulationEnabled } from "@/lib/features";
 
@@ -9,37 +12,34 @@ export const metadata = {
 };
 
 export default async function BedtimePage() {
-  const supabase = await createClient();
-  
   // Get authenticated user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
-  // Fetch user settings
+  // Fetch user settings (RLS: users row is self-only)
   let initialTime = "21:00";
   let initialAutodim = true;
   let initialAudio = "soft_rain";
   let dbSimulated = false;
 
   try {
-    const { data, error } = await supabase
-      .from("users")
-      .select("bedtime_time, bedtime_autodim, default_background_audio")
-      .eq("id", user.id)
-      .single();
+    const [data] = await db
+      .select({
+        bedtimeTime: users.bedtimeTime,
+        bedtimeAutodim: users.bedtimeAutodim,
+        defaultBackgroundAudio: users.defaultBackgroundAudio,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    if (error) {
-      if (!isSimulationEnabled()) throw error;
-      dbSimulated = true;
-    } else if (data) {
-      initialTime = data.bedtime_time || "21:00";
-      initialAutodim = data.bedtime_autodim !== false;
-      initialAudio = data.default_background_audio || "soft_rain";
+    if (data) {
+      initialTime = data.bedtimeTime || "21:00";
+      initialAutodim = data.bedtimeAutodim !== false;
+      initialAudio = data.defaultBackgroundAudio || "soft_rain";
     }
   } catch (err) {
     if (!isSimulationEnabled()) throw err;
@@ -48,7 +48,7 @@ export default async function BedtimePage() {
 
   return (
     <BedtimeClient
-      userId={user.id}
+      userId={userId}
       initialTime={initialTime}
       initialAutodim={initialAutodim}
       initialAudio={initialAudio}

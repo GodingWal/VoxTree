@@ -1,5 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { familyChildren } from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { ChildrenClient } from "./children-client";
 import { isSimulationEnabled } from "@/lib/features";
 
@@ -9,37 +13,28 @@ export const metadata = {
 };
 
 export default async function ChildrenPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
-  // Fetch children profiles from database
+  // Fetch children profiles from database (RLS owner policy: user_id = uid)
   let dbChildren: any[] = [];
   let simulatedMode = false;
   try {
-    const { data, error } = await supabase
-      .from("family_children")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("name", { ascending: true });
-    
-    if (error) {
-      if (!isSimulationEnabled()) throw error;
-      simulatedMode = true;
-    } else if (data) {
-      dbChildren = data;
-    }
+    const data = await db
+      .select()
+      .from(familyChildren)
+      .where(eq(familyChildren.userId, userId))
+      .orderBy(asc(familyChildren.name));
+    dbChildren = toSnakeRows(data);
   } catch (err) {
     if (!isSimulationEnabled()) throw err;
     simulatedMode = true;
   }
 
   return (
-    <ChildrenClient dbChildren={dbChildren} userId={user.id} dbSimulated={simulatedMode} />
+    <ChildrenClient dbChildren={dbChildren} userId={userId} dbSimulated={simulatedMode} />
   );
 }

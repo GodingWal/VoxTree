@@ -1,17 +1,20 @@
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+
 import {
   enforcePaidRateLimit,
   enforceUserRateLimit,
   safeJson,
 } from "@/lib/api-helpers";
-import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { requireActiveConsent } from "@/lib/consent";
-import { logger } from "@/lib/logger";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { trainSingingModel } from "@/lib/replicate";
+import { checkCostCap, recordUsage } from "@/lib/cost-tracking";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
 import { getPresignedDownloadUrl } from "@/lib/gcp";
+import { logger } from "@/lib/logger";
+import { trainSingingModel } from "@/lib/replicate";
 
 const trainSchema = z.object({
   voiceId: z.string().uuid(),
@@ -21,12 +24,12 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userId };
 
   const consentBlocked = await requireActiveConsent(user.id);
   if (consentBlocked) return consentBlocked;
@@ -59,42 +62,46 @@ export async function POST(request: Request) {
   }
 
   // 1. Verify ownership
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, user_id, sample_audio_key, rvc_training_status, rvc_model_id")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      userId: familyVoices.userId,
+      sampleAudioKey: familyVoices.sampleAudioKey,
+      rvcTrainingStatus: familyVoices.rvcTrainingStatus,
+      rvcModelId: familyVoices.rvcModelId,
+    })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== user.id) {
+  if (!voice || voice.userId !== user.id) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
 
   // Idempotency: don't kick off a second training when one is in flight
   // or already finished successfully.
-  if (voice.rvc_training_status === "processing" && voice.rvc_model_id) {
+  if (voice.rvcTrainingStatus === "processing" && voice.rvcModelId) {
     return NextResponse.json({
       status: "processing",
-      trainingId: voice.rvc_model_id,
+      trainingId: voice.rvcModelId,
       idempotent: true,
     });
   }
-  if (voice.rvc_training_status === "ready") {
+  if (voice.rvcTrainingStatus === "ready") {
     return NextResponse.json({
       status: "ready",
-      rvcModelId: voice.rvc_model_id,
+      rvcModelId: voice.rvcModelId,
       idempotent: true,
     });
   }
 
-  if (!voice.sample_audio_key) {
+  if (!voice.sampleAudioKey) {
     return NextResponse.json({ error: "No audio sample available to train on" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-
   try {
     // 2. Generate a public URL for Replicate to download the audio from GCP
-    const audioUrl = await getPresignedDownloadUrl(voice.sample_audio_key);
+    const audioUrl = await getPresignedDownloadUrl(voice.sampleAudioKey);
 
     // 3. Setup the Webhook URL
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -104,13 +111,13 @@ export async function POST(request: Request) {
     const training = await trainSingingModel(audioUrl, webhookUrl);
 
     // 5. Update Database to processing status and store the training ID
-    await admin
-      .from("family_voices")
-      .update({
-        rvc_training_status: "processing",
-        rvc_model_id: training.id, // Temporarily store training ID here so we can poll status if needed
+    await db
+      .update(familyVoices)
+      .set({
+        rvcTrainingStatus: "processing",
+        rvcModelId: training.id, // Temporarily store training ID here so we can poll status if needed
       })
-      .eq("id", voiceId);
+      .where(eq(familyVoices.id, voiceId));
 
     await recordUsage(user.id, { kind: "replicate_training" });
 
@@ -121,7 +128,7 @@ export async function POST(request: Request) {
       userId: user.id,
       message: error instanceof Error ? error.message : "Unknown error",
     });
-    await admin.from("family_voices").update({ rvc_training_status: "failed" }).eq("id", voiceId);
+    await db.update(familyVoices).set({ rvcTrainingStatus: "failed" }).where(eq(familyVoices.id, voiceId));
     return NextResponse.json({ error: "Failed to initiate training" }, { status: 500 });
   }
 }

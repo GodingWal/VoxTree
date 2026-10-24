@@ -1,5 +1,9 @@
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq, inArray, lt } from "drizzle-orm";
+
+import { getCurrentUser } from "@/lib/auth/session";
+import { clipOwnedBy, voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { contentLibrary, familyVoices, generatedClips } from "@/lib/db/schema";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
 import { generateSpeech } from "@/lib/voice-provider";
@@ -45,8 +49,7 @@ export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -96,12 +99,12 @@ export async function POST(request: Request) {
   // (voice-specific check happens after voice fetch in the background job, but
   // we also do a lightweight pre-check on the content script if available)
   {
-    const { data: _abuseContent } = await supabase
-      .from("content_library")
-      .select("text_script")
-      .eq("id", contentId)
-      .single();
-    const script = (_abuseContent as unknown as { text_script?: string | null })?.text_script ?? null;
+    const [_abuseContent] = await db
+      .select({ textScript: contentLibrary.textScript })
+      .from(contentLibrary)
+      .where(eq(contentLibrary.id, contentId))
+      .limit(1);
+    const script = _abuseContent?.textScript ?? null;
     if (script) {
       const abusePre = checkAbuse({
         voiceOwnerName: null,
@@ -109,9 +112,9 @@ export async function POST(request: Request) {
         textScript: script,
         authUser: {
           id: user.id,
-          email: (user as any).email ?? null,
-          displayName: (user as any).user_metadata?.["full_name"] ?? (user as any).user_metadata?.["name"] ?? null,
-          user_metadata: (user as any).user_metadata ?? null,
+          email: user.email ?? null,
+          displayName: user.name ?? null,
+          user_metadata: null,
         },
       });
       if (abusePre.blocked) {
@@ -121,40 +124,47 @@ export async function POST(request: Request) {
   }
 
   // Fetch the content details to determine mode
-  const { data: content, error: contentError } = await supabase
-    .from("content_library")
-    .select("content_mode, text_script, isolated_vocals_url, instrumental_url, original_video_url")
-    .eq("id", contentId)
-    .single();
+  const [content] = await db
+    .select({
+      contentMode: contentLibrary.contentMode,
+      textScript: contentLibrary.textScript,
+      isolatedVocalsUrl: contentLibrary.isolatedVocalsUrl,
+      instrumentalUrl: contentLibrary.instrumentalUrl,
+      originalVideoUrl: contentLibrary.originalVideoUrl,
+    })
+    .from(contentLibrary)
+    .where(eq(contentLibrary.id, contentId))
+    .limit(1);
 
-  if (contentError || !content) {
+  if (!content) {
     return NextResponse.json({ error: "Content not found" }, { status: 404 });
   }
 
-  if (content.content_mode === "tts" && !content.text_script) {
+  if (content.contentMode === "tts" && !content.textScript) {
     return NextResponse.json({ error: "This story does not have a text script configured." }, { status: 400 });
   }
 
-  if (!content.instrumental_url) {
+  if (!content.instrumentalUrl) {
     return NextResponse.json({ error: "This story is missing a background music track." }, { status: 400 });
   }
 
   // Abuse fence: verify selected voice is not a celebrity impersonation
   {
-    const { data: voiceForAbuse } = await supabase
-      .from("family_voices")
-      .select("name, voice_owner_name")
-      .eq("id", voiceId)
-      .single();
+    // Owner-scoped: under RLS this read could not see another user's voice.
+    const [voiceForAbuse] = await db
+      .select({ name: familyVoices.name, voiceOwnerName: familyVoices.voiceOwnerName })
+      .from(familyVoices)
+      .where(and(eq(familyVoices.id, voiceId), voiceOwnedBy(user.id)))
+      .limit(1);
     if (voiceForAbuse) {
       const voiceAbuse = checkAbuse({
-        voiceOwnerName: (voiceForAbuse as any).voice_owner_name ?? null,
-        voiceName: (voiceForAbuse as any).name ?? null,
+        voiceOwnerName: voiceForAbuse.voiceOwnerName ?? null,
+        voiceName: voiceForAbuse.name ?? null,
         authUser: {
           id: user.id,
-          email: (user as any).email ?? null,
-          displayName: (user as any).user_metadata?.["full_name"] ?? (user as any).user_metadata?.["name"] ?? null,
-          user_metadata: (user as any).user_metadata ?? null,
+          email: user.email ?? null,
+          displayName: user.name ?? null,
+          user_metadata: null,
         },
       });
       if (voiceAbuse.blocked) {
@@ -175,30 +185,38 @@ export async function POST(request: Request) {
 
   // Auto-cleanup any stuck clips for this user (created > 15 mins ago and still processing/queued)
   try {
-    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    await supabase
-      .from("generated_clips")
-      .update({ status: "failed" })
-      .eq("user_id", user.id)
-      .in("status", ["queued", "processing"])
-      .lt("created_at", fifteenMinsAgo);
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+    await db
+      .update(generatedClips)
+      .set({ status: "failed" })
+      .where(
+        and(
+          clipOwnedBy(user.id),
+          inArray(generatedClips.status, ["queued", "processing"]),
+          lt(generatedClips.createdAt, fifteenMinsAgo)
+        )
+      );
   } catch (cleanupErr) {
     console.error("Failed to clean up stuck clips:", cleanupErr);
   }
 
   // Create a clip record in queued status
-  const { data: clip, error: insertError } = await supabase
-    .from("generated_clips")
-    .insert({
-      user_id: user.id,
-      content_id: contentId,
-      voice_id: voiceId,
-      status: "queued",
-    })
-    .select()
-    .single();
+  let clip: { id: string } | undefined;
+  try {
+    [clip] = await db
+      .insert(generatedClips)
+      .values({
+        userId: user.id,
+        contentId,
+        voiceId,
+        status: "queued",
+      })
+      .returning();
+  } catch {
+    clip = undefined;
+  }
 
-  if (insertError || !clip) {
+  if (!clip) {
     return NextResponse.json(
       { error: "Failed to create clip record" },
       { status: 500 }
@@ -208,14 +226,16 @@ export async function POST(request: Request) {
   // Background processing function
   const processClip = async () => {
     const ffmpeg = await getFfmpeg();
-    const admin = createAdminClient();
     try {
       // Fetch voice details
-      const { data: voice } = await admin
-        .from("family_voices")
-        .select("elevenlabs_voice_id, rvc_model_id")
-        .eq("id", voiceId)
-        .single();
+      const [voice] = await db
+        .select({
+          providerVoiceId: familyVoices.providerVoiceId,
+          rvcModelId: familyVoices.rvcModelId,
+        })
+        .from(familyVoices)
+        .where(eq(familyVoices.id, voiceId))
+        .limit(1);
 
       if (!voice) throw new Error("Voice not found");
 
@@ -226,34 +246,35 @@ export async function POST(request: Request) {
 
       let rawVocalsBuffer: Buffer;
 
-      if (content.content_mode === "tts") {
-        if (!voice.elevenlabs_voice_id) throw new Error("TTS voice not set up");
-        const charCount = content.text_script.length;
+      if (content.contentMode === "tts") {
+        if (!voice.providerVoiceId) throw new Error("TTS voice not set up");
+        const textScript = content.textScript ?? "";
+        const charCount = textScript.length;
         const costCheck = await checkCostCap(user.id, {
-          kind: "elevenlabs_chars",
+          kind: "tts_chars",
           chars: charCount,
         });
         if (!costCheck.allowed) {
           throw new Error(costCheck.reason ?? "Cost cap reached");
         }
-        logger.info(`Generating speech via ElevenLabs for clip ${clip.id}`);
-        rawVocalsBuffer = await generateSpeech(voice.elevenlabs_voice_id, content.text_script);
-        await recordUsage(user.id, { kind: "elevenlabs_chars", chars: charCount });
-      } else if (content.content_mode === "v2v") {
-        if (!voice.rvc_model_id) throw new Error("V2V singing voice not set up");
+        logger.info(`Generating speech via Chatterbox for clip ${clip.id}`);
+        rawVocalsBuffer = await generateSpeech(voice.providerVoiceId, textScript);
+        await recordUsage(user.id, { kind: "tts_chars", chars: charCount });
+      } else if (content.contentMode === "v2v") {
+        if (!voice.rvcModelId) throw new Error("V2V singing voice not set up");
         const costCheck = await checkCostCap(user.id, { kind: "replicate_inference" });
         if (!costCheck.allowed) {
           throw new Error(costCheck.reason ?? "Cost cap reached");
         }
         logger.info(`Triggering Replicate V2V workflow for clip ${clip.id}`);
-        
+
         // Replicate RVC inference
-        const modelStr = `${voice.rvc_model_id}` as `${string}/${string}`;
+        const modelStr = `${voice.rvcModelId}` as `${string}/${string}`;
         const output = await replicate.run(
           modelStr, // In reality, this would be the model owner/name:version
           {
             input: {
-              song_input: content.isolated_vocals_url,
+              song_input: content.isolatedVocalsUrl,
               pitch_change: 0,
             }
           }
@@ -269,7 +290,7 @@ export async function POST(request: Request) {
 
       // Download instrumental
       logger.info(`Downloading instrumental for clip ${clip.id}`);
-      const bgRes = await fetch(content.instrumental_url);
+      const bgRes = await fetch(content.instrumentalUrl!);
       const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
       fs.writeFileSync(bgFile, bgBuffer);
 
@@ -326,15 +347,15 @@ export async function POST(request: Request) {
       });
 
       // Update DB
-      await admin
-        .from("generated_clips")
-        .update({
+      await db
+        .update(generatedClips)
+        .set({
           status: "ready",
-          output_audio_url: gcpKey,
-          output_video_url: gcpKey,
+          outputAudioUrl: gcpKey,
+          outputVideoUrl: gcpKey,
           cached: true
         })
-        .eq("id", clip.id);
+        .where(eq(generatedClips.id, clip.id));
 
       // Cleanup temp files
       if (fs.existsSync(speechFile)) fs.unlinkSync(speechFile);
@@ -352,10 +373,10 @@ export async function POST(request: Request) {
         message: err?.message ?? "Unknown error",
       });
       await sendOperationalAlert("clip_generation_failed_alert", { clipId: clip.id, userId: user.id, contentId, voiceId });
-      await admin
-        .from("generated_clips")
-        .update({ status: "failed" })
-        .eq("id", clip.id);
+      await db
+        .update(generatedClips)
+        .set({ status: "failed" })
+        .where(eq(generatedClips.id, clip.id));
     }
   };
 

@@ -1,24 +1,36 @@
+import { and, inArray, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteVoice } from "@/lib/elevenlabs";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { consentOwnedBy, selfUser, voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import {
+  consentRecords,
+  dataLifecycleRequests,
+  familyVoices,
+  users,
+} from "@/lib/db/schema";
+import { deleteVoice } from "@/lib/voice-provider";
 import { deleteVoiceMedia, deleteObjectPrefix, GCP_PATHS } from "@/lib/gcp";
 import { logger } from "@/lib/logger";
 
 export async function POST() {
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const admin = createAdminClient();
-  const now = new Date().toISOString();
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
+  const now = new Date();
 
-  const { error } = await admin.from("users").update({ consent_verified: false }).eq("id", user.id);
-  if (error) return NextResponse.json({ error: "Consent could not be revoked" }, { status: 500 });
+  try {
+    await db.update(users).set({ consentVerified: false }).where(selfUser(user.id));
+  } catch {
+    return NextResponse.json({ error: "Consent could not be revoked" }, { status: 500 });
+  }
 
-  await admin.from("consent_records").update({ revoked_at: now }).eq("user_id", user.id).is("revoked_at", null);
-  await admin.from("data_lifecycle_requests").insert({ user_id: user.id, request_type: "revoke_consent", status: "completed", completed_at: now });
+  await db
+    .update(consentRecords)
+    .set({ revokedAt: now })
+    .where(and(consentOwnedBy(user.id), isNull(consentRecords.revokedAt)));
+  await db.insert(dataLifecycleRequests).values({ userId: user.id, requestType: "revoke_consent", status: "completed", completedAt: now });
 
   // Auto-purge: delete all private voice media and consent video proof for this user.
   // Best-effort: each step runs independently so one failure (e.g. a provider outage)
@@ -33,14 +45,12 @@ export async function POST() {
     }
   };
 
-  let voiceRows: { id: string; elevenlabs_voice_id: string | null }[] = [];
+  let voiceRows: { id: string; providerVoiceId: string | null }[] = [];
   await step("list_voices", async () => {
-    const { data, error: listError } = await admin
-      .from("family_voices")
-      .select("id, elevenlabs_voice_id")
-      .eq("user_id", user.id);
-    if (listError) throw listError;
-    voiceRows = data ?? [];
+    voiceRows = await db
+      .select({ id: familyVoices.id, providerVoiceId: familyVoices.providerVoiceId })
+      .from(familyVoices)
+      .where(voiceOwnedBy(user.id));
   });
 
   // Delete the provider-side biometric voice clones. Rows whose clone was deleted lose
@@ -49,27 +59,25 @@ export async function POST() {
   const deletedIds: string[] = [];
   await Promise.all(
     voiceRows
-      .filter((v) => v.elevenlabs_voice_id)
+      .filter((v) => v.providerVoiceId)
       .map((v) =>
         step(`delete_voice:${v.id}`, async () => {
-          await deleteVoice(v.elevenlabs_voice_id!);
+          await deleteVoice(v.providerVoiceId!);
           deletedIds.push(v.id);
         })
       )
   );
   if (voiceRows.length > 0) {
     await step("neutralise_voices", async () => {
-      const { error: updError } = await admin
-        .from("family_voices")
-        .update({ status: "failed" })
-        .eq("user_id", user.id);
-      if (updError) throw updError;
+      await db
+        .update(familyVoices)
+        .set({ status: "failed" })
+        .where(voiceOwnedBy(user.id));
       if (deletedIds.length > 0) {
-        const { error: clearError } = await admin
-          .from("family_voices")
-          .update({ elevenlabs_voice_id: null })
-          .in("id", deletedIds);
-        if (clearError) throw clearError;
+        await db
+          .update(familyVoices)
+          .set({ providerVoiceId: null })
+          .where(inArray(familyVoices.id, deletedIds));
       }
     });
   }

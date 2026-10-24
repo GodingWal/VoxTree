@@ -1,8 +1,11 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { checkTrainingStatus } from "@/lib/replicate";
+
+import { getCurrentUserId } from "@/lib/auth/session";
 import { hasActiveConsent } from "@/lib/consent";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { checkTrainingStatus } from "@/lib/replicate";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,55 +13,53 @@ export async function GET(request: Request) {
 
   if (!voiceId) return NextResponse.json({ error: "Missing ID" }, { status: 400 });
 
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = { id: userId };
 
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("*")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select()
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!voice || voice.userId !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (voice.rvc_training_status !== "processing" || !voice.rvc_model_id) {
-    return NextResponse.json({ status: voice.rvc_training_status });
+  if (voice.rvcTrainingStatus !== "processing" || !voice.rvcModelId) {
+    return NextResponse.json({ status: voice.rvcTrainingStatus });
   }
 
   // Revoked consent must not be bypassed by the polling completion path.
   if (!(await hasActiveConsent(user.id))) {
-    await createAdminClient()
-      .from("family_voices")
-      .update({ rvc_training_status: "failed", rvc_model_id: null })
-      .eq("id", voiceId);
+    await db
+      .update(familyVoices)
+      .set({ rvcTrainingStatus: "failed", rvcModelId: null })
+      .where(eq(familyVoices.id, voiceId));
     return NextResponse.json({ status: "failed", consentRequired: true }, { status: 403 });
   }
 
   // Currently, rvc_model_id holds the Replicate training ID during processing
-  const replicateStatus = await checkTrainingStatus(voice.rvc_model_id);
+  const replicateStatus = await checkTrainingStatus(voice.rvcModelId);
 
   if (replicateStatus.status === "succeeded") {
     if (!replicateStatus.version) {
       return NextResponse.json({ error: "Training completed without a model version" }, { status: 502 });
     }
-    const admin = createAdminClient();
-    await admin
-      .from("family_voices")
-      .update({
-        rvc_training_status: "ready",
-        rvc_model_id: replicateStatus.version,
+    await db
+      .update(familyVoices)
+      .set({
+        rvcTrainingStatus: "ready",
+        rvcModelId: replicateStatus.version,
       })
-      .eq("id", voiceId);
-    
+      .where(eq(familyVoices.id, voiceId));
+
     return NextResponse.json({ status: "ready" });
   } else if (replicateStatus.status === "failed" || replicateStatus.status === "canceled") {
-    const admin = createAdminClient();
     const next = replicateStatus.status === "canceled" ? "cancelled" : "failed";
-    await admin
-      .from("family_voices")
-      .update({ rvc_training_status: next })
-      .eq("id", voiceId);
+    await db
+      .update(familyVoices)
+      .set({ rvcTrainingStatus: next })
+      .where(eq(familyVoices.id, voiceId));
     return NextResponse.json({ status: next });
   }
 

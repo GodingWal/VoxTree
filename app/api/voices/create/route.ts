@@ -1,4 +1,7 @@
-import { getRouteClient } from "@/lib/supabase/auth";
+import { selfUser } from "@/lib/authz";
+import { getCurrentUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { familyVoices, users } from "@/lib/db/schema";
 import { checkLimit } from "@/lib/limits";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
 import { checkAbuse } from "@/lib/abuse-detection";
@@ -49,8 +52,7 @@ export async function POST(request: Request) {
         return rateLimited;
       }
 
-      const supabase = await getRouteClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUser();
 
       if (!user) {
         span.setAttribute("http.status_code", 401);
@@ -77,9 +79,9 @@ export async function POST(request: Request) {
         voiceName: parsed.data.name,
         authUser: {
           id: user.id,
-          email: (user as any).email ?? null,
-          displayName: (user as any).user_metadata?.["full_name"] ?? (user as any).user_metadata?.["name"] ?? null,
-          user_metadata: (user as any).user_metadata ?? null,
+          email: user.email ?? null,
+          displayName: user.name ?? null,
+          user_metadata: null,
         },
       });
       if (abuse.blocked) {
@@ -88,13 +90,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: abuse.reason, code: abuse.code }, { status: 403 });
       }
 
-      const { data: profile, error: profileError } = await supabase
-        .from("users")
-        .select("consent_verified, consent_notice_version")
-        .eq("id", user.id)
-        .single();
+      const [profile] = await db
+        .select({
+          consentVerified: users.consentVerified,
+          consentNoticeVersion: users.consentNoticeVersion,
+        })
+        .from(users)
+        .where(selfUser(user.id))
+        .limit(1);
 
-      if (profileError || !profile?.consent_verified) {
+      if (!profile?.consentVerified) {
         span.setAttribute("http.status_code", 403);
         return NextResponse.json(
           { error: "Verified parental consent is required before creating a voice.", consentRequired: true },
@@ -128,22 +133,27 @@ export async function POST(request: Request) {
       }
 
       // Create voice record
-      const { data: voice, error: insertError } = await supabase
-        .from("family_voices")
-        .insert({
-          user_id: user.id,
-          name: parsed.data.name,
-          status: "processing",
-          voice_owner_name: parsed.data.voiceOwnerName,
-          voice_owner_relationship: parsed.data.voiceOwnerRelationship,
-          voice_owner_authorized_at: new Date().toISOString(),
-          authorization_notice_version: profile.consent_notice_version,
-        })
-        .select()
-        .single();
+      let voice: { id: string } | undefined;
+      let insertError: unknown = null;
+      try {
+        [voice] = await db
+          .insert(familyVoices)
+          .values({
+            userId: user.id,
+            name: parsed.data.name,
+            status: "processing",
+            voiceOwnerName: parsed.data.voiceOwnerName,
+            voiceOwnerRelationship: parsed.data.voiceOwnerRelationship,
+            voiceOwnerAuthorizedAt: new Date(),
+            authorizationNoticeVersion: profile.consentNoticeVersion,
+          })
+          .returning();
+      } catch (e) {
+        insertError = e;
+      }
 
       if (insertError || !voice) {
-        span.recordException(insertError ?? new Error("Failed to create voice record"));
+        span.recordException(insertError instanceof Error ? insertError : new Error("Failed to create voice record"));
         span.setStatus({ code: SpanStatusCode.ERROR, message: "Failed to create voice record" });
         return NextResponse.json(
           { error: "Failed to create voice record" },

@@ -1,11 +1,23 @@
-import { createAdminClient } from "@/lib/supabase/admin";
-import { sendOperationalAlert } from "@/lib/monitoring";
-import { sendTransactionalEmail } from "@/lib/email";
-import { stripe } from "@/lib/stripe";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
+import { sendTransactionalEmail } from "@/lib/email";
+import { sendOperationalAlert } from "@/lib/monitoring";
+import { stripe } from "@/lib/stripe";
+
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+
+async function findUserByCustomerId(customerId: string) {
+  const [user] = await db
+    .select({ id: users.id, email: users.email })
+    .from(users)
+    .where(eq(users.stripeCustomerId, customerId))
+    .limit(1);
+  return user ?? null;
+}
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -26,19 +38,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createAdminClient();
-
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
+      // Stripe-side metadata key written by /api/stripe/checkout; the name
+      // is a legacy contract with Stripe and is intentionally unchanged.
       const userId = session.metadata?.supabase_user_id;
       const plan = session.metadata?.plan;
 
       if (userId && plan) {
-        await supabase
-          .from("users")
-          .update({ plan })
-          .eq("id", userId);
+        await db
+          .update(users)
+          .set({ plan })
+          .where(eq(users.id, userId));
       }
       break;
     }
@@ -47,17 +59,13 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
 
-      const { data: user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("stripe_customer_id", customerId)
-        .single();
+      const user = await findUserByCustomerId(customerId);
 
       if (user) {
-        await supabase
-          .from("users")
-          .update({ plan: "free" })
-          .eq("id", user.id);
+        await db
+          .update(users)
+          .set({ plan: "free" })
+          .where(eq(users.id, user.id));
       }
       break;
     }
@@ -68,17 +76,13 @@ export async function POST(request: Request) {
       const metadataPlan = subscription.metadata?.plan;
 
       if (metadataPlan) {
-        const { data: user } = await supabase
-          .from("users")
-          .select("id")
-          .eq("stripe_customer_id", customerId)
-          .single();
+        const user = await findUserByCustomerId(customerId);
 
         if (user) {
-          await supabase
-            .from("users")
-            .update({ plan: metadataPlan })
-            .eq("id", user.id);
+          await db
+            .update(users)
+            .set({ plan: metadataPlan })
+            .where(eq(users.id, user.id));
         }
       }
       break;
@@ -92,7 +96,7 @@ export async function POST(request: Request) {
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       await sendOperationalAlert("stripe_payment_failed", { invoiceId: invoice.id, customerId: invoice.customer });
-      const { data: billingUser } = await supabase.from("users").select("email").eq("stripe_customer_id", invoice.customer as string).single();
+      const billingUser = await findUserByCustomerId(invoice.customer as string);
       if (billingUser?.email) {
         await sendTransactionalEmail({ to: billingUser.email, template: "payment-failed", data: { invoiceId: invoice.id } });
       }

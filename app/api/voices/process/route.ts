@@ -1,5 +1,9 @@
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, eq, isNotNull } from "drizzle-orm";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { voiceOwnedBy } from "@/lib/authz";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
 import { cloneVoice, deleteVoice } from "@/lib/voice-provider";
 import {
   getPresignedDownloadUrl,
@@ -29,26 +33,24 @@ const processSchema = z.object({
  * Authenticates the caller and operates as the signed-in user — never trust
  * a userId supplied in the body.
  *
- * Idempotent: if the voice already has an elevenlabs_voice_id, we return the
- * existing record instead of re-cloning (avoids double-billing on retries).
+ * Idempotent: if the voice already has a provider_voice_id, we return the
+ * existing record instead of re-cloning (avoids duplicate clones on retries).
  * If a sample with the same sha256 was previously cloned for this user, we
- * reuse that ElevenLabs voice id.
+ * reuse that provider voice id.
  *
- * Saga cleanup: if the post-ElevenLabs DB write fails, we delete the
- * just-created ElevenLabs voice so we don't leak paid resources.
+ * Saga cleanup: if the post-clone DB write fails, we delete the
+ * just-created provider voice so we don't leak orphaned clones.
  */
 export async function POST(request: Request) {
   const rateLimited = await enforcePaidRateLimit(request);
   if (rateLimited) return rateLimited;
 
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userIdFromSession = await getCurrentUserId();
 
-  if (!user) {
+  if (!userIdFromSession) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userIdFromSession };
 
   if (!(await hasActiveConsent(user.id))) {
     return NextResponse.json({ error: "Active parental consent is required.", consentRequired: true }, { status: 403 });
@@ -69,33 +71,38 @@ export async function POST(request: Request) {
   const userId = user.id;
 
   // Verify the voice record exists and belongs to the caller.
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, name, user_id, elevenlabs_voice_id, status")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      name: familyVoices.name,
+      userId: familyVoices.userId,
+      providerVoiceId: familyVoices.providerVoiceId,
+      status: familyVoices.status,
+    })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== userId) {
+  if (!voice || voice.userId !== userId) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
 
   // Idempotency: already cloned. Return success without re-billing.
-  if (voice.elevenlabs_voice_id && voice.status === "ready") {
+  if (voice.providerVoiceId && voice.status === "ready") {
     return NextResponse.json({
       status: "ready",
-      elevenlabsVoiceId: voice.elevenlabs_voice_id,
+      providerVoiceId: voice.providerVoiceId,
       idempotent: true,
     });
   }
 
-  const admin = createAdminClient();
   const gcpKey = GCP_PATHS.voiceSample(userId, voiceId);
 
   // Defense in depth on the upload size cap. The presigned URL is bound
   // to AUDIO_LIMITS.maxBytes already; this catches mis-configurations.
   const metadata = await getObjectMetadata(gcpKey);
   if (metadata && metadata.size > AUDIO_LIMITS.maxBytes) {
-    await admin.from("family_voices").update({ status: "failed" }).eq("id", voiceId);
+    await db.update(familyVoices).set({ status: "failed" }).where(eq(familyVoices.id, voiceId));
     return NextResponse.json(
       {
         error: "Audio too large",
@@ -107,7 +114,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let elevenlabsVoiceId: string | null = null;
+  let providerVoiceId: string | null = null;
   let createdNewVoice = false;
 
   try {
@@ -127,62 +134,67 @@ export async function POST(request: Request) {
     assertAudioWithinLimits(probe);
 
     // Idempotency by content hash: if the same user already cloned this
-    // exact audio under another voice, reuse the existing ElevenLabs id.
-    const { data: existing } = await admin
-      .from("family_voices")
-      .select("elevenlabs_voice_id")
-      .eq("user_id", userId)
-      .eq("sample_sha256", probe.sha256)
-      .not("elevenlabs_voice_id", "is", null)
-      .limit(1)
-      .maybeSingle();
+    // exact audio under another voice, reuse the existing provider id.
+    const [existing] = await db
+      .select({ providerVoiceId: familyVoices.providerVoiceId })
+      .from(familyVoices)
+      .where(
+        and(
+          voiceOwnedBy(userId),
+          eq(familyVoices.sampleSha256, probe.sha256),
+          isNotNull(familyVoices.providerVoiceId)
+        )
+      )
+      .limit(1);
 
-    if (existing?.elevenlabs_voice_id) {
-      elevenlabsVoiceId = existing.elevenlabs_voice_id;
+    if (existing?.providerVoiceId) {
+      providerVoiceId = existing.providerVoiceId;
       logger.info("voice_clone_reused_by_hash", {
         voiceId,
         userId,
         sha256: probe.sha256,
       });
     } else {
-      // Transcode to a clean MP3 before submitting to ElevenLabs. This
+      // Transcode to a clean MP3 before submitting to the voice provider. This
       // avoids mid-clone rejections on unsupported codecs/containers and
       // shrinks the upload by ~50%.
       const normalized = await transcodeToMp3(rawBuffer);
-      elevenlabsVoiceId = await cloneVoice(normalized, voice.name);
+      providerVoiceId = await cloneVoice(normalized, voice.name);
       createdNewVoice = true;
     }
 
-    const { error: updateError } = await admin
-      .from("family_voices")
-      .update({
-        elevenlabs_voice_id: elevenlabsVoiceId,
-        sample_audio_key: gcpKey,
-        sample_sha256: probe.sha256,
-        sample_duration_seconds: probe.durationSeconds,
-        sample_bytes: probe.bytes,
-        status: "ready",
-      })
-      .eq("id", voiceId);
-
-    if (updateError) {
-      throw new Error(`DB update failed: ${updateError.message}`);
+    try {
+      await db
+        .update(familyVoices)
+        .set({
+          providerVoiceId: providerVoiceId,
+          sampleAudioKey: gcpKey,
+          sampleSha256: probe.sha256,
+          sampleDurationSeconds: String(probe.durationSeconds),
+          sampleBytes: probe.bytes,
+          status: "ready",
+        })
+        .where(eq(familyVoices.id, voiceId));
+    } catch (updateError) {
+      throw new Error(
+        `DB update failed: ${updateError instanceof Error ? updateError.message : "Unknown error"}`
+      );
     }
 
     return NextResponse.json({
       status: "ready",
-      elevenlabsVoiceId,
+      providerVoiceId,
     });
   } catch (error) {
-    // Saga cleanup: if we created a paid ElevenLabs voice but couldn't
-    // persist the link, delete it from ElevenLabs so we don't pay rent
+    // Saga cleanup: if we created a provider voice but couldn't
+    // persist the link, delete it from the provider so it is not orphaned
     // on an orphan.
-    if (createdNewVoice && elevenlabsVoiceId) {
+    if (createdNewVoice && providerVoiceId) {
       try {
-        await deleteVoice(elevenlabsVoiceId);
+        await deleteVoice(providerVoiceId);
       } catch (cleanupErr) {
         logger.warn("voice_clone_cleanup_failed", {
-          elevenlabsVoiceId,
+          providerVoiceId,
           voiceId,
           message:
             cleanupErr instanceof Error ? cleanupErr.message : "Unknown error",
@@ -197,10 +209,10 @@ export async function POST(request: Request) {
       message: error instanceof Error ? error.message : "Unknown error",
     });
     await sendOperationalAlert("voice_clone_failed_alert", { voiceId, userId, code: error instanceof AudioValidationError ? error.code : "internal" });
-    await admin
-      .from("family_voices")
-      .update({ status: "failed" })
-      .eq("id", voiceId);
+    await db
+      .update(familyVoices)
+      .set({ status: "failed" })
+      .where(eq(familyVoices.id, voiceId));
 
     if (error instanceof AudioValidationError) {
       return NextResponse.json(

@@ -1,6 +1,10 @@
-import { getRouteClient } from "@/lib/supabase/auth";
-import { getPresignedDownloadUrl } from "@/lib/gcp";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { getPresignedDownloadUrl } from "@/lib/gcp";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,27 +14,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing voiceId" }, { status: 400 });
   }
 
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userId };
 
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, sample_audio_key, user_id")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      sampleAudioKey: familyVoices.sampleAudioKey,
+      userId: familyVoices.userId,
+    })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== user.id || !voice.sample_audio_key) {
+  if (!voice || voice.userId !== user.id || !voice.sampleAudioKey) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {
-    let key = voice.sample_audio_key;
+    let key = voice.sampleAudioKey;
     // Fallback if existing record has a full URL
     if (key.startsWith("http")) {
       const url = new URL(key);

@@ -1,26 +1,37 @@
+import { and, isNotNull, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "./supabase/admin";
+
+import { consentOwnedBy, selfUser } from "./authz";
+import { db } from "./db";
+import { consentRecords, users } from "./db/schema";
 
 export async function hasActiveConsent(userId: string): Promise<boolean> {
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("users")
-    .select("consent_verified")
-    .eq("id", userId)
-    .single();
-  if (error || data?.consent_verified !== true) return false;
+  try {
+    const [user] = await db
+      .select({ consentVerified: users.consentVerified })
+      .from(users)
+      .where(selfUser(userId))
+      .limit(1);
+    if (!user || user.consentVerified !== true) return false;
 
-  // Accounts that consented before the 18+ attestation existed must re-consent:
-  // require an unrevoked record that carries the attestation.
-  const { data: record } = await admin
-    .from("consent_records")
-    .select("id")
-    .eq("user_id", userId)
-    .is("revoked_at", null)
-    .not("adult_confirmed_at", "is", null)
-    .limit(1)
-    .maybeSingle();
-  return !!record;
+    // Accounts that consented before the 18+ attestation existed must re-consent:
+    // require an unrevoked record that carries the attestation.
+    const [record] = await db
+      .select({ id: consentRecords.id })
+      .from(consentRecords)
+      .where(
+        and(
+          consentOwnedBy(userId),
+          isNull(consentRecords.revokedAt),
+          isNotNull(consentRecords.adultConfirmedAt)
+        )
+      )
+      .limit(1);
+    return !!record;
+  } catch {
+    // Fail closed, exactly as the PostgREST version did on query errors.
+    return false;
+  }
 }
 
 /**

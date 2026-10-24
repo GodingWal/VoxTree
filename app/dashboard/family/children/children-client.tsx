@@ -90,17 +90,9 @@ export function ChildrenClient({ dbChildren, userId, dbSimulated }: ChildrenClie
       const res = await addChild(formData);
       if (res.success) {
         setName("");
-        // Reload page to fetch updated database rows
+        // Reload page to fetch updated database rows; the refreshed
+        // dbChildren prop syncs into state via the effect above.
         router.refresh();
-        // Optimistically reload list or query again
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("family_children")
-          .select("*")
-          .eq("user_id", userId)
-          .order("name", { ascending: true });
-        if (data) setChildren(data);
       } else {
         setError(res.error || "Failed to add child.");
       }

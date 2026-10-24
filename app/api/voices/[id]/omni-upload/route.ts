@@ -1,9 +1,14 @@
+import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { selfUser, voiceOwnedBy } from "@/lib/authz";
 import { hasActiveConsent, requireActiveConsent } from "@/lib/consent";
+import { db } from "@/lib/db";
+import { familyVoices, users } from "@/lib/db/schema";
 import { cloneVoice } from "@/lib/voice-provider";
 import { replicate } from "@/lib/replicate";
+import { UPLOADS_DIR } from "@/lib/uploads";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -27,25 +32,22 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const userId = await getCurrentUserId();
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const user = { id: userId };
 
     const consentBlocked = await requireActiveConsent(user.id);
     if (consentBlocked) return consentBlocked;
 
-    // Ownership: later writes use the admin client (bypasses RLS).
-    const { data: ownedVoice } = await supabase
-      .from("family_voices")
-      .select("id")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+    // Ownership: later writes are unscoped by id, so ownership is proven here.
+    const [ownedVoice] = await db
+      .select({ id: familyVoices.id })
+      .from(familyVoices)
+      .where(and(eq(familyVoices.id, id), voiceOwnedBy(user.id)))
+      .limit(1);
     if (!ownedVoice) {
       return NextResponse.json({ error: "Voice not found" }, { status: 404 });
     }
@@ -57,7 +59,7 @@ export async function POST(
     }
 
     // 1. Write the WebM file locally
-    const tempDir = path.join(process.cwd(), "public", "uploads");
+    const tempDir = UPLOADS_DIR;
     await fs.mkdir(tempDir, { recursive: true });
 
     const webmPath = path.join(tempDir, `omni_raw_${id}.webm`);
@@ -128,15 +130,14 @@ export async function POST(
 
     // 4. Update local storage simulation paths
     // Return paths immediately so client can cache locally
-    // Trigger ElevenLabs Voice Cloning + Pixar Avatar generation in background
-    const admin = createAdminClient();
+    // Trigger voice cloning + Pixar Avatar generation in background
     const voiceName = formData.get("voiceName") as string || "Family Member";
 
     // Run cloning process in background (voice + avatar). Validates the
     // extracted audio first so a near-silent or absurdly long recording
-    // is rejected before we burn an ElevenLabs voice slot.
+    // is rejected before we create a provider voice.
     (async () => {
-      let elevenlabsVoiceIdCreated: string | null = null;
+      let providerVoiceIdCreated: string | null = null;
       try {
         const { probeAudio, assertAudioWithinLimits } = await import(
           "@/lib/audio-validation"
@@ -147,43 +148,45 @@ export async function POST(
         const probe = await probeAudio(audioData);
         assertAudioWithinLimits(probe);
 
-        elevenlabsVoiceIdCreated = await cloneVoice(audioData, voiceName);
+        providerVoiceIdCreated = await cloneVoice(audioData, voiceName);
 
         // Consent may have been revoked while cloning ran; do not persist then.
         if (!(await hasActiveConsent(user.id))) {
-          await deleteVoice(elevenlabsVoiceIdCreated).catch(() => undefined);
+          await deleteVoice(providerVoiceIdCreated).catch(() => undefined);
           throw new Error("Consent revoked during voice cloning");
         }
 
-        const { error: updateError } = await admin
-          .from("family_voices")
-          .update({
-            elevenlabs_voice_id: elevenlabsVoiceIdCreated,
-            sample_audio_key: publicAudioUrl,
-            sample_sha256: probe.sha256,
-            sample_duration_seconds: probe.durationSeconds,
-            sample_bytes: probe.bytes,
-            status: "ready",
-          })
-          .eq("id", id);
-
-        if (updateError) {
-          // Saga cleanup: drop the paid ElevenLabs voice we can't link.
-          if (elevenlabsVoiceIdCreated) {
+        try {
+          await db
+            .update(familyVoices)
+            .set({
+              providerVoiceId: providerVoiceIdCreated,
+              sampleAudioKey: publicAudioUrl,
+              sampleSha256: probe.sha256,
+              sampleDurationSeconds: String(probe.durationSeconds),
+              sampleBytes: probe.bytes,
+              status: "ready",
+            })
+            .where(eq(familyVoices.id, id));
+        } catch (updateError) {
+          // Saga cleanup: drop the provider voice we can't link.
+          if (providerVoiceIdCreated) {
             try {
-              await deleteVoice(elevenlabsVoiceIdCreated);
+              await deleteVoice(providerVoiceIdCreated);
             } catch (_cleanupErr) {
               /* logged via console below */
             }
           }
-          throw new Error(`DB update failed: ${updateError.message}`);
+          throw new Error(
+            `DB update failed: ${updateError instanceof Error ? updateError.message : "Unknown error"}`
+          );
         }
       } catch (err) {
         console.error("Background voice cloning failed:", err);
-        await admin
-          .from("family_voices")
-          .update({ status: "failed" })
-          .eq("id", id);
+        await db
+          .update(familyVoices)
+          .set({ status: "failed" })
+          .where(eq(familyVoices.id, id));
       }
 
       // Pixar avatar generation (non-blocking, updates DB when complete)
@@ -226,20 +229,20 @@ export async function POST(
               await fs.writeFile(pixarPath, pixarBuffer);
 
               const pixarUrl = `/uploads/${pixarFilename}`;
-              await admin
-                .from("family_voices")
-                .update({
-                  avatar_url: pixarUrl,
-                  idle_video_url: pixarUrl,
-                  talking_video_url: pixarUrl,
+              await db
+                .update(familyVoices)
+                .set({
+                  avatarUrl: pixarUrl,
+                  idleVideoUrl: pixarUrl,
+                  talkingVideoUrl: pixarUrl,
                 })
-                .eq("id", id);
+                .where(eq(familyVoices.id, id));
 
               // Update user profile avatar too
-              await admin
-                .from("users")
-                .update({ avatar_url: pixarUrl })
-                .eq("id", user.id);
+              await db
+                .update(users)
+                .set({ avatarUrl: pixarUrl })
+                .where(selfUser(user.id));
             }
           }
         }
@@ -261,18 +264,24 @@ export async function POST(
       console.warn("Could not enumerate LoRA reference frames", e);
     }
 
-    // 5. Update database record with captured frame immediately (Pixar version comes later)
-    const { error: dbError } = await supabase
-      .from("family_voices")
-      .update({
-        avatar_url: publicImageUrl,
-        sample_audio_key: publicAudioUrl,
-        idle_video_url: publicImageUrl,
-        talking_video_url: publicImageUrl,
-        status: "ready",
-        character_reference_images: referenceFrameUrls,
-      })
-      .eq("id", id);
+    // 5. Update database record with captured frame immediately (Pixar version comes later).
+    // Owner-scoped like the RLS policy that used to guard this client write.
+    let dbError: unknown = null;
+    try {
+      await db
+        .update(familyVoices)
+        .set({
+          avatarUrl: publicImageUrl,
+          sampleAudioKey: publicAudioUrl,
+          idleVideoUrl: publicImageUrl,
+          talkingVideoUrl: publicImageUrl,
+          status: "ready",
+          characterReferenceImages: referenceFrameUrls,
+        })
+        .where(and(eq(familyVoices.id, id), voiceOwnedBy(user.id)));
+    } catch (e) {
+      dbError = e;
+    }
 
     if (dbError) {
       console.warn("Database failed to save visual clone paths.", dbError);

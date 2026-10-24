@@ -1,27 +1,31 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
+import { requestPasswordReset } from "@/lib/auth/password-reset";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { users } from "@/lib/db/schema";
 import { revalidatePath } from "next/cache";
 import type { Plan } from "@/types/database";
 
 export async function resetUserPassword(email: string) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user || !(await isAdmin(user.email))) {
     return { error: "Unauthorized" };
   }
 
-  const adminClient = createAdminClient();
-  
-  // Send a password reset email using auth.admin
-  const { error: resetError } = await adminClient.auth.resetPasswordForEmail(email);
-  if (resetError) {
-     return { error: resetError.message };
+  // Auth.js password reset (lib/auth/password-reset.ts): stores a reset
+  // token and sends the reset email. It never reveals whether the email
+  // exists, so success is always reported (previously the hosted auth
+  // resetPasswordForEmail error could surface here).
+  try {
+    await requestPasswordReset(email);
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to send password reset email.",
+    };
   }
 
   return { success: true };
@@ -38,51 +42,42 @@ export async function updateUser(
     stripe_customer_id?: string | null;
   }
 ) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user || !(await isAdmin(user.email))) {
     return { error: "Unauthorized" };
   }
 
-  const adminClient = createAdminClient();
+  // Update the users table. Name/plan live only on this row under
+  // Auth.js — the old hosted auth.users metadata mirror has no
+  // equivalent and nothing reads it anymore.
+  const updates: Partial<{
+    name: string | null;
+    plan: Plan;
+    voiceSlotsUsed: number;
+    videosUsed: number;
+    storiesUsed: number;
+    stripeCustomerId: string | null;
+  }> = {};
+  if (data.name !== undefined) updates.name = data.name;
+  if (data.plan !== undefined) updates.plan = data.plan;
+  if (data.voice_slots_used !== undefined) updates.voiceSlotsUsed = data.voice_slots_used;
+  if (data.videos_used !== undefined) updates.videosUsed = data.videos_used;
+  if (data.stories_used !== undefined) updates.storiesUsed = data.stories_used;
+  if (data.stripe_customer_id !== undefined) updates.stripeCustomerId = data.stripe_customer_id;
 
-  // 1. Update the public.users database table
-  const { error } = await adminClient
-    .from("users")
-    .update(data)
-    .eq("id", id);
-
-  if (error) {
-    console.error("Error updating user table:", error);
-    return { error: error.message };
-  }
-
-  // 2. Synchronize user metadata and app metadata with auth.users
   try {
-    const authUpdates: any = {};
-    if (data.name !== undefined) {
-      authUpdates.user_metadata = { full_name: data.name };
-    }
-    if (data.plan !== undefined) {
-      authUpdates.app_metadata = { plan: data.plan };
-    }
-
-    if (Object.keys(authUpdates).length > 0) {
-      const { error: authError } = await adminClient.auth.admin.updateUserById(id, authUpdates);
-      if (authError) {
-        console.warn("Failed to synchronize auth user metadata:", authError.message);
-      }
-    }
-  } catch (err) {
-    console.error("Auth metadata sync exception:", err);
+    await db.update(users).set(updates).where(eq(users.id, id));
+  } catch (error) {
+    console.error("Error updating user table:", error);
+    return {
+      error: error instanceof Error ? error.message : "Failed to update user.",
+    };
   }
 
-  // 3. Clear Next.js cache for the entire dashboard layout and admin page
+  // Clear Next.js cache for the entire dashboard layout and admin page
   revalidatePath("/dashboard", "layout");
   revalidatePath("/dashboard/admin/users");
-  
+
   return { success: true };
 }

@@ -7,14 +7,41 @@ const sendEmail = vi.fn();
 vi.mock("@/lib/stripe", () => ({ stripe: { webhooks: { constructEvent: (...a: unknown[]) => constructEvent(...a) } } }));
 vi.mock("@/lib/monitoring", () => ({ sendOperationalAlert: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendTransactionalEmail: (...a: unknown[]) => sendEmail(...a) }));
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: () => ({
-      update: (v: unknown) => ({ eq: (...a: unknown[]) => { update(v, ...a); return Promise.resolve({ error: null }); } }),
-      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { id: "u1", email: "a@b.c" } }) }) }),
-    }),
-  }),
-}));
+// Phase 4: the webhook writes through Drizzle (lib/db). The mock
+// captures update().set(values) plus the id param bound in the
+// where clause, preserving the old assertion shape update(values,
+// "id", "u1"); user lookups resolve the same fixture row as before.
+vi.mock("@/lib/db", () => {
+  const firstParam = (cond: unknown): unknown => {
+    const chunks = (cond as { queryChunks?: unknown[] }).queryChunks ?? [];
+    for (const chunk of chunks) {
+      if ((chunk as object).constructor?.name === "Param") {
+        return (chunk as { value: unknown }).value;
+      }
+    }
+    return undefined;
+  };
+  const selectChain = () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ["from", "where", "limit"]) chain[m] = () => chain;
+    chain.then = (res: (v: unknown) => void, rej: (e: unknown) => void) =>
+      Promise.resolve([{ id: "u1", email: "a@b.c" }]).then(res, rej);
+    return chain;
+  };
+  return {
+    db: {
+      select: () => selectChain(),
+      update: () => ({
+        set: (v: unknown) => ({
+          where: (cond: unknown) => {
+            update(v, "id", firstParam(cond));
+            return Promise.resolve([]);
+          },
+        }),
+      }),
+    },
+  };
+});
 
 import { POST } from "@/app/api/stripe/webhook/route";
 

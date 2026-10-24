@@ -1,5 +1,9 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { getRouteClient } from "@/lib/supabase/auth";
+
+import { getCurrentUserId } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { generatedClips } from "@/lib/db/schema";
 import { getPresignedDownloadUrl } from "@/lib/gcp";
 
 export async function GET(
@@ -11,33 +15,38 @@ export async function GET(
     return NextResponse.json({ error: "Missing clip ID" }, { status: 400 });
   }
 
-  const supabase = await getRouteClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userId };
 
   // Fetch the clip record
-  const { data: clip, error: fetchError } = await supabase
-    .from("generated_clips")
-    .select("*")
-    .eq("id", clipId)
-    .single();
+  let clip: typeof generatedClips.$inferSelect | undefined;
+  try {
+    [clip] = await db
+      .select()
+      .from(generatedClips)
+      .where(eq(generatedClips.id, clipId))
+      .limit(1);
+  } catch {
+    clip = undefined;
+  }
 
-  if (fetchError || !clip) {
+  if (!clip) {
     return NextResponse.json({ error: "Clip not found" }, { status: 404 });
   }
 
   // Check user ownership
-  if (clip.user_id !== user.id) {
+  if (clip.userId !== user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   // If status is ready, resolve the presigned download URL
   let downloadUrl = null;
   if (clip.status === "ready") {
-    const key = clip.output_audio_url || clip.output_video_url;
+    const key = clip.outputAudioUrl || clip.outputVideoUrl;
     if (key) {
       if (key.startsWith("http")) {
         downloadUrl = key;

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the admin Supabase client BEFORE importing the module under test
+// Mock the Drizzle db BEFORE importing the module under test (Phase 4:
+// lib/limits reads the users row through lib/db).
 type FakeUserRow = {
   plan: "free" | "family" | "premium";
   voice_slots_used: number;
@@ -11,17 +12,26 @@ type FakeUserRow = {
 let fakeUser: FakeUserRow = null;
 let fakeError: { message: string } | null = null;
 
-vi.mock("../lib/supabase/admin", () => ({
-  createAdminClient: () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: () =>
-            Promise.resolve({ data: fakeUser, error: fakeError }),
-        }),
-      }),
-    }),
-  }),
+vi.mock("../lib/db", () => ({
+  db: {
+    select: () => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ["from", "where", "limit"]) chain[m] = () => chain;
+      chain.then = (res: (v: unknown) => void, rej: (e: unknown) => void) => {
+        if (fakeError) return Promise.reject(new Error(fakeError.message)).then(res, rej);
+        const rows = fakeUser
+          ? [{
+              plan: fakeUser.plan,
+              voiceSlotsUsed: fakeUser.voice_slots_used,
+              videosUsed: fakeUser.videos_used,
+              storiesUsed: fakeUser.stories_used,
+            }]
+          : [];
+        return Promise.resolve(rows).then(res, rej);
+      };
+      return chain;
+    },
+  },
 }));
 
 import { checkLimit, PLAN_LIMITS, planLabel } from "../lib/limits";

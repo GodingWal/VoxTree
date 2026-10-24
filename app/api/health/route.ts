@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,7 @@ type CheckResult = {
 async function checkDatabase(): Promise<CheckResult> {
   const started = Date.now();
   try {
-    const admin = createAdminClient();
-    const { error } = await admin.from("users").select("id", { head: true, count: "exact" }).limit(1);
-    if (error) throw error;
+    await db.execute(sql`select 1 from users limit 1`);
     return { status: "ok", latencyMs: Date.now() - started };
   } catch (err) {
     return {
@@ -57,28 +57,25 @@ async function checkGCS(): Promise<CheckResult> {
   }
 }
 
-async function checkElevenLabs(): Promise<CheckResult> {
+async function checkChatterbox(): Promise<CheckResult> {
   const started = Date.now();
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    return { status: "skipped", latencyMs: Date.now() - started, message: "ElevenLabs not configured" };
-  }
+  const serviceUrl = (
+    process.env.CHATTERBOX_SERVICE_URL || "http://localhost:8001"
+  ).replace(/\/+$/, "");
   try {
-    const res = await fetch("https://api.elevenlabs.io/v1/voices", {
+    const res = await fetch(`${serviceUrl}/health`, {
       method: "GET",
-      headers: { "xi-api-key": apiKey },
       signal: AbortSignal.timeout(4000),
     });
-    // 401 means key invalid, 200/404 etc means service reachable — treat non-5xx as ok for health
-    if (res.status < 500) {
+    if (res.ok) {
       return { status: "ok", latencyMs: Date.now() - started };
     }
-    throw new Error(`ElevenLabs returned ${res.status}`);
+    throw new Error(`Chatterbox service returned ${res.status}`);
   } catch (err) {
     return {
       status: "error",
       latencyMs: Date.now() - started,
-      message: err instanceof Error ? err.message : "ElevenLabs unavailable",
+      message: err instanceof Error ? err.message : "Chatterbox service unavailable",
     };
   }
 }
@@ -86,14 +83,14 @@ async function checkElevenLabs(): Promise<CheckResult> {
 export async function GET() {
   const startedAt = Date.now();
 
-  const [database, gcs, elevenlabs] = await Promise.all([
+  const [database, gcs, chatterbox] = await Promise.all([
     checkDatabase(),
     checkGCS(),
-    checkElevenLabs(),
+    checkChatterbox(),
   ]);
 
-  const hasError = [database, gcs, elevenlabs].some((c) => c.status === "error");
-  const hasSkipped = [database, gcs, elevenlabs].some((c) => c.status === "skipped");
+  const hasError = [database, gcs, chatterbox].some((c) => c.status === "error");
+  const hasSkipped = [database, gcs, chatterbox].some((c) => c.status === "skipped");
 
   let status: "ok" | "degraded" | "error";
   let httpStatus: number;
@@ -116,12 +113,12 @@ export async function GET() {
       checks: {
         database,
         gcs,
-        elevenlabs,
+        chatterbox,
       },
       // legacy flat fields for backwards compat with existing monitors
       database: database.status,
       gcs: gcs.status,
-      elevenlabs: elevenlabs.status,
+      chatterbox: chatterbox.status,
     },
     { status: httpStatus, headers: { "Cache-Control": "no-store" } }
   );

@@ -1,7 +1,10 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { familyChildren } from "@/lib/db/schema";
+import { getCurrentUserId } from "@/lib/auth/session";
 
 export async function addChild(formData: FormData) {
   const name = formData.get("name") as string;
@@ -16,29 +19,26 @@ export async function addChild(formData: FormData) {
     return { success: false, error: "Please enter a valid age between 0 and 18." };
   }
 
-  const supabase = await createClient();
-
   // 1. Get authenticated user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return { success: false, error: "Not authenticated." };
   }
 
-  // 2. Insert child
-  const { error } = await supabase
-    .from("family_children")
-    .insert({
-      user_id: user.id,
+  // 2. Insert child (RLS owner policy: user_id = uid)
+  try {
+    await db.insert(familyChildren).values({
+      userId,
       name: name.trim(),
-      age: age
+      age,
     });
-
-  if (error) {
+  } catch (error) {
     console.error("Failed to add child to DB:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to add child.",
+    };
   }
 
   revalidatePath("/dashboard/family");
@@ -51,27 +51,24 @@ export async function deleteChild(childId: string) {
     return { success: false, error: "Invalid child ID." };
   }
 
-  const supabase = await createClient();
-
   // 1. Get authenticated user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return { success: false, error: "Not authenticated." };
   }
 
-  // 2. Delete child
-  const { error } = await supabase
-    .from("family_children")
-    .delete()
-    .eq("id", childId)
-    .eq("user_id", user.id);
-
-  if (error) {
+  // 2. Delete child (RLS owner policy: id + user_id = uid)
+  try {
+    await db
+      .delete(familyChildren)
+      .where(and(eq(familyChildren.id, childId), eq(familyChildren.userId, userId)));
+  } catch (error) {
     console.error("Failed to delete child from DB:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to delete child.",
+    };
   }
 
   revalidatePath("/dashboard/family");

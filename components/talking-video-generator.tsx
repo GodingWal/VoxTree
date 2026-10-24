@@ -11,7 +11,7 @@ interface Props {
 }
 
 /**
- * Generate a talking-head Pixar video: ElevenLabs renders the cloned voice
+ * Generate a talking-head Pixar video: Chatterbox renders the cloned voice
  * speaking the prompt, then Hedra Character-3 drives the Pixar still with
  * that audio. The component polls /api/clips/talking-video/status until the
  * MP4 is ready and inlines it for playback.
@@ -95,7 +95,7 @@ export function TalkingVideoGenerator({ voiceId, disabled, disabledReason }: Pro
           <div>
             <h3 className="font-serif text-2xl text-white">Talking Pixar Clip</h3>
             <p className="text-sm text-[var(--paper-dim)]">
-              ElevenLabs voice + Hedra Character-3 lip-sync.
+              Cloned voice + Hedra Character-3 lip-sync.
             </p>
           </div>
         </div>

@@ -1,27 +1,26 @@
-import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
+import { desc } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { contentLibrary } from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { ContentActions, AddContentButton } from "./content-actions";
 import { Section } from "@/components/twilight-ui";
 
 export default async function AdminContentPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   const admin = await isAdmin(user.email);
   if (!admin) redirect("/");
 
-  const adminClient = createAdminClient();
-
-  const { data: content } = await adminClient
-    .from("content_library")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const contentRows = await db
+    .select()
+    .from(contentLibrary)
+    .orderBy(desc(contentLibrary.createdAt));
+  const content = toSnakeRows(contentRows) as any[];
 
   return (
     <Section eyebrow="Library" title={<>All <span className="serif-italic">Content</span></>}>

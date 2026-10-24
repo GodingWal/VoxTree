@@ -1,4 +1,8 @@
-import { createAdminClient } from "./supabase/admin";
+import { and, count, eq, gte, sql } from "drizzle-orm";
+
+import { jobOwnedBy } from "./authz";
+import { db } from "./db";
+import { voiceJobs } from "./db/schema";
 
 export class RateLimit {
   private limit: number;
@@ -13,34 +17,24 @@ export class RateLimit {
   /**
    * Checks if the request limit for the given key/IP has been exceeded.
    * Utilizes Postgres check_rate_limit function to be serverless-safe.
-   * Falls back to in-memory tracking in tests or when Supabase is unconfigured.
+   * Falls back to in-memory tracking in tests or when no database is configured.
    */
   async check(id: string): Promise<boolean> {
-    const useDatabase = 
-      process.env.NODE_ENV !== "test" && 
-      process.env.VITEST !== "true" && 
-      !!process.env.NEXT_PUBLIC_SUPABASE_URL && 
-      !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const useDatabase =
+      process.env.NODE_ENV !== "test" &&
+      process.env.VITEST !== "true" &&
+      !!process.env.DATABASE_URL;
 
     if (!useDatabase) {
       return this.checkInMemory(id);
     }
 
     try {
-      const supabase = createAdminClient();
-      
-      const { data, error } = await supabase.rpc("check_rate_limit", {
-        p_key: id,
-        p_limit: this.limit,
-        p_window_ms: this.windowMs,
-      });
-
-      if (error) {
-        console.error("Database rate limit RPC error:", error);
-        return process.env.NODE_ENV !== "production";
-      }
-
-      return !!data;
+      const result = await db.execute(
+        sql`select check_rate_limit(${id}, ${this.limit}, ${this.windowMs}) as allowed`
+      );
+      const row = result.rows[0] as { allowed?: boolean } | undefined;
+      return !!row?.allowed;
     } catch (err) {
       console.error("Rate limiter exception:", err);
       return process.env.NODE_ENV !== "production";
@@ -76,7 +70,7 @@ export class RateLimit {
 }
 
 /**
- * Durable per-user rate limit backed by Supabase. Unlike the in-memory
+ * Durable per-user rate limit backed by Postgres. Unlike the in-memory
  * RateLimit above, this survives server restarts and works across multiple
  * instances — so a malicious client can't reset their bucket by triggering
  * a redeploy or hitting a different replica.
@@ -95,22 +89,25 @@ export interface UserRateLimitOptions {
 export async function checkUserRateLimit(
   opts: UserRateLimitOptions
 ): Promise<{ allowed: boolean; remaining: number }> {
-  const admin = createAdminClient();
-  const since = new Date(Date.now() - opts.windowSeconds * 1000).toISOString();
+  try {
+    const since = new Date(Date.now() - opts.windowSeconds * 1000);
 
-  const { count, error } = await admin
-    .from("voice_jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", opts.userId)
-    .eq("type", opts.bucket)
-    .gte("created_at", since);
+    const [row] = await db
+      .select({ value: count() })
+      .from(voiceJobs)
+      .where(
+        and(
+          jobOwnedBy(opts.userId),
+          eq(voiceJobs.type, opts.bucket),
+          gte(voiceJobs.createdAt, since)
+        )
+      );
 
-  if (error) {
+    const used = row?.value ?? 0;
+    return { allowed: used < opts.limit, remaining: Math.max(0, opts.limit - used) };
+  } catch {
     return process.env.NODE_ENV === "production"
       ? { allowed: false, remaining: 0 }
       : { allowed: true, remaining: opts.limit };
   }
-
-  const used = count ?? 0;
-  return { allowed: used < opts.limit, remaining: Math.max(0, opts.limit - used) };
 }

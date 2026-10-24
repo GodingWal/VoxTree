@@ -47,7 +47,7 @@ export function AccountDataControls({ email }: { email: string }) {
       </button>
       <div style={{ borderTop: "1px solid var(--ink-3)", paddingTop: 20 }}>
         <p style={{ color: "var(--rose)", fontWeight: 700, margin: "0 0 8px" }}>Permanently delete account</p>
-        <p style={{ color: "var(--paper-mute)", fontSize: 13, lineHeight: 1.5 }}>This deletes your account, database records, private voice and clip files, and ElevenLabs voices. It cannot be undone.</p>
+        <p style={{ color: "var(--paper-mute)", fontSize: 13, lineHeight: 1.5 }}>This deletes your account, database records, private voice and clip files, and cloned voices. It cannot be undone.</p>
         <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
           <input value={emailConfirmation} onChange={(event) => setEmailConfirmation(event.target.value)} placeholder={email} aria-label="Confirm account email" style={{ padding: 12, borderRadius: 10, border: "1px solid var(--ink-3)", background: "var(--ink-1)", color: "var(--paper)" }} />
           <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder="Type DELETE" aria-label="Type DELETE to confirm" style={{ padding: 12, borderRadius: 10, border: "1px solid var(--ink-3)", background: "var(--ink-1)", color: "var(--paper)" }} />

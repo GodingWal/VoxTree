@@ -1,7 +1,10 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { familyInvitations, users } from "@/lib/db/schema";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { isSimulationEnabled } from "@/lib/features";
 import { logger } from "@/lib/logger";
 
@@ -11,25 +14,21 @@ export async function inviteFamilyMember(formData: FormData) {
     return { success: false, error: "Please enter a valid email address." };
   }
 
-  const supabase = await createClient();
-
   // 1. Get authenticated user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return { success: false, error: "Not authenticated." };
   }
 
-  // 2. Fetch user's profile and check plan
-  const { data: profile, error: profileError } = await supabase
-    .from("users")
-    .select("plan")
-    .eq("id", user.id)
-    .single();
+  // 2. Fetch user's profile and check plan (RLS: users row is self-only).
+  const [profile] = await db
+    .select({ plan: users.plan })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
 
-  if (profileError || !profile) {
+  if (!profile) {
     return { success: false, error: "Failed to verify user profile." };
   }
 
@@ -41,13 +40,17 @@ export async function inviteFamilyMember(formData: FormData) {
   }
 
   // 3. Attempt to insert invitation into the database
-  const { error: inviteError } = await supabase
-    .from("family_invitations")
-    .insert({
-      user_id: user.id,
-      email: email,
+  // (RLS owner policy: user_id = uid).
+  let inviteError: unknown = null;
+  try {
+    await db.insert(familyInvitations).values({
+      userId,
+      email,
       status: "pending",
     });
+  } catch (err) {
+    inviteError = err;
+  }
 
   if (inviteError) {
     if (!isSimulationEnabled()) {
@@ -55,14 +58,15 @@ export async function inviteFamilyMember(formData: FormData) {
     }
     console.warn("Database insert failed for family_invitations in development simulation.", inviteError);
 
-    // Fallback/Simulation mode (e.g. if migration 004 has not been run yet on their remote Supabase instance)
+    // Fallback/Simulation mode (e.g. if the family_invitations table has
+    // not been created yet in the local database)
     // We can store a temporary simulation cookie or just return success with a simulation flag
     revalidatePath("/dashboard/family");
     return {
       success: true,
       simulated: true,
       email,
-      message: "Invitation simulated successfully! (Note: Please run the 004_family_invitations.sql migration on your Supabase database to persist this permanently).",
+      message: "Invitation simulated successfully! (Note: Please apply the database migrations to persist this permanently).",
     };
   }
 

@@ -285,7 +285,7 @@ export function CloneFullCard({ clone, href, onDelete }: { clone: any; href?: st
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (data.simulated) {
-          alert("Simulation Mode: Testing voice requires an active ElevenLabs API Key. (Audio disabled, speaking simulated for 3 seconds)");
+          alert("Simulation Mode: Testing voice requires the Chatterbox voice service to be running. (Audio disabled, speaking simulated for 3 seconds)");
           setLoading(false);
           setPlaying(true);
           if (simulatedTimerRef.current) clearTimeout(simulatedTimerRef.current);

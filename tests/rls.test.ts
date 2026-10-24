@@ -1,131 +1,229 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import fs from "fs";
+import { promises as fsp } from "fs";
 import path from "path";
+import { NextRequest } from "next/server";
 
 /**
- * P0 #4 — RLS / AuthZ negative tests
- * Proves cross-family isolation: no user can read/write another user's rows.
- * These are static + behavioral checks that run without a live Supabase.
- * A live integration suite would repeat these against a real DB with RLS enabled.
+ * Cross-family isolation — the successor to the RLS policy tests.
+ *
+ * History: this suite statically asserted the Postgres RLS policies in the
+ * hosted migration files. Those policies are gone: authorization is now
+ * enforced in the application layer (lib/authz.ts), and every removed
+ * policy is inventoried in db/rls-policy-map.md. The contract is the
+ * same — no user can read or write another user's rows — so this suite
+ * now pins:
+ *
+ *  1. Coverage: every policy in db/rls-policy-map.md has a corresponding
+ *     owner predicate exported from lib/authz.ts (SQL-level rendering of
+ *     each predicate is pinned in tests/authz.test.ts), and the ported
+ *     local schema defines no database policies at all.
+ *  2. Behavior: the authenticated upload route (the one read path that
+ *     used to rely on public storage + RLS-era assumptions) refuses
+ *     anonymous and cross-owner access.
  */
 
-function readMigration(n: string) {
-  const p = path.join(process.cwd(), "supabase/migrations", n);
-  return fs.readFileSync(p, "utf8");
-}
+// ── Mocks for the upload-route behavioral tests ──────────────────────
 
-// --- Helpers that mirror the RLS USING expressions ---
-function canSelectOwn(userId: string, rowUserId: string, authUid: string | null) {
-  if (!authUid) return false;
-  return authUid === rowUserId && authUid === userId;
-}
-function policyAllowsSelect(rowUserId: string, authUid: string | null) {
-  if (!authUid) return false;
-  return authUid === rowUserId;
-}
+const VOICE_ID = "11111111-1111-4111-8111-111111111111";
+const CLIP_ID = "22222222-2222-4222-8222-222222222222";
+const ALICE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
-describe("RLS migration 001 — core tables", () => {
-  const sql = readMigration("001_initial_schema.sql");
+const state = vi.hoisted(() => ({
+  sessionUserId: null as string | null,
+  voiceRow: false,
+  clipRow: false,
+  userRow: false,
+}));
 
-  it("enables RLS on users, family_voices, generated_clips, content_library", () => {
-    expect(sql).toContain("alter table public.users enable row level security");
-    expect(sql).toContain("alter table public.family_voices enable row level security");
-    expect(sql).toContain("alter table public.generated_clips enable row level security");
-    expect(sql).toContain("alter table public.content_library enable row level security");
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUserId: async () => state.sessionUserId,
+  getCurrentUser: async () =>
+    state.sessionUserId ? { id: state.sessionUserId } : null,
+}));
+
+vi.mock("@/lib/db", async () => {
+  const { getTableName } = await import("drizzle-orm");
+  const chain = (rows: unknown[]) => {
+    const c: Record<string, unknown> = {};
+    for (const m of ["where", "limit", "orderBy"]) c[m] = () => c;
+    c.then = (res: (v: unknown) => void, rej: (e: unknown) => void) =>
+      Promise.resolve(rows).then(res, rej);
+    return c;
+  };
+  return {
+    db: {
+      select: () => ({
+        from: (table: unknown) => {
+          const name = getTableName(table as never);
+          if (name === "family_voices") return chain(state.voiceRow ? [{ id: VOICE_ID }] : []);
+          if (name === "generated_clips") return chain(state.clipRow ? [{ id: CLIP_ID }] : []);
+          if (name === "users") return chain(state.userRow ? [{ id: ALICE }] : []);
+          return chain([]);
+        },
+      }),
+    },
+  };
+});
+
+import { GET as getUpload } from "@/app/uploads/[...path]/route";
+import * as authz from "@/lib/authz";
+
+// ── 1. Policy coverage: db/rls-policy-map.md ↔ lib/authz.ts ─────────
+
+const policyMap = fs.readFileSync(
+  path.join(process.cwd(), "db/rls-policy-map.md"),
+  "utf8",
+);
+const schemaSql = fs.readFileSync(
+  path.join(process.cwd(), "db/init/01_schema.sql"),
+  "utf8",
+);
+
+// Every user-owned table from the removed policies and the predicate
+// that replaces its policies. content_library is intentionally absent:
+// its only policy was "any authenticated user can read".
+const OWNER_TABLES: Array<[string, string]> = [
+  ["public.users", "selfUser"],
+  ["public.family_voices", "voiceOwnedBy"],
+  ["public.generated_clips", "clipOwnedBy"],
+  ["public.family_invitations", "invitationOwnedBy"],
+  ["public.family_children", "childOwnedBy"],
+  ["public.user_saved_stories", "savedStoryOwnedBy"],
+  ["public.user_story_progress", "progressOwnedBy"],
+  ["public.voice_jobs", "jobOwnedBy"],
+  ["public.consent_records", "consentOwnedBy"],
+  ["public.data_lifecycle_requests", "lifecycleOwnedBy"],
+  ["public.invites", "inviteSentBy"],
+  ["public.digital_actors", "actorOwnedBy"],
+  ["public.digital_actor_versions", "actorVersionOwnedBy"],
+  ["public.digital_actor_assets", "actorAssetOwnedBy"],
+  ["public.digital_actor_jobs", "actorJobOwnedBy"],
+];
+
+describe("removed-policy coverage — every policy has an app-level replacement", () => {
+  it("the policy map inventories all 36 removed policies", () => {
+    const bullets = policyMap.split("\n").filter((l) => l.startsWith("- **"));
+    expect(bullets.length).toBe(36);
   });
 
-  it("family_voices select policy is auth.uid() = user_id", () => {
-    expect(sql).toMatch(/family_voices for select[\s\S]*?auth\.uid\(\) = user_id/);
-    expect(sql).toMatch(/family_voices for insert[\s\S]*?auth\.uid\(\) = user_id/);
-    expect(sql).toMatch(/family_voices for update[\s\S]*?auth\.uid\(\) = user_id/);
-    expect(sql).toMatch(/family_voices for delete[\s\S]*?auth\.uid\(\) = user_id/);
+  it.each(OWNER_TABLES)(
+    "%s policies are mapped and %s exists in lib/authz",
+    (table, predicate) => {
+      expect(policyMap).toMatch(new RegExp(`on ${table.replace(".", "\\.")}`, "i"));
+      expect(typeof (authz as Record<string, unknown>)[predicate]).toBe("function");
+    },
+  );
+
+  it("content_library's authenticated-read policy is documented as session-only", () => {
+    expect(policyMap).toMatch(/on public\.content_library/i);
+    const authzSrc = fs.readFileSync(path.join(process.cwd(), "lib/authz.ts"), "utf8");
+    expect(authzSrc).toContain("content_library has no predicate");
   });
 
-  it("generated_clips isolated by auth.uid() = user_id", () => {
-    expect(sql).toMatch(/generated_clips for select[\s\S]*?auth\.uid\(\) = user_id/);
-    expect(sql).toMatch(/generated_clips for insert[\s\S]*?auth\.uid\(\) = user_id/);
+  it("consent + lifecycle policies (highest-risk) are mapped", () => {
+    expect(policyMap).toMatch(/on public\.consent_records/i);
+    expect(policyMap).toMatch(/on public\.data_lifecycle_requests/i);
   });
 
-  it("users can only read/update own row (auth.uid() = id)", () => {
-    expect(sql).toMatch(/on public\.users for select[\s\S]*?auth\.uid\(\) = id/);
-    expect(sql).toMatch(/on public\.users for update[\s\S]*?auth\.uid\(\) = id/);
+  it("rate_limits had no user policy (service-only) and stays unscoped", () => {
+    // No rate_limits entry exists in the policy map; the table and its
+    // check function live in the local schema, accessed only server-side.
+    expect(policyMap).not.toContain("rate_limits");
+    expect(schemaSql).toContain("public.rate_limits");
+    expect(schemaSql).toContain("check_rate_limit");
   });
 
-  it("content_library is readable only when authenticated (not anon)", () => {
-    expect(sql).toMatch(/content_library for select[\s\S]*?auth\.role\(\) = 'authenticated'/);
-  });
-
-  it("no permissive `USING (true)` or `USING (1=1)` policies exist", () => {
-    expect(sql).not.toMatch(/USING\s*\(\s*true\s*\)/i);
-    expect(sql).not.toMatch(/USING\s*\(\s*1\s*=\s*1\s*\)/i);
+  it("the local schema defines no database policies (authorization is app-level)", () => {
+    expect(schemaSql).not.toMatch(/create policy/i);
+    expect(schemaSql).not.toContain("auth.uid()");
+    expect(schemaSql).toContain("[RLS policy removed -> app-level check");
   });
 });
 
-describe("RLS — family_invitations and family_children", () => {
-  it("004 family_invitations isolated by auth.uid() = user_id", () => {
-    const sql = readMigration("004_family_invitations.sql");
-    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
-    expect(sql).toMatch(/family_invitations for select[\s\S]*?auth\.uid\(\) = user_id/i);
-  });
+// ── 2. Behavioral: authenticated upload serving ──────────────────────
 
-  it("006 family_children isolated by auth.uid() = user_id", () => {
-    const sql = readMigration("006_children_and_bedtime.sql");
-    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
-    expect(sql).toMatch(/family_children for select[\s\S]*?auth\.uid\(\) = user_id/i);
-    expect(sql).toMatch(/family_children for insert[\s\S]*?auth\.uid\(\) = user_id/i);
-  });
+const uploadsDir = path.join(process.cwd(), "data", "uploads");
+const testFiles: Array<[string, string]> = [
+  [`voice_sample_${VOICE_ID}.wav`, "alice-voice-sample"],
+  [`talking_${CLIP_ID}.mp4`, "alice-talking-video"],
+  [`lora/${VOICE_ID}/dataset.zip`, "trainer-zip"],
+  [`lora/${VOICE_ID}/ref_01.jpg`, "alice-ref-frame"],
+];
+
+beforeAll(async () => {
+  for (const [rel, content] of testFiles) {
+    const p = path.join(uploadsDir, rel);
+    await fsp.mkdir(path.dirname(p), { recursive: true });
+    await fsp.writeFile(p, content);
+  }
 });
 
-describe("RLS behavioral — cross-user access denied", () => {
-  const alice = "00000000-0000-0000-0000-000000000001";
-  const bob = "00000000-0000-0000-0000-000000000002";
-
-  it("Alice cannot select Bob's family_voices", () => {
-    expect(policyAllowsSelect(bob, alice)).toBe(false);
-    expect(policyAllowsSelect(bob, bob)).toBe(true);
-    expect(policyAllowsSelect(alice, alice)).toBe(true);
-  });
-
-  it("Alice cannot select Bob's generated_clips", () => {
-    expect(policyAllowsSelect(bob, alice)).toBe(false);
-  });
-
-  it("Alice cannot read Bob's invitations", () => {
-    expect(policyAllowsSelect(bob, alice)).toBe(false);
-  });
-
-  it("Alice cannot read Bob's children", () => {
-    expect(policyAllowsSelect(bob, alice)).toBe(false);
-  });
-
-  it("anon (null auth) cannot read any row", () => {
-    expect(policyAllowsSelect(alice, null)).toBe(false);
-    expect(policyAllowsSelect(bob, null)).toBe(false);
-  });
-
-  it("Alice cannot update/delete Bob's voices (simulated check)", () => {
-    // The route additionally checks voice.user_id !== user.id → 404
-    const voice = { id: "v1", user_id: bob, elevenlabs_voice_id: "el1" };
-    const isOwner = voice.user_id === alice;
-    expect(isOwner).toBe(false);
-  });
-
-  it("rate_limits is not readable by anon or authenticated client", () => {
-    const sql = readMigration("011_sync_slots_and_rate_limits.sql");
-    expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
-    // Only service-role should access it — no permissive policy granted to authenticated
-    expect(sql).not.toMatch(/rate_limits for select[\s\S]*?auth\.role\(\) = 'authenticated'/i);
-  });
+afterAll(async () => {
+  for (const [rel] of testFiles) {
+    await fsp.rm(path.join(uploadsDir, rel), { force: true });
+  }
+  await fsp.rm(path.join(uploadsDir, "lora", VOICE_ID), { recursive: true, force: true });
 });
 
-describe("RLS — service role boundary", () => {
-  it("admin client usage is confined to server routes (no client key leak)", () => {
-    // lib/supabase/admin.ts must use SUPABASE_SERVICE_ROLE_KEY, never NEXT_PUBLIC_*
-    const adminSrc = fs.readFileSync(path.join(process.cwd(), "lib/supabase/admin.ts"), "utf8");
-    expect(adminSrc).toContain("SUPABASE_SERVICE_ROLE_KEY");
-    expect(adminSrc).not.toContain("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-    // browser/client must NOT use service role
-    const browserSrc = fs.readFileSync(path.join(process.cwd(), "lib/supabase/client.ts"), "utf8");
-    expect(browserSrc).not.toContain("SERVICE_ROLE");
+function uploadRequest(rel: string, headers: Record<string, string> = {}) {
+  return getUpload(new NextRequest(`http://localhost/uploads/${rel}`, { headers }), {
+    params: Promise.resolve({ path: rel.split("/") }),
+  });
+}
+
+describe("uploads route — cross-user access denied", () => {
+  it("anonymous callers get 401 for a voice sample", async () => {
+    state.sessionUserId = null;
+    const res = await uploadRequest(`voice_sample_${VOICE_ID}.wav`);
+    expect(res.status).toBe(401);
+  });
+
+  it("Alice (owner) can read her voice sample", async () => {
+    state.sessionUserId = ALICE;
+    state.voiceRow = true;
+    const res = await uploadRequest(`voice_sample_${VOICE_ID}.wav`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("alice-voice-sample");
+  });
+
+  it("a signed-in non-owner gets 404 (existence not leaked)", async () => {
+    state.sessionUserId = ALICE;
+    state.voiceRow = false;
+    state.clipRow = false;
+    state.userRow = false;
+    const res = await uploadRequest(`voice_sample_${VOICE_ID}.wav`);
+    expect(res.status).toBe(404);
+  });
+
+  it("clip owner can read her talking video; range requests are honored", async () => {
+    state.sessionUserId = ALICE;
+    state.voiceRow = false;
+    state.clipRow = true;
+    const res = await uploadRequest(`talking_${CLIP_ID}.mp4`, { range: "bytes=0-4" });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe(
+      `bytes 0-4/${"alice-talking-video".length}`,
+    );
+    expect(await res.text()).toBe("alice");
+  });
+
+  it("LoRA dataset zip and reference frames both refuse anonymous callers without a signed trainer token", async () => {
+    state.sessionUserId = null;
+    state.voiceRow = true; // voice exists — existence alone no longer grants the zip
+    const zip = await uploadRequest(`lora/${VOICE_ID}/dataset.zip`);
+    expect(zip.status).toBe(401);
+
+    const frame = await uploadRequest(`lora/${VOICE_ID}/ref_01.jpg`);
+    expect(frame.status).toBe(401);
+  });
+
+  it("path traversal is rejected", async () => {
+    state.sessionUserId = ALICE;
+    const res = await getUpload(
+      new NextRequest("http://localhost/uploads/.."),
+      { params: Promise.resolve({ path: ["..", "env.local"] }) },
+    );
+    expect(res.status).toBe(404);
   });
 });

@@ -47,6 +47,11 @@ jobs:
           python -m pip install numpy==2.2.6
           python -m unittest discover -s workers/avatar_pipeline/tests -v
 
+      - name: Chatterbox voice worker tests
+        if: hashFiles('workers/chatterbox/tests/test_*.py') != ''
+        run: |
+          python -m unittest discover -s workers/chatterbox/tests -v
+
       - name: Lint
         run: npm run lint -- --max-warnings=0
 
@@ -59,9 +64,6 @@ jobs:
           # Provide dummy env so build doesn't fail on missing vars.
           # Build-only synthetic credentials; production simulation is forbidden.
           SIMULATION_MODE: "false"
-          NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-anon-key"
-          SUPABASE_SERVICE_ROLE_KEY: "dummy-service-role-key"
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_dummy"
           STRIPE_SECRET_KEY: "sk_test_dummy"
           STRIPE_WEBHOOK_SECRET: "whsec_dummy"
@@ -69,7 +71,6 @@ jobs:
           STRIPE_FAMILY_ANNUAL_PRICE_ID: "price_dummy_family_annual"
           STRIPE_PREMIUM_MONTHLY_PRICE_ID: "price_dummy_premium_monthly"
           STRIPE_PREMIUM_ANNUAL_PRICE_ID: "price_dummy_premium_annual"
-          ELEVENLABS_API_KEY: "dummy-elevenlabs-key"
           REPLICATE_API_TOKEN: "dummy-replicate-token"
           REPLICATE_WEBHOOK_SECRET: "whsec_dummy_replicate"
           GOOGLE_CLOUD_PROJECT_ID: "dummy-project"

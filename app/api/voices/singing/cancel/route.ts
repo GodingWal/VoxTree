@@ -1,10 +1,13 @@
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getRouteClient } from "@/lib/supabase/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { cancelTraining } from "@/lib/replicate";
+
 import { safeJson } from "@/lib/api-helpers";
+import { getCurrentUserId } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
 import { logger } from "@/lib/logger";
+import { cancelTraining } from "@/lib/replicate";
 
 const cancelSchema = z.object({
   voiceId: z.string().uuid(),
@@ -15,14 +18,12 @@ const cancelSchema = z.object({
  * the training already finished or was already cancelled.
  */
 export async function POST(request: Request) {
-  const supabase = await getRouteClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const user = { id: userId };
 
   const parsedJson = await safeJson(request);
   if ("error" in parsedJson) return parsedJson.error;
@@ -36,35 +37,39 @@ export async function POST(request: Request) {
 
   const { voiceId } = parsed.data;
 
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("id, user_id, rvc_training_status, rvc_model_id")
-    .eq("id", voiceId)
-    .single();
+  const [voice] = await db
+    .select({
+      id: familyVoices.id,
+      userId: familyVoices.userId,
+      rvcTrainingStatus: familyVoices.rvcTrainingStatus,
+      rvcModelId: familyVoices.rvcModelId,
+    })
+    .from(familyVoices)
+    .where(eq(familyVoices.id, voiceId))
+    .limit(1);
 
-  if (!voice || voice.user_id !== user.id) {
+  if (!voice || voice.userId !== user.id) {
     return NextResponse.json({ error: "Voice not found" }, { status: 404 });
   }
 
-  if (voice.rvc_training_status !== "processing" || !voice.rvc_model_id) {
-    return NextResponse.json({ status: voice.rvc_training_status ?? "idle" });
+  if (voice.rvcTrainingStatus !== "processing" || !voice.rvcModelId) {
+    return NextResponse.json({ status: voice.rvcTrainingStatus ?? "idle" });
   }
 
   // rvc_model_id currently holds the Replicate training id during processing.
-  const cancelled = await cancelTraining(voice.rvc_model_id);
+  const cancelled = await cancelTraining(voice.rvcModelId);
   if (!cancelled) {
     logger.warn("rvc_cancel_replicate_failed", {
       voiceId,
       userId: user.id,
-      trainingId: voice.rvc_model_id,
+      trainingId: voice.rvcModelId,
     });
   }
 
-  const admin = createAdminClient();
-  await admin
-    .from("family_voices")
-    .update({ rvc_training_status: "cancelled" })
-    .eq("id", voiceId);
+  await db
+    .update(familyVoices)
+    .set({ rvcTrainingStatus: "cancelled" })
+    .where(eq(familyVoices.id, voiceId));
 
   return NextResponse.json({ status: "cancelled" });
 }

@@ -1,5 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { familyVoices } from "@/lib/db/schema";
+import { toSnakeRow } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { CloneDetailsTabs } from "./tabs-content";
 
 // Deterministic color generation based on name
@@ -12,21 +16,21 @@ function getColorForName(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export default async function CloneDetailsPage({ params }: { params: { id: string } }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default async function CloneDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
-  const { data: voice } = await supabase
-    .from("family_voices")
-    .select("*")
-    .eq("id", params.id)
-    .single();
+  // RLS owner policy on family_voices scoped the old by-id select to the
+  // caller's own voices; keep that predicate explicitly.
+  const [voice] = await db
+    .select()
+    .from(familyVoices)
+    .where(and(eq(familyVoices.id, id), eq(familyVoices.userId, userId)))
+    .limit(1);
 
   if (!voice) {
     redirect("/dashboard/clones");
@@ -36,7 +40,7 @@ export default async function CloneDetailsPage({ params }: { params: { id: strin
 
   return (
     <main className="container py-12 max-w-4xl mx-auto text-white">
-      <CloneDetailsTabs voice={voice} cloneColor={cloneColor} userId={user.id} />
+      <CloneDetailsTabs voice={toSnakeRow(voice) as any} cloneColor={cloneColor} userId={userId} />
     </main>
   );
 }

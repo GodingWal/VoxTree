@@ -1,31 +1,32 @@
-import * as elevenlabs from "./elevenlabs";
+import * as chatterbox from "./chatterbox";
 
 /**
- * Provider-neutral voice API. Routes depend on this module, never on a vendor
- * SDK, so a self-hosted engine (F5-TTS, XTTS v2, Chatterbox) can be added as
- * another implementation without touching route code.
+ * Provider-neutral voice API. Routes depend on this module, never on a
+ * concrete engine client. The only implementation is the self-hosted
+ * Chatterbox service (workers/chatterbox) — decided Oct 24, 2026: voice
+ * cloning/TTS runs locally and no other voice model is used.
  */
 export interface VoiceProvider {
   readonly name: string;
   /** Clone a voice from a consented sample; returns the provider's voice id. */
-  cloneVoice: typeof elevenlabs.cloneVoice;
+  cloneVoice: (audioBuffer: Buffer, name: string) => Promise<string>;
   /** Synthesize speech with a cloned voice; returns audio bytes. */
-  generateSpeech: typeof elevenlabs.generateSpeech;
+  generateSpeech: (voiceId: string, text: string) => Promise<Buffer>;
   /** Permanently delete a cloned voice at the provider. */
-  deleteVoice: typeof elevenlabs.deleteVoice;
+  deleteVoice: (voiceId: string) => Promise<void>;
 }
 
 const providers: Record<string, () => VoiceProvider> = {
-  elevenlabs: () => ({
-    name: "elevenlabs",
-    // Indirection (not captured references) keeps test mocks of ./elevenlabs effective.
-    cloneVoice: (...a) => elevenlabs.cloneVoice(...a),
-    generateSpeech: (...a) => elevenlabs.generateSpeech(...a),
-    deleteVoice: (...a) => elevenlabs.deleteVoice(...a),
+  chatterbox: () => ({
+    name: "chatterbox",
+    // Indirection (not captured references) keeps test mocks of ./chatterbox effective.
+    cloneVoice: (...a) => chatterbox.cloneVoice(...a),
+    generateSpeech: (...a) => chatterbox.generateSpeech(...a),
+    deleteVoice: (...a) => chatterbox.deleteVoice(...a),
   }),
 };
 
-export function getVoiceProvider(name = process.env.VOICE_PROVIDER ?? "elevenlabs"): VoiceProvider {
+export function getVoiceProvider(name = process.env.VOICE_PROVIDER ?? "chatterbox"): VoiceProvider {
   const factory = providers[name];
   if (!factory) {
     throw new Error(`Unknown VOICE_PROVIDER "${name}". Available: ${Object.keys(providers).join(", ")}`);

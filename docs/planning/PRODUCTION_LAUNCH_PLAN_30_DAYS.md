@@ -15,7 +15,7 @@ The original August 27 baseline is superseded by the September 28 release-founda
 - Dependency updates report zero vulnerabilities, including production dependencies.
 - CI includes type-check, lint, unit tests, build, dependency audit, end-to-end smoke tests, secret scanning, and a release-tree media check. Every pull request is covered, as are release-branch pushes.
 - `main` requires the green `ci` check on an up-to-date branch, including for administrators. On September 28, the repository owner explicitly removed the approving-review requirement. Releases use PRs into `main`; the historical `release/2026-09-launch` branch is not the authoritative release candidate. Deploy only a commit with successful CI and an immutable release tag.
-- Production startup requires the app URL and all required Stripe, Supabase, storage, ElevenLabs, Replicate, and webhook configuration. Simulation is rejected in production; talking video additionally requires Hedra when enabled.
+- Production startup requires the app URL and all required Stripe, database, storage, Replicate, and webhook configuration, plus a reachable Chatterbox voice service. Simulation is rejected in production; talking video additionally requires Hedra when enabled.
 - Placeholder checkout prices, fake production voice/job IDs, and false-success capture responses are rejected. Demo children remain restricted to explicit non-production simulation.
 - Uploads are excluded from Git. Fourteen local media files were moved out of the public directory into a private local quarantine, without deleting them. Historical uploads remain in Git history.
 - Credential rotation, counsel/security's history-purge decision, production vendor verification, legal sign-off, and final launch approval remain open. Do not infer those approvals from passing CI.
@@ -64,7 +64,7 @@ One person may hold multiple roles, but each row needs a named individual by Aug
 - [x] **P0 — Engineering:** Upgrade Next.js and related React/build dependencies to supported, patched versions; resolve every critical/high production vulnerability or document a compensating control approved by the Launch DRI.
 - [x] **P0 — Engineering:** Add GitHub Actions for clean install, type-check, lint, unit tests, production build, dependency audit, and secret scanning on every pull request.
 - [x] **P0 — Engineering:** Protect `main` and require green CI before merge; use PRs into `main` as the release process. Owner-approved deviation (September 28): mandatory approving reviews removed at the repository owner's explicit request.
-- [x] **P0 — Engineering:** Add startup environment validation. Production must fail closed when Stripe, Supabase, storage, ElevenLabs, Replicate, webhook, or app URL configuration is missing.
+- [x] **P0 — Engineering:** Add startup environment validation. Production must fail closed when Stripe, database, storage, Replicate, webhook, or app URL configuration is missing; the health route must report the Chatterbox voice service reachable.
 - [x] **P0 — Engineering:** Remove or production-disable all mock upload/download routes, fake IDs, placeholder Stripe prices, demo children, and simulation fallbacks.
 - [ ] **P0 — Engineering:** Remove customer-like voice/face/media files from `public/uploads`, add the directory to `.gitignore`, rotate any affected test credentials, and decide with counsel/security whether repository history must be purged.
 - [x] **P1 — Engineering:** Restrict Next Image remote hosts instead of allowing every HTTPS hostname.
@@ -83,13 +83,13 @@ One person may hold multiple roles, but each row needs a named individual by Aug
 - [ ] **P0 — Privacy counsel:** Review biometric laws for every launch geography. Illinois BIPA expressly includes voiceprints and requires written notice/consent plus a public retention/destruction policy; similar state laws may also apply.
 - [ ] **P0 — Product/Engineering:** Replace the current checkbox-only claim of parental verification with counsel-approved verifiable parental consent and age/parent verification.
 - [ ] **P0 — Product/Engineering:** Require separate, auditable authorization from the person whose voice/likeness is cloned; handle minors and deceased family members explicitly.
-- [ ] **P0 — Engineering:** Implement complete parent access, export, revocation, and deletion. Deletion must cascade through Supabase, GCS, ElevenLabs, Replicate/Hedra outputs, caches, logs, and backups according to policy.
+- [ ] **P0 — Engineering:** Implement complete parent access, export, revocation, and deletion. Deletion must cascade through the local Postgres database, GCS, the Chatterbox voice service (stored references), Replicate/Hedra outputs, caches, logs, and backups according to policy.
 - [ ] **P0 — Legal:** Publish counsel-reviewed Terms of Service, Privacy Notice, Biometric/Voice Data Notice and Consent, retention/deletion schedule, refund policy, acceptable-use/anti-impersonation policy, and DMCA/content reporting path.
 - [ ] **P0 — Engineering:** Verify object-level authorization on every voice, child, clip, avatar, invitation, admin, download, and status endpoint. Add negative tests proving one family cannot access another family's data.
 - [ ] **P0 — Engineering:** Verify signed Stripe and Replicate webhooks in production and reject unsigned, replayed, stale, or malformed events.
-- [ ] **P0 — Engineering:** Review Supabase RLS, service-role usage, storage bucket privacy, signed URL expiry, encryption, log redaction, rate limiting, job idempotency, and cost caps.
+- [ ] **P0 — Engineering:** Review app-level authorization (lib/authz predicates, formerly database RLS), privileged-access usage, storage privacy, signed URL expiry, encryption, log redaction, rate limiting, job idempotency, and cost caps.
 - [ ] **P0 — Engineering:** Normalize and test migration order, remove duplicate numbering, apply all migrations to a fresh staging database, and prove backup restore to a separate project.
-- [ ] **P1 — Legal/Engineering:** Complete vendor inventory and DPAs/subprocessor disclosures for Supabase, Google Cloud, ElevenLabs, Replicate, Hedra, Stripe, analytics, monitoring, and support tools.
+- [ ] **P1 — Legal/Engineering:** Complete vendor inventory and DPAs/subprocessor disclosures for Google Cloud, Replicate, Hedra, Stripe, analytics, monitoring, and support tools. (Voice processing is self-hosted Chatterbox — no voice-data subprocessor.)
 
 **Exit gate:** Counsel approves launch documents and consent design; cross-account access tests pass; deletion is verified end-to-end; staging can be rebuilt and restored from documented migrations/backups.
 
@@ -97,7 +97,7 @@ One person may hold multiple roles, but each row needs a named individual by Aug
 
 **Outcome:** Staging behaves like production and money/data paths are tested.
 
-- [ ] **P0 — Engineering:** Create separate development, staging, and production projects/keys for Supabase, Stripe, storage, and AI vendors. Rotate secrets and enforce least privilege.
+- [ ] **P0 — Engineering:** Create separate development, staging, and production projects/keys for the database, Stripe, storage, and AI vendors. Rotate secrets and enforce least privilege.
 - [ ] **P0 — Engineering/QA:** Add route-level tests for Stripe checkout/webhooks, voice create/process/delete, upload validation, consent gating, invitations, download authorization, rate limits, retries, and quota/cost enforcement.
 - [ ] **P0 — QA:** Add browser end-to-end tests for signup/login/reset, consent, voice capture, clone creation, narration, billing, cancellation, deletion, and failure recovery.
 - [ ] **P0 — Billing:** Test Stripe monthly/annual checkout, webhook replay, upgrade/downgrade, cancellation, failed payment, refund, invoice, and entitlement synchronization.

@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# Stored voice references are biometric data — never commit them.
+data/
+.venv/

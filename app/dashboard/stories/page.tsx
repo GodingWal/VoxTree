@@ -1,24 +1,25 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { asc, eq } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { contentLibrary } from "@/lib/db/schema";
+import { toSnakeRows } from "@/lib/db/to-snake";
+import { getCurrentUserId } from "@/lib/auth/session";
 import { StoriesDiscovery } from "@/components/stories-discovery";
 
 export default async function StoriesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const userId = await getCurrentUserId();
 
-  if (!user) {
+  if (!userId) {
     redirect("/login");
   }
 
   // Fetch all stories from the content library
-  const { data: stories } = await supabase
-    .from("content_library")
-    .select("*")
-    .eq("content_type", "story")
-    .order("series", { ascending: true })
-    .order("episode_number", { ascending: true });
+  // (RLS: readable by any authenticated user).
+  const stories = await db
+    .select()
+    .from(contentLibrary)
+    .where(eq(contentLibrary.contentType, "story"))
+    .orderBy(asc(contentLibrary.series), asc(contentLibrary.episodeNumber));
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 32px 80px" }}>
@@ -30,12 +31,12 @@ export default async function StoriesPage() {
           Discover stories,<br/><span className="serif-italic" style={{ color: "var(--lamp)" }}>add them to your world.</span>
         </h1>
         <p style={{ color: "var(--paper-mute)", marginTop: 16, maxWidth: 560, margin: "0 auto", fontSize: 16, lineHeight: 1.5 }}>
-          Spin through our collection of bedtime tales. Select the ones you love 
+          Spin through our collection of bedtime tales. Select the ones you love
           and they&apos;ll appear in your library, ready to be narrated by your clones.
         </p>
       </div>
 
-      <StoriesDiscovery stories={stories ?? []} />
+      <StoriesDiscovery stories={toSnakeRows(stories) as any} />
     </div>
   );
 }
