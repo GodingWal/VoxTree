@@ -238,7 +238,6 @@ export function CloneFullCard({ clone, href, onDelete }: { clone: any; href?: st
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showDropdown]);
 
-  const ready = clone.status === "ready";
 
   const handlePlaySample = async (e: React.MouseEvent) => {
     e.preventDefault();

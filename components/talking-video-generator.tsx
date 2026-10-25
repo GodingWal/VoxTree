@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Mic, Sparkles } from "lucide-react";
 
 interface Props {
@@ -24,7 +24,7 @@ export function TalkingVideoGenerator({ voiceId, disabled, disabledReason }: Pro
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "processing" | "ready" | "failed">("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [clipId, setClipId] = useState<string | null>(null);
+  const [, setClipId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

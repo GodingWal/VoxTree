@@ -1,5 +1,4 @@
 import { DashboardSkeleton } from "@/components/skeleton-cards";
-import { BrandLogo } from "@/components/brand-logo";
 
 export default function DashboardLoading() {
   return (

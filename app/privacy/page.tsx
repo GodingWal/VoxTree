@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TwilightShell } from "@/components/twilight-layout";
 import { Section } from "@/components/twilight-ui";
-import { ShieldCheck, Lock, EyeOff, KeyRound } from "lucide-react";
+import { ShieldCheck, Lock, EyeOff } from "lucide-react";
 
 export const metadata = {
   title: "Privacy Policy | VoxTree",

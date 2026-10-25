@@ -312,7 +312,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
                 </div>
 
                 <div className="flex flex-col gap-3 min-w-[200px] justify-center pt-2">
-                  <TrainSingingButton voiceId={voice.id} initialStatus={voice.rvc_training_status} trainingId={voice.rvc_model_id} />
+                  <TrainSingingButton voiceId={voice.id} initialStatus={voice.rvc_training_status} />
                 </div>
               </div>
             </div>

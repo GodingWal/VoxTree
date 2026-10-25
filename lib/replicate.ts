@@ -162,21 +162,3 @@ export async function runPixarLoraInference(params: {
   throw new Error("Replicate Pixar LoRA inference returned no usable output");
 }
 
-/**
- * Generates a singing voice (V2V) using a trained RVC model.
- */
-export async function generateSingingVoice(modelId: string, songUrl: string) {
-  const r = requireReplicate();
-  const output = await r.run(
-    "zsxkib/realistic-voice-cloning:0a9c7c558af4c0f20667c1bd1260ce32a2879944a0b9e44e1398660c077b1550",
-    {
-      input: {
-        song_input: songUrl,
-        rvc_model: "CUSTOM",
-        protect: 0.33,
-      },
-    }
-  );
-  
-  return output;
-}

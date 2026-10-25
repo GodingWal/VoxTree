@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 
 import { db } from "./db";
 import { generatedClips } from "./db/schema";
-import { getPublicUrl, GCP_PATHS } from "./gcp";
 
 /**
  * Check if audio has already been generated for a content + voice combination.
@@ -32,27 +31,3 @@ export async function getCachedAudio(
   return row?.outputVideoUrl ?? null;
 }
 
-/**
- * Store a generated clip in GCS and mark it as cached in the database.
- * Returns the public URL for the cached clip.
- */
-export async function markAsCached(
-  clipId: string,
-  userId: string,
-  contentId: string,
-  voiceId: string
-): Promise<string> {
-  const videoKey = GCP_PATHS.clipVideo(userId, contentId, voiceId);
-  const publicUrl = getPublicUrl(videoKey);
-
-  await db
-    .update(generatedClips)
-    .set({
-      cached: true,
-      outputVideoUrl: publicUrl,
-      status: "ready",
-    })
-    .where(eq(generatedClips.id, clipId));
-
-  return publicUrl;
-}

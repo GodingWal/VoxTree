@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TwilightShell } from "@/components/twilight-layout";
 import { StoryArt, Waveform } from "@/components/twilight-ui";
-import { Film, BookOpen, Clock, Sparkles, Trash2, Play, X, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
+import { Film, BookOpen, Sparkles, Trash2, Play, X, Pause, SkipBack, SkipForward, Volume2 } from "lucide-react";
 
 interface ContentItem {
   id: string;
@@ -51,12 +51,6 @@ function getArtKind(c: ContentItem) {
 
 function getColor(c: ContentItem) {
   const hash = c.id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8", "#A3A7C9"];
-  return colors[hash % colors.length];
-}
-
-function getVoiceColor(id: string) {
-  const hash = id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const colors = ["#E8856C", "#F4B860", "#7FC4A4", "#C58FB8", "#A3A7C9"];
   return colors[hash % colors.length];
 }

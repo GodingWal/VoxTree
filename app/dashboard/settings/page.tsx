@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import { PLAN_LIMITS, planLabel } from "@/lib/limits";
+import { planLabel } from "@/lib/limits";
 import type { Plan } from "@/types/database";
 import { redirect } from "next/navigation";
 import Link from "next/link";

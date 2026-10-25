@@ -28,10 +28,3 @@ export async function isAdmin(email: string | undefined | null): Promise<boolean
   }
 }
 
-/**
- * Lightweight check for the client — just checks the hardcoded list.
- */
-export function isAdminEmail(email: string | undefined | null): boolean {
-  if (!email) return false;
-  return ADMIN_EMAILS.includes(email.toLowerCase());
-}

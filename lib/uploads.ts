@@ -1,4 +1,3 @@
-import { promises as fs } from "fs";
 import path from "path";
 
 /**
@@ -41,13 +40,3 @@ export function localMediaPath(urlPath: string): string {
   return path.join(process.cwd(), "public", urlPath);
 }
 
-/** Write an upload, creating parent directories as needed. */
-export async function saveUpload(
-  relativePath: string,
-  data: Buffer | Uint8Array | string,
-): Promise<string> {
-  const filePath = uploadsFilePath(relativePath);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, data);
-  return uploadUrl(relativePath);
-}
