@@ -1,6 +1,5 @@
 import { and, eq, type SQL } from "drizzle-orm";
 
-import { isAdmin } from "./admin";
 import {
   consentRecords,
   dataLifecycleRequests,
@@ -102,13 +101,3 @@ export const byIdAndOwner = (
   ownerCondition: SQL,
 ): SQL => and(idCondition, ownerCondition) as SQL;
 
-/**
- * Admin gate replacing service-role usage in admin surfaces. Delegates to
- * lib/admin's isAdmin (allow-list + optional `role` column), which is how
- * admin was determined before the migration.
- */
-export async function requireAdminByEmail(
-  email: string | undefined | null,
-): Promise<boolean> {
-  return isAdmin(email);
-}

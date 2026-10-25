@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { TwilightShell } from "@/components/twilight-layout";
-import { Section } from "@/components/twilight-ui";
 import { Search, HelpCircle, ChevronDown, BookOpen, Volume2, ShieldCheck, CreditCard } from "lucide-react";
 
 interface FAQItem {

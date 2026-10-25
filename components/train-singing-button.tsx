@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export function TrainSingingButton({ voiceId, initialStatus, trainingId }: { voiceId: string, initialStatus: string | null, trainingId: string | null }) {
+export function TrainSingingButton({ voiceId, initialStatus }: { voiceId: string, initialStatus: string | null }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 

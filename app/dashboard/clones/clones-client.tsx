@@ -1,19 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { CloneFullCard, Section } from "@/components/twilight-ui";
 import { VoxMark } from "@/components/voxtree-logo";
-import { 
-  Volume2, 
-  Activity, 
-  ShieldCheck, 
-  CheckCircle2, 
-  Sparkles, 
-  Cpu, 
-  Music, 
-  Mic, 
-  FileCheck 
+import {
+  Activity,
+  ShieldCheck,
+  CheckCircle2,
+  Cpu,
+  Music
 } from "lucide-react";
 
 interface Clone {
@@ -286,10 +282,10 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              <PipelineStep index={1} label="Biometric Facemap Scan" status="complete" details="Pixar avatar generated from head sweeps" />
-              <PipelineStep index={2} label="Acoustic Voice Check" status="complete" details="Voice check validated via teleprompter" />
-              <PipelineStep index={3} label="Voice Training Capture" status="complete" details="1.5-minute custom cadence recording complete" />
-              <PipelineStep index={4} label="Watermark & Encryption" status="complete" details="Synthetic audio encrypted with secure hash" />
+              <PipelineStep label="Biometric Facemap Scan" details="Pixar avatar generated from head sweeps" />
+              <PipelineStep label="Acoustic Voice Check" details="Voice check validated via teleprompter" />
+              <PipelineStep label="Voice Training Capture" details="1.5-minute custom cadence recording complete" />
+              <PipelineStep label="Watermark & Encryption" details="Synthetic audio encrypted with secure hash" />
             </div>
           </div>
         </div>
@@ -339,7 +335,7 @@ export function ClonesClient({ clones }: { clones: Clone[] }) {
   );
 }
 
-function PipelineStep({ index, label, status, details }: { index: number; label: string; status: "complete" | "processing" | "pending"; details: string }) {
+function PipelineStep({ label, details }: { label: string; details: string }) {
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
       <div style={{ marginTop: 2 }}>

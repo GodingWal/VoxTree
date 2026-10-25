@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { TwilightShell } from "@/components/twilight-layout";
-import { Play, Sparkles, Clock, Cpu, Check, Mail, ArrowRight, Award } from "lucide-react";
+import { Play, Sparkles, Clock, Cpu, Check, ArrowRight, Award } from "lucide-react";
 
 export default function VideosComingSoonPage() {
   const [email, setEmail] = useState("");
@@ -336,7 +336,6 @@ export default function VideosComingSoonPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20 }}>
             <RoadmapCard 
-              vKey="lipSync" 
               title="Voice-Synced Lip Movement" 
               desc="Avatars move their lips in sync with cloned audio, matching vowels and narrator pacing." 
               votes={votes.lipSync} 
@@ -344,7 +343,6 @@ export default function VideosComingSoonPage() {
               onVote={() => handleVote("lipSync")}
             />
             <RoadmapCard 
-              vKey="choicePaths" 
               title="Interactive Branching Clips" 
               desc="Kids can select choices at intervals during the video, steering the story script dynamically." 
               votes={votes.choicePaths} 
@@ -352,7 +350,6 @@ export default function VideosComingSoonPage() {
               onVote={() => handleVote("choicePaths")}
             />
             <RoadmapCard 
-              vKey="ambientGlow" 
               title="Smart Ambient Projector Glow" 
               desc="Video cast colors project soft dynamic illumination back onto the screen layout, acting as a nightlight." 
               votes={votes.ambientGlow} 
@@ -360,7 +357,6 @@ export default function VideosComingSoonPage() {
               onVote={() => handleVote("ambientGlow")}
             />
             <RoadmapCard 
-              vKey="customStyling" 
               title="Watercolor & Sketch Styles" 
               desc="Allow rendering video diffusions as watercolor illustrations or hand-drawn pencil sketches." 
               votes={votes.customStyling} 
@@ -374,7 +370,7 @@ export default function VideosComingSoonPage() {
   );
 }
 
-function RoadmapCard({ vKey, title, desc, votes, voted, onVote }: { vKey: string; title: string; desc: string; votes: number; voted: boolean; onVote: () => void }) {
+function RoadmapCard({ title, desc, votes, voted, onVote }: { title: string; desc: string; votes: number; voted: boolean; onVote: () => void }) {
   return (
     <div style={{
       background: "var(--ink-2)",

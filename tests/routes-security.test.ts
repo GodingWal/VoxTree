@@ -214,7 +214,6 @@ describe("POST /api/voices/delete — IDOR guard", () => {
 });
 
 describe("POST /api/stripe/webhook — signature + replay", () => {
-  const webhookSecret = "whsec_test";
 
   it("400 when stripe-signature header missing", async () => {
     const req = new Request("http://localhost/api/stripe/webhook", {

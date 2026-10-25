@@ -323,7 +323,7 @@ export const familyInvitations = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
+  () => [
     check(
       "family_invitations_status_check",
       sql`"status" in ('pending', 'accepted')`,
@@ -509,7 +509,7 @@ export const dataLifecycleRequests = pgTable(
     completedAt: timestamp("completed_at", { withTimezone: true }),
     failureReason: text("failure_reason"),
   },
-  (table) => [
+  () => [
     check(
       "data_lifecycle_requests_request_type_check",
       sql`"request_type" in ('export', 'delete', 'revoke_consent')`,

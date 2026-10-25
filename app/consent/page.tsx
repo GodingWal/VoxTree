@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { TwilightShell } from "@/components/twilight-layout";
-import { ShieldCheck, Calendar, FileText, CheckCircle2, UserCheck } from "lucide-react";
+import { Calendar, FileText, CheckCircle2, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { ConsentFormClient } from "./consent-form-client";
 

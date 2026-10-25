@@ -1,30 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lightbulb, Loader2, CheckCircle2, Mic, StopCircle, ArrowRight, Upload, Sparkles, Video } from "lucide-react";
+import { Loader2, CheckCircle2, Mic, Sparkles } from "lucide-react";
 import { TwilightShell } from "@/components/twilight-layout";
 import { VoiceCaptureModal } from "@/components/voice-capture-modal";
 
 type Step = 1 | 2 | 3;
 
-const ALLOWED_AUDIO_TYPES = new Set([
-  "audio/mpeg",
-  "audio/mp3",
-  "audio/m4a",
-  "audio/x-m4a",
-  "audio/mp4",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/webm",
-  "audio/ogg",
-]);
-
-function pickContentType(file: File): string {
-  if (file.type && ALLOWED_AUDIO_TYPES.has(file.type)) return file.type;
-  return "audio/mpeg";
-}
 
 const TIPS = [
   "Did you know? Reading aloud to children helps develop their vocabulary and comprehension skills.",

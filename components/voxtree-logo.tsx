@@ -1,4 +1,3 @@
-import React from 'react';
 
 // VoxTree logo — a tree whose canopy is concentric soundwave arcs
 // rippling up from the trunk, with a top dot. Reads as foliage + voice.

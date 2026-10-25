@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Limits / Features unit tests (no mocks needed for constants) ──
 import { TRIAL_CLIPS_LIMIT, TRIAL_CLIP_MAX_DURATION_SEC, TRIAL_LIMITS, PLAN_LIMITS, isTrialClipAllowed, trialClipsRemaining } from "@/lib/limits";

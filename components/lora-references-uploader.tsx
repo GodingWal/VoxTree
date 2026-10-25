@@ -1,7 +1,7 @@
 "use client";
  
-import React, { useEffect, useRef, useState } from "react";
-import { Loader2, Sparkles, X, Camera, RotateCcw, Check, AlertCircle, Video, Mic } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Sparkles, Camera, RotateCcw, Check, AlertCircle, Video, Mic } from "lucide-react";
 import Image from "next/image";
 
 interface Props {

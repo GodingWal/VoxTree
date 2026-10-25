@@ -7,7 +7,7 @@ import { TwilightShell } from "@/components/twilight-layout";
 import { Section } from "@/components/twilight-ui";
 import { updateBedtimeSettings } from "./actions";
 import { getAmbientSynth, type AmbientSoundType } from "@/lib/ambient-synth";
-import { Loader2, ArrowLeft, Moon, Sun, Volume2, VolumeX, ShieldCheck, Play, Square, AlertCircle } from "lucide-react";
+import { Loader2, ArrowLeft, Moon, Sun, ShieldCheck, Play, Square, AlertCircle } from "lucide-react";
 
 interface BedtimeClientProps {
   userId: string;
