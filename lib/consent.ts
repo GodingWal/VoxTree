@@ -4,6 +4,30 @@ import { NextResponse } from "next/server";
 import { consentOwnedBy, selfUser } from "./authz";
 import { db } from "./db";
 import { consentRecords, users } from "./db/schema";
+import { isProduction } from "./env";
+
+/**
+ * Salt for the consent audit digests (signature / IP hashes).
+ *
+ * Source order: CONSENT_HASH_SALT, then AUTH_SECRET. The historical
+ * last-resort fallback was the public constant "development-only" —
+ * if a production deploy ever ran with neither var set, every digest
+ * would be keyed by a value anyone can read in the source. That is
+ * now fail-closed: in production this throws (and AUTH_SECRET is a
+ * required, >=32-char var in lib/env.ts, so a validated boot cannot
+ * reach the throw). The public fallback remains only in dev/test,
+ * where digests are throwaway fixture data.
+ */
+export function getConsentHashSalt(): string {
+  const salt = process.env.CONSENT_HASH_SALT ?? process.env.AUTH_SECRET;
+  if (salt) return salt;
+  if (isProduction()) {
+    throw new Error(
+      "CONSENT_HASH_SALT / AUTH_SECRET is not set; refusing to key consent audit digests with a public fallback in production"
+    );
+  }
+  return "development-only";
+}
 
 export async function hasActiveConsent(userId: string): Promise<boolean> {
   try {

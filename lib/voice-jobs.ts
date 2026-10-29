@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { jobOwnedBy } from "./authz";
 import { db } from "./db";
@@ -66,6 +66,26 @@ function toVoiceJob(row: VoiceJobRow): VoiceJob {
   };
 }
 
+/** Map a raw pg row (snake_case, from the lease_voice_job SQL function). */
+function rawToVoiceJob(row: Record<string, unknown>): VoiceJob {
+  return {
+    id: row.id as string,
+    user_id: row.user_id as string,
+    type: row.type as VoiceJobType,
+    payload: (row.payload ?? {}) as Record<string, unknown>,
+    status: row.status as VoiceJob["status"],
+    attempts: row.attempts as number,
+    max_attempts: row.max_attempts as number,
+    last_error: (row.last_error as string | null) ?? null,
+    worker_id: (row.worker_id as string | null) ?? null,
+    result: (row.result as Record<string, unknown> | null) ?? null,
+    idempotency_key: (row.idempotency_key as string | null) ?? null,
+    created_at: iso(row.created_at as Date | string) ?? "",
+    updated_at: iso(row.updated_at as Date | string) ?? "",
+    completed_at: iso(row.completed_at as Date | string | null),
+  };
+}
+
 export async function enqueueJob(params: {
   userId: string;
   type: VoiceJobType;
@@ -101,6 +121,25 @@ export async function enqueueJob(params: {
     }
     throw error;
   }
+}
+
+/**
+ * Lease the next runnable job via the atomic `lease_voice_job()` SQL
+ * function (db/init/01_schema.sql): picks the oldest queued job — or a
+ * running job whose lease expired — marks it running under this
+ * worker, increments attempts, and returns it. Returns null when the
+ * queue is empty. The consumer is lib/voice-worker.ts (entrypoint:
+ * workers/voice/worker.ts, `npm run worker:voice`).
+ */
+export async function leaseNextJob(params: {
+  workerId: string;
+  leaseSeconds?: number;
+}): Promise<VoiceJob | null> {
+  const result = await db.execute(
+    sql`select * from lease_voice_job(${params.workerId}, ${params.leaseSeconds ?? 300})`
+  );
+  const rows = result.rows as Array<Record<string, unknown>>;
+  return rows.length > 0 ? rawToVoiceJob(rows[0]) : null;
 }
 
 export async function completeJob(

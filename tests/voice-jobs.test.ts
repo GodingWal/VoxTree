@@ -19,6 +19,8 @@ type Job = {
 
 const store = new Map<string, Job>();
 const updates: Array<{ id: string; patch: Partial<Job> }> = [];
+/** Rows the mocked lease_voice_job() SQL function returns (snake_case). */
+let leasedRows: Array<Record<string, unknown>> = [];
 
 function asJob(partial: Partial<Job>): Job {
   return {
@@ -200,15 +202,16 @@ vi.mock("../lib/db", () => ({
         return chain;
       },
     }),
-    execute: () => Promise.resolve({ rows: [] }),
+    execute: () => Promise.resolve({ rows: leasedRows }),
   },
 }));
 
-import { enqueueJob, completeJob, failJob, cancelJob } from "../lib/voice-jobs";
+import { enqueueJob, completeJob, failJob, cancelJob, leaseNextJob } from "../lib/voice-jobs";
 
 beforeEach(() => {
   store.clear();
   updates.length = 0;
+  leasedRows = [];
 });
 
 describe("enqueueJob", () => {
@@ -290,5 +293,47 @@ describe("cancelJob", () => {
     });
     const result = await cancelJob(job.id, "u1");
     expect(result).toBe(true);
+  });
+});
+
+describe("leaseNextJob", () => {
+  it("returns null when the queue is empty", async () => {
+    leasedRows = [];
+    await expect(leaseNextJob({ workerId: "w1" })).resolves.toBeNull();
+  });
+
+  it("maps the leased snake_case row to a VoiceJob", async () => {
+    const created = new Date("2026-10-24T00:00:00.000Z");
+    leasedRows = [
+      {
+        id: "job_42",
+        user_id: "u9",
+        type: "clip_generate",
+        payload: { text: "hello", voiceId: "v1" },
+        status: "running",
+        attempts: 1,
+        max_attempts: 3,
+        last_error: null,
+        worker_id: "w1",
+        result: null,
+        idempotency_key: "k42",
+        created_at: created,
+        updated_at: created,
+        completed_at: null,
+      },
+    ];
+    const job = await leaseNextJob({ workerId: "w1", leaseSeconds: 60 });
+    expect(job).not.toBeNull();
+    expect(job!.id).toBe("job_42");
+    expect(job!.user_id).toBe("u9");
+    expect(job!.type).toBe("clip_generate");
+    expect(job!.payload).toEqual({ text: "hello", voiceId: "v1" });
+    expect(job!.status).toBe("running");
+    expect(job!.attempts).toBe(1);
+    expect(job!.max_attempts).toBe(3);
+    expect(job!.worker_id).toBe("w1");
+    expect(job!.idempotency_key).toBe("k42");
+    expect(job!.created_at).toBe("2026-10-24T00:00:00.000Z");
+    expect(job!.completed_at).toBeNull();
   });
 });

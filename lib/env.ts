@@ -14,6 +14,23 @@ const envSchema = z.object({
   // App
   NEXT_PUBLIC_APP_URL: z.string().url(),
 
+  // Database & Auth (local stack: Postgres + Auth.js). These used to be
+  // read as raw process.env in lib/db and by Auth.js, outside this
+  // schema — so a missing AUTH_SECRET was only discovered at first
+  // login instead of at boot. AUTH_SECRET keys the session JWTs, the
+  // upload-token HMACs, and (as fallback) the consent audit digests, so
+  // in production validateEnv() fails closed on it: it is a required
+  // field here, and shorter than 32 characters is rejected outright.
+  DATABASE_URL: z.string().min(1),
+  AUTH_SECRET: z
+    .string()
+    .min(32, "AUTH_SECRET must be at least 32 characters"),
+  AUTH_URL: z.string().url().optional(),
+  NEXTAUTH_URL: z.string().url().optional(),
+  // Optional dedicated salt for consent audit digests (lib/consent.ts).
+  // Falls back to AUTH_SECRET; in production one of the two must be set.
+  CONSENT_HASH_SALT: z.string().min(1).optional(),
+
   // Stripe
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().min(1),
   STRIPE_SECRET_KEY: z.string().min(1),
