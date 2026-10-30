@@ -5,10 +5,21 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { familyInvitations, users } from "@/lib/db/schema";
 import { getCurrentUserId } from "@/lib/auth/session";
-import { isSimulationEnabled } from "@/lib/features";
 import { logger } from "@/lib/logger";
 
-export async function inviteFamilyMember(formData: FormData) {
+/**
+ * Result shape for the invite callers. `simulated`/`message` are kept
+ * as optional fields for compatibility with invite-button.tsx, which
+ * reads them — but they are never set anymore: a failed insert is an
+ * honest error now, not a fake "simulated" success (that fallback was
+ * Supabase-era copy; in the local stack the table either exists or the
+ * invitation genuinely was not saved).
+ */
+export type InviteFamilyMemberResult =
+  | { success: false; error: string }
+  | { success: true; email: string; simulated?: boolean; message?: string };
+
+export async function inviteFamilyMember(formData: FormData): Promise<InviteFamilyMemberResult> {
   const email = formData.get("email") as string;
   if (!email || !email.includes("@")) {
     return { success: false, error: "Please enter a valid email address." };
@@ -53,21 +64,13 @@ export async function inviteFamilyMember(formData: FormData) {
   }
 
   if (inviteError) {
-    if (!isSimulationEnabled()) {
-      return { success: false, error: "Invitation could not be saved." };
-    }
-    console.warn("Database insert failed for family_invitations in development simulation.", inviteError);
-
-    // Fallback/Simulation mode (e.g. if the family_invitations table has
-    // not been created yet in the local database)
-    // We can store a temporary simulation cookie or just return success with a simulation flag
-    revalidatePath("/dashboard/family");
-    return {
-      success: true,
-      simulated: true,
-      email,
-      message: "Invitation simulated successfully! (Note: Please apply the database migrations to persist this permanently).",
-    };
+    // Honest failure: the invitation was not persisted, so do not
+    // report success — in simulation mode or otherwise.
+    logger.error("family_invitation_insert_failed", {
+      error:
+        inviteError instanceof Error ? inviteError.message : String(inviteError),
+    });
+    return { success: false, error: "Invitation could not be saved." };
   }
 
   logger.info("family_invitation_email_sent");

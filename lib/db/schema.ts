@@ -683,6 +683,20 @@ export const digitalActorJobs = pgTable(
   ],
 );
 
+// Launch readiness — public pilot waitlist (see 01_schema.sql tail).
+// Public founding-family waitlist signups from /pilot; no account is
+// created and no payment is taken. Email is unique so a repeat signup
+// surfaces as a duplicate (pg 23505) rather than a second row.
+export const waitlistSignups = pgTable("waitlist_signups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  cloneRole: text("clone_role").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 // ============================================================
 // Relations (query-builder convenience only; FKs above are the
 // actual constraints)

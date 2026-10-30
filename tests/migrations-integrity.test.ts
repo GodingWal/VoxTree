@@ -44,6 +44,7 @@ const EXPECTED_TABLES = [
   "digital_actor_versions",
   "digital_actor_assets",
   "digital_actor_jobs",
+  "waitlist_signups",
 ];
 
 describe("local schema — completeness of the migration port", () => {
@@ -51,7 +52,7 @@ describe("local schema — completeness of the migration port", () => {
     expect(sql.trimStart().startsWith("--")).toBe(true);
   });
 
-  it("defines all 17 application tables from migrations 001–018", () => {
+  it("defines all 18 application tables from migrations 001–018 plus the waitlist", () => {
     const tables = definedTables(sql);
     for (const t of EXPECTED_TABLES) {
       expect(tables, `missing table ${t}`).toContain(t);
@@ -121,6 +122,17 @@ describe("local schema — feature invariants from individual migrations", () =>
     expect(sql).toContain("sync_voice_slots");
     expect(sql).toContain("trg_sync_voice_slots");
     expect(sql).toContain("check_rate_limit");
+  });
+});
+
+describe("local schema — pilot waitlist (launch readiness)", () => {
+  it("defines waitlist_signups for the public /pilot waitlist capture", () => {
+    expect(sql).toContain("public.waitlist_signups");
+    expect(sql).toMatch(/email text unique not null/i);
+    expect(sql).toMatch(/clone_role text not null/i);
+    expect(sql).toMatch(
+      /id uuid primary key default gen_random_uuid\(\)/i,
+    );
   });
 });
 

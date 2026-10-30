@@ -226,6 +226,27 @@ describe("enqueueJob", () => {
     expect(store.size).toBe(1);
   });
 
+  it("defaults max_attempts to 3 when maxAttempts is not given", async () => {
+    const job = await enqueueJob({
+      userId: "u1",
+      type: "clip_generate",
+      payload: { voiceId: "v1" },
+    });
+    expect(job.max_attempts).toBe(3);
+  });
+
+  it("preserves an explicit maxAttempts (sample-dub jobs pass 10)", async () => {
+    const job = await enqueueJob({
+      userId: "u1",
+      type: "clip_generate",
+      payload: { voiceId: "v1", source: "voice_create_sample_dub" },
+      idempotencyKey: "sample-dub-v1",
+      maxAttempts: 10,
+    });
+    expect(job.max_attempts).toBe(10);
+    expect(store.get(job.id)!.max_attempts).toBe(10);
+  });
+
   it("returns the existing job when idempotency key collides", async () => {
     await enqueueJob({
       userId: "u1",
@@ -269,6 +290,20 @@ describe("failJob", () => {
     // Bump attempts to simulate the second try
     store.set(job.id, { ...store.get(job.id)!, attempts: 1, max_attempts: 3 });
     await failJob(job.id, "transient");
+    expect(updates[0].patch.status).toBe("queued");
+  });
+
+  it("still re-queues at the old default of 3 attempts when max is 10 (slow-clone sample dub)", async () => {
+    const job = await enqueueJob({
+      userId: "u1",
+      type: "clip_generate",
+      payload: { voiceId: "v1", source: "voice_create_sample_dub" },
+      maxAttempts: 10,
+    });
+    // Third lease of a not-yet-cloned voice: with max_attempts 3 this
+    // failure would be permanent; with 10 the job must re-queue.
+    store.set(job.id, { ...store.get(job.id)!, attempts: 3, max_attempts: 10 });
+    await failJob(job.id, "Voice v1 has no provider voice id yet (not cloned)");
     expect(updates[0].patch.status).toBe("queued");
   });
 

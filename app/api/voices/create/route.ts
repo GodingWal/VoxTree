@@ -169,10 +169,19 @@ export async function POST(request: Request) {
       });
 
       // Auto-enqueue 30-sec sample dub for viral invite loop.
+      // maxAttempts is raised from the default 3 to 10 for this job
+      // only: the dub is enqueued here, but the voice clone itself runs
+      // later inline in /api/voices/process, so a worker can lease this
+      // job before provider_voice_id exists. lib/voice-worker treats
+      // "not cloned yet" as retryable, and with only 3 attempts a slow
+      // clone could exhaust them and permanently fail the dub. 10
+      // attempts give the clone time to land; exhausting them still
+      // fails the job honestly.
       try {
         await enqueueJob({
           userId: user.id,
           type: "clip_generate",
+          maxAttempts: 10,
           payload: {
             voiceId: voice.id,
             voiceName: parsed.data.name,

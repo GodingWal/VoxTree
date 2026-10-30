@@ -194,7 +194,7 @@ export function LoraReferencesUploader({
         const currentSecond = ms / 1000;
         
         // Auto snapshot at specific timestamps: 1.5s, 4.5s, 7.5s, 10.5s, 13.5s, 16.5s, 19.5s, 22.5s
-        SCAN_STEPS.forEach((step, index) => {
+        SCAN_STEPS.forEach((_step, index) => {
           const snapTime = index * 3 + 1.5;
           if (currentSecond >= snapTime && !snappedStepsRef.current.has(index)) {
             snappedStepsRef.current.add(index);
