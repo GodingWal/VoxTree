@@ -846,3 +846,15 @@ CREATE TABLE IF NOT EXISTS public.verification_tokens (
   expires timestamptz NOT NULL,
   PRIMARY KEY (identifier, token)
 );
+
+-- ===== Launch readiness — public pilot waitlist =====
+-- Public founding-family waitlist signups from /pilot (app/api/waitlist).
+-- No account is created and no payment is taken; email is unique so a
+-- repeat signup is a friendly duplicate, not a second row.
+CREATE TABLE IF NOT EXISTS public.waitlist_signups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  email text UNIQUE NOT NULL,
+  clone_role text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);

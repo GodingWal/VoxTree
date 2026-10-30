@@ -1,3 +1,5 @@
+> **ARCHIVED — superseded.** This plan predates the local-stack migration (Supabase/ElevenLabs era). Kept for history only. See docs/CURRENT_STATE.md.
+
 # VoxTree — Improvements Status (October 2026)
 
 Living list of what is done and what remains. Replaces the June 2026 review and

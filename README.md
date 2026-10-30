@@ -127,6 +127,13 @@ types/                  # TypeScript type definitions
 
 The schema ships as a single file, `db/init/01_schema.sql` (ported from the former hosted migrations 001–018), and docker-compose applies it automatically on a fresh volume. The row-level-security policies the hosted schema enforced are re-expressed as application-level predicates in `lib/authz.ts` (full inventory in `db/rls-policy-map.md`). The DDL is idempotent and is never rolled back with app rollbacks. `tests/migrations-integrity.test.ts` guards schema completeness and the consent semantics of the port.
 
+### Database schema: init SQL is canonical
+
+- **`db/init/01_schema.sql` is the single source of truth for a fresh database.** It is the file docker-compose applies at compose init (`db/init/` is mounted as `/docker-entrypoint-initdb.d`), and `tests/migrations-integrity.test.ts` pins its contents.
+- **drizzle-kit is used for Studio/inspection against `lib/db/schema.ts` only** (e.g. `npm run db:studio`). `lib/db/schema.ts` is the Drizzle ORM view of the same schema the app queries through — it does not provision anything.
+- **Do NOT run `npm run db:generate` expecting migrations to be the provisioning path.** `drizzle.config.ts` points `out` at `./db/migrations`, but that directory does not exist by design, and no `db:migrate` run creates a fresh VoxTree database. The `db:generate` / `db:migrate` scripts in `package.json` are not the schema workflow.
+- **Making a schema change:** edit `db/init/01_schema.sql` AND `lib/db/schema.ts` together, in the same change, and update `tests/migrations-integrity.test.ts` to pin the new shape. A change to only one of the two files leaves the provisioned database and the ORM schema describing different databases.
+
 ## Deploying
 
 1. Set every variable from `.env.local.example` in the Vercel project (`lib/env.ts` fails the boot in production if one is missing; `SIMULATION_MODE` must not be `true`).
@@ -139,6 +146,6 @@ The schema ships as a single file, `db/init/01_schema.sql` (ported from the form
 - `docs/architecture/Voice_Cloning_Architecture.md` — voice pipeline design
 - `docs/architecture/Face_Body_Cloning_Architecture.md` and `docs/architecture/VOXTREE_VISUAL_STYLE_GUIDE.md` — avatar architecture and visual style
 - `workers/avatar_pipeline/README.md` + `RENDERING_RULES.md` — avatar worker contract and render rules
-- `docs/planning/PRODUCTION_LAUNCH_PLAN_30_DAYS.md` — launch checklist and release process (PRs into `main`, green CI required)
+- `docs/CURRENT_STATE.md` — current architecture, what is done, and the remaining launch gates
 - `OPERATIONS_RUNBOOK.md` — operating the service
-- `IMPROVEMENTS.md` — known gaps and suggested order of attack
+- `docs/archive/planning/PRODUCTION_LAUNCH_PLAN_30_DAYS.md` and `docs/archive/planning/IMPROVEMENTS.md` — archived, superseded pre-migration planning docs (history only)

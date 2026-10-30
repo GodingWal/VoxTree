@@ -1,3 +1,5 @@
+> **ARCHIVED — superseded.** This plan predates the local-stack migration (Supabase/ElevenLabs era). Kept for history only. See docs/CURRENT_STATE.md.
+
 # VoxTree 30-Day Production Launch Plan
 
 **Plan date:** August 27, 2026  

@@ -1,10 +1,17 @@
 import { defineConfig } from "drizzle-kit";
 
 /**
- * Drizzle Kit config (local-stack migration, Phase 2).
- * The Phase 1 SQL port in `db/init/01_schema.sql` is what provisions a
- * fresh local database; use `db:generate` for future schema changes
- * once Drizzle owns migrations.
+ * Drizzle Kit config.
+ *
+ * Decision (see README.md, "Database schema: init SQL is canonical"):
+ * `db/init/01_schema.sql` is the single source of truth for provisioning
+ * a fresh database — it is what docker-compose applies at init.
+ * Drizzle Kit is used here for Studio/inspection against
+ * `lib/db/schema.ts` only. The `out: ./db/migrations` directory does not
+ * exist by design: do NOT run `db:generate` expecting generated
+ * migrations to be the provisioning path. Schema changes are made by
+ * editing `db/init/01_schema.sql` AND `lib/db/schema.ts` together and
+ * updating `tests/migrations-integrity.test.ts`.
  */
 export default defineConfig({
   dialect: "postgresql",
