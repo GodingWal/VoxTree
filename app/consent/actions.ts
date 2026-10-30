@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { consentOwnedBy, selfUser } from "@/lib/authz";
 import { getCurrentUserId } from "@/lib/auth/session";
+import { getConsentHashSalt } from "@/lib/consent";
 import { db } from "@/lib/db";
 import { consentRecords, users } from "@/lib/db/schema";
 
@@ -45,8 +46,10 @@ export async function verifyParentalConsent(input: unknown) {
   const ip = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   // Hash salt for the audit digests. These digests are write-only audit
   // data (nothing re-derives them for comparison), so the salt source
-  // moved off the retired hosted service-role key in Phase 4.
-  const salt = process.env.CONSENT_HASH_SALT ?? process.env.AUTH_SECRET ?? "development-only";
+  // moved off the retired hosted service-role key in Phase 4. Resolved
+  // via lib/consent: CONSENT_HASH_SALT ?? AUTH_SECRET, fail-closed in
+  // production instead of the old public "development-only" fallback.
+  const salt = getConsentHashSalt();
   const digest = (value: string) => createHash("sha256").update(`${salt}:${value}`).digest("hex");
 
   // If consentId links to a video-verified placeholder created by /api/consent/video,

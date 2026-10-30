@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 let userRow: { consent_verified: boolean } | null = { consent_verified: true };
 let record: { id: string } | null = { id: "c1" };
@@ -27,7 +27,7 @@ vi.mock("@/lib/db", async () => {
   };
 });
 
-import { hasActiveConsent } from "@/lib/consent";
+import { hasActiveConsent, getConsentHashSalt } from "@/lib/consent";
 
 describe("hasActiveConsent", () => {
   beforeEach(() => {
@@ -44,5 +44,35 @@ describe("hasActiveConsent", () => {
   it("rejects users whose flag is off", async () => {
     userRow = { consent_verified: false };
     expect(await hasActiveConsent("u")).toBe(false);
+  });
+});
+
+describe("getConsentHashSalt", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+  it("prefers CONSENT_HASH_SALT over AUTH_SECRET", () => {
+    vi.stubEnv("CONSENT_HASH_SALT", "dedicated-salt");
+    vi.stubEnv("AUTH_SECRET", "auth-secret-value");
+    expect(getConsentHashSalt()).toBe("dedicated-salt");
+  });
+  it("falls back to AUTH_SECRET", () => {
+    vi.stubEnv("CONSENT_HASH_SALT", "");
+    // stubEnv with "" sets the var; delete semantics differ, so unset via delete
+    delete process.env.CONSENT_HASH_SALT;
+    vi.stubEnv("AUTH_SECRET", "auth-secret-value");
+    expect(getConsentHashSalt()).toBe("auth-secret-value");
+  });
+  it("uses the development fallback outside production", () => {
+    delete process.env.CONSENT_HASH_SALT;
+    delete process.env.AUTH_SECRET;
+    vi.stubEnv("NODE_ENV", "test");
+    expect(getConsentHashSalt()).toBe("development-only");
+  });
+  it("fails closed in production when neither salt nor secret is set", () => {
+    delete process.env.CONSENT_HASH_SALT;
+    delete process.env.AUTH_SECRET;
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => getConsentHashSalt()).toThrow(/CONSENT_HASH_SALT/);
   });
 });
