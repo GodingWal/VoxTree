@@ -19,6 +19,37 @@ import { deleteVoice } from "@/lib/voice-provider";
 
 const schema = z.object({ confirmation: z.literal("DELETE"), email: z.string().email() });
 
+/**
+ * True when an external deletion step failed only because the thing it
+ * was deleting is already gone. Account deletion runs irreversible
+ * external steps (Stripe, voice provider, storage) before the users-row
+ * delete, so it cannot be atomic across those systems — instead every
+ * step is made retry-safe: if a first attempt dies halfway (502, user
+ * row kept), a retry re-runs each step and the ones that already
+ * succeeded report "already gone", which counts as success. The retry
+ * therefore converges instead of failing forever against a partially
+ * deleted account.
+ */
+function isAlreadyGone(error: unknown): boolean {
+  const e = error as {
+    code?: string;
+    status?: number;
+    statusCode?: number;
+    raw?: { code?: string };
+    message?: string;
+  } | null;
+  if (!e) return false;
+  // Stripe reports a deleted/unknown customer as resource_missing.
+  if (e.code === "resource_missing" || e.raw?.code === "resource_missing") return true;
+  if (e.status === 404 || e.statusCode === 404) return true;
+  const message = (e.message ?? "").toLowerCase();
+  return (
+    message.includes("no such customer") ||
+    message.includes("not found") ||
+    message.includes("unknown voice")
+  );
+}
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || !user.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,10 +72,30 @@ export async function POST(request: Request) {
     .limit(1);
 
   try {
+    // External steps first, users row last — and each external step
+    // tolerates "already gone" so a retry after a partial failure can
+    // complete (see isAlreadyGone). Storage purges are already
+    // idempotent: deleteObjectPrefix deletes with ignoreNotFound.
     if (profile?.stripeCustomerId) {
-      await stripe.customers.del(profile.stripeCustomerId);
+      try {
+        await stripe.customers.del(profile.stripeCustomerId);
+      } catch (error) {
+        if (!isAlreadyGone(error)) throw error;
+        logger.info("account_deletion_stripe_customer_already_gone", { userId: user.id });
+      }
     }
-    await Promise.all(voices.filter((v) => v.providerVoiceId).map((v) => deleteVoice(v.providerVoiceId!)));
+    await Promise.all(
+      voices
+        .filter((v) => v.providerVoiceId)
+        .map(async (v) => {
+          try {
+            await deleteVoice(v.providerVoiceId!);
+          } catch (error) {
+            if (!isAlreadyGone(error)) throw error;
+            logger.info("account_deletion_voice_already_gone", { userId: user.id });
+          }
+        })
+    );
     await Promise.all([
       deleteObjectPrefix(`voice-samples/${user.id}/`),
       deleteObjectPrefix(`clips/${user.id}/`),

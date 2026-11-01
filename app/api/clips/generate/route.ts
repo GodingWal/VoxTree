@@ -183,6 +183,33 @@ export async function POST(request: Request) {
     });
   }
 
+  // Cost cap, checked up front: reject BEFORE queueing so a capped user
+  // gets an honest 429 instead of a queued clip that silently fails in
+  // the background processor. The background job still re-checks before
+  // it spends (usage can change between queueing and processing) — this
+  // is the API-contract fix, not a replacement for that check. Cached
+  // clips return above and never reach here; they cost nothing.
+  if (content.contentMode === "tts") {
+    const upfrontCost = await checkCostCap(user.id, {
+      kind: "tts_chars",
+      chars: (content.textScript ?? "").length,
+    });
+    if (!upfrontCost.allowed) {
+      return NextResponse.json(
+        { error: upfrontCost.reason, code: "cost_cap_reached" },
+        { status: 429 }
+      );
+    }
+  } else if (content.contentMode === "v2v") {
+    const upfrontCost = await checkCostCap(user.id, { kind: "replicate_inference" });
+    if (!upfrontCost.allowed) {
+      return NextResponse.json(
+        { error: upfrontCost.reason, code: "cost_cap_reached" },
+        { status: 429 }
+      );
+    }
+  }
+
   // Auto-cleanup any stuck clips for this user (created > 15 mins ago and still processing/queued)
   try {
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);

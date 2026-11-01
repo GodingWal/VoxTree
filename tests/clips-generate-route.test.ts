@@ -10,11 +10,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   (403) → safeJson / zod validation (400) → enforceUserRateLimit →
  *   checkLimit "add_video" (403) → content-script abuse pre-check
  *   (403) → content fetch (404 / 400) → voice abuse check → cache
- *   lookup (early "ready" return) → stuck-clip cleanup → insert clip
- *   row → fire-and-forget background processing.
+ *   lookup (early "ready" return) → cost cap (429, up front) →
+ *   stuck-clip cleanup → insert clip row → fire-and-forget
+ *   background processing.
  * The voice provider (generateSpeech) is only reached inside that
  * background job, and even there the cost cap (checkCostCap) is
- * checked BEFORE generateSpeech for TTS content.
+ * re-checked BEFORE generateSpeech for TTS content — usage can
+ * change between queueing and processing.
  *
  * Every collaborator is mocked; an `order` log records each mock's
  * invocation so tests assert relative order / non-invocation, not
@@ -409,6 +411,8 @@ describe("POST /api/clips/generate — happy paths", () => {
     expectOrder("checkLimit", "checkAbuse", "getCachedAudio");
     expect(state.insertCalls).toHaveLength(0);
     expect(generateSpeechMock).not.toHaveBeenCalled();
+    // A cached clip costs nothing, so the cost cap is never consulted.
+    expect(checkCostCapMock).not.toHaveBeenCalled();
   });
 
   it("queues a clip for the session user after every gate passes", async () => {
@@ -452,13 +456,33 @@ describe("POST /api/clips/generate — happy paths", () => {
     await vi.waitFor(() => expect(state.updateCalls).toBeGreaterThanOrEqual(2), { timeout: 10_000 });
   });
 
-  it("background job never calls the provider when the cost cap denies", async () => {
+  it("cost cap denies UP FRONT: 429 cost_cap_reached, no clip queued, no provider call", async () => {
     checkCostCapMock.mockResolvedValue({ allowed: false, reason: "Cost cap reached" });
     const res = await POST(req(validBody) as never);
-    expect(res.status).toBe(200); // queued synchronously; the cap bites in the job
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body).toEqual({ error: "Cost cap reached", code: "cost_cap_reached" });
+    expect(checkCostCapMock).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ kind: "tts_chars" }),
+    );
+    expectOrder("getCachedAudio", "checkCostCap");
+    expect(state.insertCalls).toHaveLength(0);
+    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(recordUsageMock).not.toHaveBeenCalled();
+  });
+
+  it("background job re-checks the cap: a cap that fills after queueing still blocks the provider", async () => {
+    // Up-front check passes; by the time the background job runs the
+    // cap has been reached, so its own check denies.
+    checkCostCapMock
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValue({ allowed: false, reason: "Cost cap reached" });
+    const res = await POST(req(validBody) as never);
+    expect(res.status).toBe(200); // queued — the up-front check passed
 
     await vi.waitFor(() => expect(sendAlert).toHaveBeenCalled(), { timeout: 10_000 });
-    expect(checkCostCapMock).toHaveBeenCalled();
+    expect(checkCostCapMock.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(generateSpeechMock).not.toHaveBeenCalled();
     expect(recordUsageMock).not.toHaveBeenCalled();
   });
