@@ -320,6 +320,47 @@ describe("POST /api/account/delete", () => {
     expect(failure!.values).toEqual({ status: "failed", failureReason: "stripe is down" });
     expect(failure!.params).toContain("u1");
   });
+
+  it("retry after a partial failure converges: already-deleted Stripe customer counts as done", async () => {
+    // First attempt: Stripe deletion succeeds, then a voice deletion
+    // fails for a real reason — 502, user row kept, Stripe customer
+    // already gone on Stripe's side.
+    deleteVoiceProvider.mockRejectedValueOnce(new Error("voice service unreachable"));
+    const first = await deleteAccount(jsonReq({ confirmation: "DELETE", email: USER.email }));
+    expect(first.status).toBe(502);
+    expect(state.deletes).toHaveLength(0);
+    expect(stripeDel).toHaveBeenCalledTimes(1);
+
+    // Retry: Stripe now reports the customer as resource_missing.
+    // That must be treated as "already deleted", not a new failure,
+    // and the remaining steps complete the deletion.
+    stripeDel.mockRejectedValue(
+      Object.assign(new Error("No such customer: 'cus_123'"), { code: "resource_missing" }),
+    );
+    const second = await deleteAccount(jsonReq({ confirmation: "DELETE", email: USER.email }));
+    expect(second.status).toBe(200);
+    expect(await second.json()).toEqual({ success: true });
+    expect(state.deletes).toEqual([{ table: "users", params: ["u1"] }]);
+  });
+
+  it("a voice that is already gone does not block deletion", async () => {
+    deleteVoiceProvider.mockImplementation(async (id: string) => {
+      if (id === "pv-1") throw new Error("Unknown voice id: pv-1");
+      return undefined;
+    });
+    const res = await deleteAccount(jsonReq({ confirmation: "DELETE", email: USER.email }));
+    expect(res.status).toBe(200);
+    expect(state.deletes).toEqual([{ table: "users", params: ["u1"] }]);
+  });
+
+  it("a real Stripe failure is NOT mistaken for already-gone", async () => {
+    stripeDel.mockRejectedValue(
+      Object.assign(new Error("Stripe rate limit"), { code: "rate_limit" }),
+    );
+    const res = await deleteAccount(jsonReq({ confirmation: "DELETE", email: USER.email }));
+    expect(res.status).toBe(502);
+    expect(state.deletes).toHaveLength(0);
+  });
 });
 
 describe("GET /api/account/export", () => {
