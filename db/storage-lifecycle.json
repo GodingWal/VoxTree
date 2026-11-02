@@ -14,7 +14,7 @@
         }
       },
       {
-        "$comment": "Delete raw voice samples after one year. Cloned voices remain functional via the provider voice_id; the Chatterbox service keeps its own reference copy and does not depend on the original file.",
+        "$comment": "Delete raw voice samples after one year. Cloned voices remain functional via the provider voice_id; the SeedVC service keeps its own reference copy and does not depend on the original file.",
         "action": { "type": "Delete" },
         "condition": {
           "age": 365,

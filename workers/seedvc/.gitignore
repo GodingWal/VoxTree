@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+# Stored voice references are biometric data — never commit them.
+data/
+.venv/
+# Upstream Seed-VC source tree (GPL-3.0) is cloned here at deploy time, not vendored.
+seed-vc/

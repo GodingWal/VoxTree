@@ -1,0 +1,21 @@
+# Seed-VC by Plachtaa (GPL-3.0). The model code itself is NOT on PyPI:
+# clone https://github.com/Plachtaa/seed-vc and put it on PYTHONPATH
+# (see README.md). Verified API: seed_vc_wrapper.SeedVCWrapper with
+# convert_voice(source, target, diffusion_steps, length_adjust,
+# inference_cfg_rate, f0_condition, auto_f0_adjust, pitch_shift,
+# stream_output) — Plachtaa/seed-vc main @ 51383ef.
+# Pins below follow upstream seed-vc requirements.txt (Nov 2, 2026).
+torch==2.4.0
+torchvision==0.19.0
+torchaudio==2.4.0
+scipy==1.13.1
+librosa==0.10.2
+huggingface-hub>=0.28.1
+munch==4.0.0
+einops==0.8.0
+pydub==0.25.1
+transformers==4.46.3
+soundfile==0.12.1
+numpy==1.26.4
+hydra-core==1.3.2
+pyyaml

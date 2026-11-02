@@ -9,7 +9,7 @@
  * - VOICE_WORKER_ID — worker id stamped on leased jobs
  *   (default: voice-worker-<pid>).
  * - VOICE_WORKER_POLL_MS — idle poll interval (default 5000).
- * - CHATTERBOX_SERVICE_URL — the Chatterbox service the voice
+ * - SEEDVC_SERVICE_URL — the SeedVC service the voice
  *   provider calls (default http://localhost:8001).
  *
  * The loop lives in lib/voice-worker.ts (runVoiceWorker): lease ->

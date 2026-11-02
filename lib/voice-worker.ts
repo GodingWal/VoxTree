@@ -14,7 +14,7 @@ import {
 } from "./voice-jobs";
 import {
   cloneVoice as providerCloneVoice,
-  generateSpeech as providerGenerateSpeech,
+  convertSpeech as providerConvertSpeech,
 } from "./voice-provider";
 
 /**
@@ -29,13 +29,20 @@ import {
  *
  * Dispatch, honestly scoped to what exists today:
  * - `clip_generate` — the only type enqueued in production (the sample
- *   dub from app/api/voices/create). Synthesizes `payload.text` with
- *   the voice's cloned provider voice via lib/voice-provider
- *   (Chatterbox) and stores the WAV under
+ *   dub from app/api/voices/create). SeedVC converts a *source
+ *   performance* into the voice's cloned provider voice via
+ *   lib/voice-provider and stores the WAV under
  *   data/uploads/voice-jobs/<jobId>.wav, served by the authenticated
- *   /uploads route. It does NOT do the clips/generate route's full
- *   pipeline (content lookup, music mix, watermark, generated_clips
- *   row) — that route still processes inline.
+ *   /uploads route. The payload must carry the source audio
+ *   (`sourceAudioBase64`, or `sourceAudioUrl` to fetch it); a payload
+ *   without source audio fails PERMANENTLY with
+ *   `seedvc_requires_source_audio` — SeedVC is voice conversion, not
+ *   TTS, so a text-only payload (e.g. the sample dub enqueued by
+ *   app/api/voices/create, which has no source performance yet) can
+ *   never succeed and must not burn retries or fake an output.
+ *   It does NOT do the clips/generate route's full pipeline (content
+ *   lookup, music mix, watermark, generated_clips row) — that route
+ *   still processes inline.
  * - `voice_clone` — dispatched to the provider's cloneVoice when the
  *   payload carries `audioBase64` (+ optional `name`). No production
  *   caller enqueues this shape today (cloning runs inline in
@@ -64,7 +71,9 @@ export interface VoiceJobHandlers {
   /** Resolve a family_voices id to its cloned provider voice id, or
    *  null when the voice does not exist / has not been cloned yet. */
   resolveProviderVoiceId: (voiceId: string) => Promise<string | null>;
-  generateSpeech: (providerVoiceId: string, text: string) => Promise<Buffer>;
+  convertSpeech: (providerVoiceId: string, sourceAudio: Buffer) => Promise<Buffer>;
+  /** Fetch source-performance audio from a URL in the job payload. */
+  fetchSourceAudio: (url: string) => Promise<Buffer>;
   cloneVoice: (audioBuffer: Buffer, name: string) => Promise<string>;
   /** Persist synthesized audio; returns its app URL + storage key. */
   saveAudio: (
@@ -82,8 +91,15 @@ export const defaultHandlers: VoiceJobHandlers = {
       .limit(1);
     return voice?.providerVoiceId ?? null;
   },
-  generateSpeech: (providerVoiceId, text) =>
-    providerGenerateSpeech(providerVoiceId, text),
+  convertSpeech: (providerVoiceId, sourceAudio) =>
+    providerConvertSpeech(providerVoiceId, sourceAudio),
+  async fetchSourceAudio(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch source audio (${res.status}): ${url}`);
+    }
+    return Buffer.from(await res.arrayBuffer());
+  },
   cloneVoice: (audioBuffer, name) => providerCloneVoice(audioBuffer, name),
   async saveAudio(job, audio) {
     const storageKey = `voice-jobs/${job.id}.wav`;
@@ -104,11 +120,6 @@ async function handleClipGenerate(
   handlers: VoiceJobHandlers
 ): Promise<Record<string, unknown>> {
   const text = payloadString(job.payload, "text");
-  if (!text) {
-    throw new PermanentJobError(
-      "clip_generate payload is missing a non-empty 'text' field"
-    );
-  }
 
   let providerVoiceId = payloadString(job.payload, "providerVoiceId");
   const voiceId = payloadString(job.payload, "voiceId");
@@ -130,7 +141,23 @@ async function handleClipGenerate(
     }
   }
 
-  const audio = await handlers.generateSpeech(providerVoiceId, text);
+  // SeedVC is voice conversion: without a source performance there is
+  // nothing to convert, and no retry can change that.
+  let sourceAudio: Buffer | null = null;
+  const sourceAudioBase64 = payloadString(job.payload, "sourceAudioBase64");
+  const sourceAudioUrl = payloadString(job.payload, "sourceAudioUrl");
+  if (sourceAudioBase64) {
+    sourceAudio = Buffer.from(sourceAudioBase64, "base64");
+  } else if (sourceAudioUrl) {
+    sourceAudio = await handlers.fetchSourceAudio(sourceAudioUrl);
+  }
+  if (!sourceAudio || sourceAudio.length === 0) {
+    throw new PermanentJobError(
+      "seedvc_requires_source_audio: SeedVC converts a source performance; no source audio in job payload"
+    );
+  }
+
+  const audio = await handlers.convertSpeech(providerVoiceId, sourceAudio);
   if (audio.length === 0) {
     throw new Error("Voice provider returned empty audio");
   }
@@ -142,7 +169,7 @@ async function handleClipGenerate(
     audioUrl: saved.audioUrl,
     storageKey: saved.storageKey,
     bytes: audio.length,
-    chars: text.length,
+    ...(text ? { chars: text.length } : {}),
   };
 }
 

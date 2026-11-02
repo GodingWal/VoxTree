@@ -11,7 +11,7 @@ interface Props {
 }
 
 /**
- * Generate a talking-head Pixar video: Chatterbox renders the cloned voice
+ * Generate a talking-head Pixar video: SeedVC converts a source performance into the cloned voice
  * speaking the prompt, then Hedra Character-3 drives the Pixar still with
  * that audio. The component polls /api/clips/talking-video/status until the
  * MP4 is ready and inlines it for playback.
@@ -21,6 +21,9 @@ export function TalkingVideoGenerator({ voiceId, disabled, disabledReason }: Pro
     "Hi there! I just learned how to talk like a real Pixar character."
   );
   const [aspect, setAspect] = useState<"9:16" | "1:1" | "16:9">("9:16");
+  // SeedVC converts a recorded source performance of the script — the
+  // user supplies that recording here; there is no text-to-speech path.
+  const [sourceAudioBase64, setSourceAudioBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<"idle" | "processing" | "ready" | "failed">("idle");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -69,7 +72,12 @@ export function TalkingVideoGenerator({ voiceId, disabled, disabledReason }: Pro
       const res = await fetch("/api/clips/talking-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ voiceId, text, aspectRatio: aspect }),
+        body: JSON.stringify({
+          voiceId,
+          text,
+          aspectRatio: aspect,
+          ...(sourceAudioBase64 ? { sourceAudioBase64 } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to start generation");
@@ -109,6 +117,28 @@ export function TalkingVideoGenerator({ voiceId, disabled, disabledReason }: Pro
           className="w-full rounded-2xl bg-[var(--ink-2)] border border-[var(--ink-3)] text-white px-4 py-3 text-sm placeholder:text-[var(--paper-mute)] focus:outline-none focus:border-[var(--lamp)]/40 disabled:opacity-50"
           placeholder="What should they say?"
         />
+        <div className="space-y-1">
+          <label className="block text-xs text-[var(--paper-dim)]">
+            Source performance recording — read the script above aloud.
+            SeedVC converts this recording into the cloned voice.
+          </label>
+          <input
+            type="file"
+            accept="audio/*"
+            disabled={disabled || submitting || status === "processing"}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return setSourceAudioBase64(null);
+              const reader = new FileReader();
+              reader.onload = () =>
+                setSourceAudioBase64(
+                  String(reader.result).split(",")[1] ?? null
+                );
+              reader.readAsDataURL(file);
+            }}
+            className="block w-full text-sm text-[var(--paper-dim)] file:mr-3 file:rounded-full file:border-0 file:bg-[var(--ink-3)] file:px-4 file:py-2 file:text-white disabled:opacity-50"
+          />
+        </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mono text-xs text-[var(--paper-mute)] uppercase tracking-wider mr-1">

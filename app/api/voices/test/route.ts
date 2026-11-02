@@ -7,10 +7,14 @@ import { voiceOwnedBy } from "@/lib/authz";
 import { hasActiveConsent } from "@/lib/consent";
 import { db } from "@/lib/db";
 import { familyVoices } from "@/lib/db/schema";
-import { generateSpeech } from "@/lib/voice-provider";
+import { convertSpeech } from "@/lib/voice-provider";
 
 const testVoiceSchema = z.object({
   voiceId: z.string().uuid(),
+  // SeedVC converts a source performance — a test now means converting
+  // a supplied recording of a reading into the cloned voice. There is
+  // no text-only test anymore (the engine has no TTS path).
+  sourceAudioBase64: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -45,7 +49,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const { voiceId } = parsed.data;
+  const { voiceId, sourceAudioBase64 } = parsed.data;
+
+  if (!sourceAudioBase64) {
+    return NextResponse.json(
+      {
+        error:
+          "seedvc_requires_source_audio: SeedVC converts a source performance; supply sourceAudioBase64 (a short recording of a reading) to test this voice",
+        code: "seedvc_requires_source_audio",
+      },
+      { status: 422 }
+    );
+  }
 
   // Owner-scoped: this query previously relied on the family_voices RLS
   // select policy to hide other users' voices (a miss read as "not ready").
@@ -63,10 +78,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Generate a quick test sentence
-    const audioBuffer = await generateSpeech(
+    // Convert the supplied source reading into the cloned voice.
+    const audioBuffer = await convertSpeech(
       voice.providerVoiceId,
-      `Hello! I am ${voice.name}, and this is a sample of my reading voice.`
+      Buffer.from(sourceAudioBase64, "base64")
     );
 
     if (audioBuffer.length === 0) {
@@ -75,7 +90,7 @@ export async function POST(request: Request) {
 
     return new NextResponse(new Uint8Array(audioBuffer), {
       headers: {
-        "Content-Type": "audio/mpeg",
+        "Content-Type": "audio/wav",
       },
     });
   } catch (error) {

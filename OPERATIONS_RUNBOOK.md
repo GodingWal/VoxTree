@@ -24,10 +24,26 @@
 
 Disable generation by turning off the relevant feature flag. If the core voice path is affected, pause signups and generation at the deployment layer.
 
+## Voice engine (SeedVC — changed Nov 2, 2026)
+
+- The voice engine is the self-hosted SeedVC service (`workers/seedvc/`,
+  `SEEDVC_SERVICE_URL`). It replaced the previous TTS engine on
+  Nov 2, 2026. SeedVC does zero-shot voice *conversion*: generation
+  requires a recorded source performance; text-only requests fail with
+  `seedvc_requires_source_audio` (clip route: 422 up front; voice
+  worker: permanent job failure). Treat a burst of those as a content
+  problem (stories missing their master source track), not a service
+  outage.
+- Seed-VC is GPL-3.0 (see `workers/seedvc/README.md` license note).
+  Do not distribute the service or bundle the upstream code into a
+  shipped artifact without the planned legal review.
+- Real SeedVC inference has not run yet (no GPU in the dev sandbox);
+  first real pass is a launch gate in `docs/CURRENT_STATE.md`.
+
 ## Data requests
 
 - Export, revocation, and deletion are available in Profile & Billing settings.
-- Failed deletion attempts create an auditable lifecycle record and an operational error log. Investigate Chatterbox voice-service and GCS cleanup before marking resolved.
+- Failed deletion attempts create an auditable lifecycle record and an operational error log. Investigate SeedVC voice-service and GCS cleanup before marking resolved.
 - Account deletion is complete only when authentication, database rows, private storage, and vendor voice resources are gone.
 
 ## Recovery

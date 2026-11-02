@@ -57,10 +57,10 @@ async function checkGCS(): Promise<CheckResult> {
   }
 }
 
-async function checkChatterbox(): Promise<CheckResult> {
+async function checkSeedvc(): Promise<CheckResult> {
   const started = Date.now();
   const serviceUrl = (
-    process.env.CHATTERBOX_SERVICE_URL || "http://localhost:8001"
+    process.env.SEEDVC_SERVICE_URL || "http://localhost:8001"
   ).replace(/\/+$/, "");
   try {
     const res = await fetch(`${serviceUrl}/health`, {
@@ -70,12 +70,12 @@ async function checkChatterbox(): Promise<CheckResult> {
     if (res.ok) {
       return { status: "ok", latencyMs: Date.now() - started };
     }
-    throw new Error(`Chatterbox service returned ${res.status}`);
+    throw new Error(`SeedVC service returned ${res.status}`);
   } catch (err) {
     return {
       status: "error",
       latencyMs: Date.now() - started,
-      message: err instanceof Error ? err.message : "Chatterbox service unavailable",
+      message: err instanceof Error ? err.message : "SeedVC service unavailable",
     };
   }
 }
@@ -83,14 +83,14 @@ async function checkChatterbox(): Promise<CheckResult> {
 export async function GET() {
   const startedAt = Date.now();
 
-  const [database, gcs, chatterbox] = await Promise.all([
+  const [database, gcs, seedvc] = await Promise.all([
     checkDatabase(),
     checkGCS(),
-    checkChatterbox(),
+    checkSeedvc(),
   ]);
 
-  const hasError = [database, gcs, chatterbox].some((c) => c.status === "error");
-  const hasSkipped = [database, gcs, chatterbox].some((c) => c.status === "skipped");
+  const hasError = [database, gcs, seedvc].some((c) => c.status === "error");
+  const hasSkipped = [database, gcs, seedvc].some((c) => c.status === "skipped");
 
   let status: "ok" | "degraded" | "error";
   let httpStatus: number;
@@ -113,12 +113,12 @@ export async function GET() {
       checks: {
         database,
         gcs,
-        chatterbox,
+        seedvc,
       },
       // legacy flat fields for backwards compat with existing monitors
       database: database.status,
       gcs: gcs.status,
-      chatterbox: chatterbox.status,
+      seedvc: seedvc.status,
     },
     { status: httpStatus, headers: { "Cache-Control": "no-store" } }
   );

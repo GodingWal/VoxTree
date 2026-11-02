@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetEnvCache, validateEnv } from "@/lib/env";
-import { generateSpeech } from "@/lib/voice-provider";
+import { convertSpeech } from "@/lib/voice-provider";
 import { createTalkingVideo, getTalkingVideoStatus, uploadAsset } from "@/lib/hedra";
 
 beforeEach(() => {
@@ -49,7 +49,7 @@ describe("production configuration and simulation safety", () => {
     expect(() => validateEnv()).toThrow("HEDRA_API_KEY");
   });
   it("rejects stored fake voice IDs before contacting a vendor", async () => {
-    await expect(generateSpeech("simulated_voice_id_old", "Hello")).rejects.toThrow("production");
+    await expect(convertSpeech("simulated_voice_id_old", Buffer.from("source-audio"))).rejects.toThrow("production");
   });
   it("rejects fake Hedra jobs and missing vendor configuration in production", async () => {
     vi.stubEnv("SIMULATION_MODE", "true"); vi.stubEnv("HEDRA_API_KEY", "");

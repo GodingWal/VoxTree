@@ -36,7 +36,7 @@ VoxTree is in active development toward a production launch. What's real today:
 - **Database/Auth:** PostgreSQL 16 (local, `docker-compose.yml`) via Drizzle ORM; Auth.js (NextAuth v5) — credentials + Google OAuth
 - **Local media:** `data/uploads`, served only through the authenticated `/uploads` route
 - **Media storage:** Google Cloud Storage
-- **Voice:** Self-hosted [Chatterbox](https://github.com/resemble-ai/chatterbox) service (`workers/chatterbox/`, the only voice engine) behind `lib/voice-provider.ts`; the app reaches it at `CHATTERBOX_SERVICE_URL` (default `http://localhost:8001`)
+- **Voice:** Self-hosted [Seed-VC](https://github.com/Plachtaa/seed-vc) service (`workers/seedvc/`, the only voice engine) behind `lib/voice-provider.ts`; the app reaches it at `SEEDVC_SERVICE_URL` (default `http://localhost:8001`). SeedVC does zero-shot voice *conversion* — a master/source performance recording is converted into the cloned voice; it is not text-to-speech.
 - **Video/render:** Blender avatar pipeline + RenderMan worker (prototype); Hedra / Replicate for hosted rendering
 - **Payments:** Stripe (subscriptions)
 - **Styling:** Tailwind CSS + shadcn/ui
@@ -62,14 +62,14 @@ cp .env.local.example .env.local
 docker compose up -d db
 ```
 
-4. Start the Chatterbox voice service (voice cloning/TTS runs locally; see
-   `workers/chatterbox/README.md` for env vars and hardware notes — a GPU is
+4. Start the SeedVC voice service (voice conversion runs locally; see
+   `workers/seedvc/README.md` for env vars and hardware notes — a GPU is
    strongly recommended, CPU works slowly):
 
 ```bash
-python3 -m venv workers/chatterbox/.venv
-workers/chatterbox/.venv/bin/pip install -r workers/chatterbox/requirements.txt
-workers/chatterbox/.venv/bin/python workers/chatterbox/server.py
+python3 -m venv workers/seedvc/.venv
+workers/seedvc/.venv/bin/pip install -r workers/seedvc/requirements.txt
+workers/seedvc/.venv/bin/python workers/seedvc/server.py
 ```
 
 5. Start the dev server:
@@ -97,19 +97,19 @@ lib/                    # Shared server utilities
   auth/                 # Auth.js setup, session helpers, password reset
   db/                   # Drizzle schema + Postgres connection
   authz.ts              # App-level authorization predicates (former RLS)
-  chatterbox.ts         # Voice cloning & TTS client (self-hosted Chatterbox service)
+  seedvc.ts             # Voice cloning & conversion client (self-hosted SeedVC service)
   hedra.ts              # Hosted video generation (Hedra)
   replicate.ts          # Hosted model inference (Replicate)
   voice-jobs.ts         # Voice job orchestration
   consent.ts            # Consent guard (requireActiveConsent)
-  voice-provider.ts     # Provider-neutral voice API (Chatterbox implementation)
+  voice-provider.ts     # Provider-neutral voice API (SeedVC implementation)
   cost-tracking.ts      # Per-video cost accounting
   cache.ts              # Audio caching layer
   limits.ts             # Plan-based usage limits
   rate-limit.ts retry.ts webhook-signature.ts
 workers/
   avatar_pipeline/      # Blender avatar personalization prototype (Python)
-  chatterbox/           # Self-hosted Chatterbox voice service (Python)
+  seedvc/               # Self-hosted SeedVC voice service (Python)
 db/init/                # Local Postgres schema (single ported file, auto-applied by compose)
 tests/                  # Vitest suites
 types/                  # TypeScript type definitions

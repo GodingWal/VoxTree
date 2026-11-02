@@ -17,7 +17,7 @@ For the clone-list card, prefer an Unreal-rendered idle loop and a pre-rendered,
 
 ```text
 Identity capture             Voice sample
-photo/video/mesh             Chatterbox WAV
+photo/video/mesh             SeedVC WAV
        |                            |
        v                            v
 MetaHuman Identity        Unreal SoundWave import
