@@ -4,6 +4,7 @@ import { z } from "zod";
 import { safeJson } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
 import { waitlistSignups } from "@/lib/db/schema";
+import { sendEmail, waitlistConfirmationEmail } from "@/lib/email";
 
 /**
  * Public founding-family waitlist signup (POST /api/waitlist).
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
       name,
       email,
       cloneRole: parsed.data.role,
+    });
+    // Confirmation email, fire-and-forget AFTER the row is stored:
+    // sendEmail never throws (no provider configured = logged no-op),
+    // and the catch here is belt-and-braces — a mail failure must
+    // never fail a signup that already succeeded. Duplicates return
+    // below without re-sending.
+    sendEmail({ to: email, ...waitlistConfirmationEmail(name) }).catch((error) => {
+      console.error("Waitlist confirmation email failed:", error);
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
