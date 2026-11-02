@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "worker:voice": "tsx workers/voice/worker.ts",
+    "stripe:bootstrap-pilot": "node scripts/stripe-bootstrap-pilot.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
