@@ -39,6 +39,19 @@ const envSchema = z.object({
   STRIPE_FAMILY_ANNUAL_PRICE_ID: z.string().min(1),
   STRIPE_PREMIUM_MONTHLY_PRICE_ID: z.string().min(1),
   STRIPE_PREMIUM_ANNUAL_PRICE_ID: z.string().min(1),
+  // Pilot price ($29.99/month), created by
+  // scripts/stripe-bootstrap-pilot.mjs. Optional: the pilot checkout
+  // opens at pilot launch (Week 4), after this bootstrap has run;
+  // the checkout route throws a clear configuration error if a pilot
+  // checkout is attempted while it is unset.
+  STRIPE_PILOT_PRICE_ID: z.string().min(1).optional(),
+
+  // Transactional email — Resend (lib/email.ts sendEmail). Optional:
+  // without RESEND_API_KEY, direct sends (e.g. the waitlist
+  // confirmation) are a logged no-op and signups still succeed.
+  // EMAIL_FROM must use a domain verified in Resend.
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(1).optional(),
 
   // Voice — self-hosted Chatterbox service (workers/chatterbox).
   // Optional: lib/chatterbox.ts defaults to http://localhost:8001.
