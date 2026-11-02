@@ -14,6 +14,15 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+const sendEmailMock = vi.fn();
+vi.mock("@/lib/email", () => ({
+  sendEmail: (...a: unknown[]) => sendEmailMock(...a),
+  waitlistConfirmationEmail: (name: string) => ({
+    subject: "You're on the VoxTree list",
+    text: `Hi ${name}, welcome`,
+  }),
+}));
+
 import { POST } from "@/app/api/waitlist/route";
 
 const req = (body: unknown) =>
@@ -27,6 +36,7 @@ describe("waitlist route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertValues.mockResolvedValue([]);
+    sendEmailMock.mockResolvedValue({ sent: true, id: "email-1" });
   });
 
   it("accepts a valid signup and stores a normalized row", async () => {
@@ -40,6 +50,43 @@ describe("waitlist route", () => {
       email: "ada@example.com",
       cloneRole: "grandparent",
     });
+  });
+
+  it("sends the confirmation email to the normalized address on a new signup", async () => {
+    const res = await POST(
+      req({ name: "Ada Grandma", email: "ADA@Example.COM", role: "grandparent" }),
+    );
+    expect(res.status).toBe(200);
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock).toHaveBeenCalledWith({
+      to: "ada@example.com",
+      subject: "You're on the VoxTree list",
+      text: "Hi Ada Grandma, welcome",
+    });
+  });
+
+  it("does not send the confirmation email on a duplicate signup", async () => {
+    insertValues.mockRejectedValueOnce(
+      Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" }),
+    );
+    const res = await POST(
+      req({ name: "Ada Grandma", email: "ada@example.com", role: "parent" }),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).duplicate).toBe(true);
+    expect(sendEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("signup still succeeds when the confirmation email fails", async () => {
+    sendEmailMock.mockRejectedValue(new Error("resend is down"));
+    const res = await POST(
+      req({ name: "Ada Grandma", email: "ada@example.com", role: "grandparent" }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    // Let the fire-and-forget rejection land in the route's catch
+    // handler before the test ends.
+    await new Promise((r) => setTimeout(r, 0));
   });
 
   it("returns a friendly duplicate response on a unique violation (23505)", async () => {
