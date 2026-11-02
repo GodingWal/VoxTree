@@ -18,5 +18,40 @@ services:
       timeout: 3s
       retries: 10
 
+  # Next.js app (production). Build: docker compose build app
+  # Env comes from ./.env.production on the server (NOT committed —
+  # see the deploy runbook for the full checklist). DATABASE_URL in
+  # that file must point at the compose db service, e.g.
+  # postgres://voxtree:<password>@db:5432/voxtree
+  app:
+    build: .
+    container_name: voxtree-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Voice-job queue worker (same image, worker entrypoint). Needs
+  # CHATTERBOX_SERVICE_URL + the same database/GCS env as the app.
+  worker:
+    build: .
+    container_name: voxtree-worker
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    command: ["npm", "run", "worker:voice"]
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   voxtree-pgdata:
