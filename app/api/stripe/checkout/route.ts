@@ -20,6 +20,14 @@ function getPriceId(priceKey: string): string {
     family_annual: "STRIPE_FAMILY_ANNUAL_PRICE_ID",
     premium_monthly: "STRIPE_PREMIUM_MONTHLY_PRICE_ID",
     premium_annual: "STRIPE_PREMIUM_ANNUAL_PRICE_ID",
+    // Pilot price ($29.99/month, created by
+    // scripts/stripe-bootstrap-pilot.mjs). Wired here so the env
+    // resolution is ready, but "pilot" is deliberately NOT in
+    // checkoutSchema yet: the webhook writes metadata.plan straight
+    // into users.plan, and "pilot" has no PLAN_LIMITS / COST_CAPS
+    // entry — adding it to the schema is a Week 4 launch change that
+    // must land together with pilot entitlements.
+    pilot_monthly: "STRIPE_PILOT_PRICE_ID",
   };
   const envName = envMap[priceKey];
   if (!envName) throw new Error(`Unknown price key: ${priceKey}`);
