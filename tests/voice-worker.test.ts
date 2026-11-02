@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // The queue plumbing is mocked: processOneJob must lease via
 // lib/voice-jobs, dispatch via the injected handlers, and settle the
-// job with completeJob/failJob. The DB and the Chatterbox provider are
+// job with completeJob/failJob. The DB and the SeedVC provider are
 // never touched in these tests.
 const leaseNextJob = vi.fn();
 const completeJob = vi.fn();
@@ -45,9 +45,10 @@ function makeJob(partial: Partial<VoiceJob> = {}): VoiceJob {
 
 function makeHandlers(): VoiceJobHandlers {
   return {
-    resolveProviderVoiceId: vi.fn(async () => "cb_voice_1"),
-    generateSpeech: vi.fn(async () => Buffer.from("wav-bytes")),
-    cloneVoice: vi.fn(async () => "cb_clone_1"),
+    resolveProviderVoiceId: vi.fn(async () => "sv_voice_1"),
+    convertSpeech: vi.fn(async () => Buffer.from("wav-bytes")),
+    fetchSourceAudio: vi.fn(async () => Buffer.from("source-bytes")),
+    cloneVoice: vi.fn(async () => "sv_clone_1"),
     saveAudio: vi.fn(async (job: VoiceJob) => ({
       audioUrl: `/uploads/voice-jobs/${job.id}.wav`,
       storageKey: `voice-jobs/${job.id}.wav`,
@@ -79,21 +80,27 @@ describe("processOneJob", () => {
   it("leases with the worker id and completes a clip_generate job", async () => {
     const d = deps();
     leaseNextJob.mockResolvedValue(
-      makeJob({ payload: { voiceId: "v1", text: "Once upon a time" } })
+      makeJob({
+        payload: {
+          voiceId: "v1",
+          text: "Once upon a time",
+          sourceAudioBase64: Buffer.from("source-bytes").toString("base64"),
+        },
+      })
     );
     await expect(processOneJob("w-test", d)).resolves.toBe("succeeded");
     expect(leaseNextJob).toHaveBeenCalledWith(
       expect.objectContaining({ workerId: "w-test" })
     );
     expect(d.handlers.resolveProviderVoiceId).toHaveBeenCalledWith("v1");
-    expect(d.handlers.generateSpeech).toHaveBeenCalledWith(
-      "cb_voice_1",
-      "Once upon a time"
+    expect(d.handlers.convertSpeech).toHaveBeenCalledWith(
+      "sv_voice_1",
+      Buffer.from("source-bytes")
     );
     expect(completeJob).toHaveBeenCalledWith(
       "job_1",
       expect.objectContaining({
-        providerVoiceId: "cb_voice_1",
+        providerVoiceId: "sv_voice_1",
         voiceId: "v1",
         audioUrl: "/uploads/voice-jobs/job_1.wav",
         bytes: 9,
@@ -106,18 +113,35 @@ describe("processOneJob", () => {
   it("uses payload.providerVoiceId directly without resolving", async () => {
     const d = deps();
     leaseNextJob.mockResolvedValue(
-      makeJob({ payload: { providerVoiceId: "cb_direct", text: "hi" } })
+      makeJob({
+        payload: {
+          providerVoiceId: "sv_direct",
+          sourceAudioUrl: "https://source.example/master.wav",
+        },
+      })
     );
     await expect(processOneJob("w-test", d)).resolves.toBe("succeeded");
     expect(d.handlers.resolveProviderVoiceId).not.toHaveBeenCalled();
-    expect(d.handlers.generateSpeech).toHaveBeenCalledWith("cb_direct", "hi");
+    expect(d.handlers.fetchSourceAudio).toHaveBeenCalledWith(
+      "https://source.example/master.wav"
+    );
+    expect(d.handlers.convertSpeech).toHaveBeenCalledWith(
+      "sv_direct",
+      Buffer.from("source-bytes")
+    );
   });
 
   it("requeues (non-permanent) when the voice is not cloned yet", async () => {
     const d = deps();
     d.handlers.resolveProviderVoiceId = vi.fn(async () => null);
     leaseNextJob.mockResolvedValue(
-      makeJob({ payload: { voiceId: "v1", text: "hello" } })
+      makeJob({
+        payload: {
+          voiceId: "v1",
+          text: "hello",
+          sourceAudioBase64: Buffer.from("s").toString("base64"),
+        },
+      })
     );
     await expect(processOneJob("w-test", d)).resolves.toBe("failed");
     expect(failJob).toHaveBeenCalledWith(
@@ -128,14 +152,19 @@ describe("processOneJob", () => {
     expect(completeJob).not.toHaveBeenCalled();
   });
 
-  it("fails permanently when clip_generate payload has no text", async () => {
-    leaseNextJob.mockResolvedValue(makeJob({ payload: { voiceId: "v1" } }));
-    await expect(processOneJob("w-test", deps())).resolves.toBe("failed");
+  it("fails permanently when clip_generate payload has no source audio (SeedVC converts, it does not speak text)", async () => {
+    const d = deps();
+    leaseNextJob.mockResolvedValue(
+      makeJob({ payload: { providerVoiceId: "sv_1", text: "Once upon a time" } })
+    );
+    await expect(processOneJob("w-test", d)).resolves.toBe("failed");
     expect(failJob).toHaveBeenCalledWith(
       "job_1",
-      expect.stringContaining("'text'"),
+      expect.stringContaining("seedvc_requires_source_audio"),
       { permanent: true }
     );
+    expect(d.handlers.convertSpeech).not.toHaveBeenCalled();
+    expect(completeJob).not.toHaveBeenCalled();
   });
 
   it("fails permanently for unimplemented job types instead of faking success", async () => {
@@ -156,14 +185,19 @@ describe("processOneJob", () => {
 
   it("routes provider errors to failJob as retryable", async () => {
     const d = deps();
-    d.handlers.generateSpeech = vi.fn(async () => {
-      throw new Error("chatterbox unreachable");
+    d.handlers.convertSpeech = vi.fn(async () => {
+      throw new Error("seedvc unreachable");
     });
     leaseNextJob.mockResolvedValue(
-      makeJob({ payload: { providerVoiceId: "cb_1", text: "hello" } })
+      makeJob({
+        payload: {
+          providerVoiceId: "sv_1",
+          sourceAudioBase64: Buffer.from("s").toString("base64"),
+        },
+      })
     );
     await expect(processOneJob("w-test", d)).resolves.toBe("failed");
-    expect(failJob).toHaveBeenCalledWith("job_1", "chatterbox unreachable", {
+    expect(failJob).toHaveBeenCalledWith("job_1", "seedvc unreachable", {
       permanent: false,
     });
   });
@@ -172,7 +206,12 @@ describe("processOneJob", () => {
 describe("runVoiceWorker loop", () => {
   it("processes jobs until maxJobs and reports the count", async () => {
     leaseNextJob.mockResolvedValue(
-      makeJob({ payload: { providerVoiceId: "cb_1", text: "hello" } })
+      makeJob({
+        payload: {
+          providerVoiceId: "sv_1",
+          sourceAudioBase64: Buffer.from("s").toString("base64"),
+        },
+      })
     );
     const result = await runVoiceWorker({
       workerId: "w-loop",
@@ -199,7 +238,7 @@ describe("processVoiceJob dispatch", () => {
       },
     });
     await expect(processVoiceJob(job, handlers)).resolves.toEqual({
-      providerVoiceId: "cb_clone_1",
+      providerVoiceId: "sv_clone_1",
     });
     expect(handlers.cloneVoice).toHaveBeenCalledWith(
       Buffer.from("sample"),

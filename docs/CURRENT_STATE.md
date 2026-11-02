@@ -35,13 +35,16 @@ canvas, the family's clones are the cast.
 
 ## Voice pipeline
 
-- **Engine: self-hosted Chatterbox only.** The Python service in
-  `workers/chatterbox/` is the sole voice engine — clone and TTS.
+- **Engine: self-hosted SeedVC only** (changed Nov 2, 2026 on the
+  founder's direction; previously a TTS engine). The Python service in
+  `workers/seedvc/` is the sole voice engine — reference registration
+  and zero-shot voice *conversion* (Seed-VC). It converts a recorded
+  source performance into the cloned voice; it is not text-to-speech.
   There is no hosted voice provider and no fallback engine.
 - **Access path:** app code goes through the provider-neutral API in
-  `lib/voice-provider.ts` (its only implementation is Chatterbox),
-  which calls the service at `CHATTERBOX_SERVICE_URL`
-  (default `http://localhost:8001`) via `lib/chatterbox.ts`.
+  `lib/voice-provider.ts` (its only implementation is SeedVC),
+  which calls the service at `SEEDVC_SERVICE_URL`
+  (default `http://localhost:8001`) via `lib/seedvc.ts`.
 - **Queue:** voice work is enqueued as rows in the `voice_jobs` table
   (`lib/voice-jobs.ts`, leased via the `lease_voice_job` SQL function)
   and consumed by the queue worker:
@@ -53,7 +56,9 @@ canvas, the family's clones are the cast.
   The loop lives in `lib/voice-worker.ts`: lease → dispatch →
   complete/fail, polling when empty, graceful stop on SIGINT/SIGTERM.
 - **Dispatch reality:** `clip_generate` is the only job type with a
-  real handler (Chatterbox speech generation). `singing_train`,
+  real handler (SeedVC conversion of the job's source performance; a
+  payload without source audio fails permanently with
+  `seedvc_requires_source_audio`). `singing_train`,
   `lora_train`, and `talking_video` have no worker-side handler and
   fail permanently with a "not implemented" error instead of
   retrying forever — those flows still run inline through their own
@@ -91,7 +96,7 @@ canvas, the family's clones are the cast.
   the schema lives in `db/init/01_schema.sql`. Former row-level
   security is re-expressed as application predicates in
   `lib/authz.ts`.
-- **ElevenLabs fully removed.** Chatterbox is the only voice engine;
+- **ElevenLabs fully removed.** SeedVC is the only voice engine;
   no ElevenLabs (or other hosted voice) code path remains.
 - **Dead-code cleanup merged** (PR #39): dead files, exports,
   dependencies, and unused imports/locals removed; the two remaining
@@ -117,9 +122,11 @@ canvas, the family's clones are the cast.
 None of the following are done. Do not describe VoxTree as
 launch-ready until each is closed or explicitly waived by the founder.
 
-1. **First real Chatterbox clone + TTS pass on GPU hardware.**
-   Real Chatterbox inference has never yet run end-to-end; it waits
-   on the RTX 5090 laptop. Unit tests mock the service.
+1. **First real SeedVC clone + conversion pass on GPU hardware.**
+   Real SeedVC inference has never yet run end-to-end; it waits
+   on the RTX 5090 laptop. Unit tests mock the service. Seed-VC is
+   GPL-3.0 (unlike the MIT engine it replaced) — the planned legal
+   review must cover its copyleft posture before public launch.
 2. **Scoped legal review before public face capture** — COPPA and
    biometric-consent exposure must be reviewed for the public
    avatar/capture flow specifically (the 18+ attestation is not a
@@ -144,8 +151,8 @@ npm run dev                        # app on http://localhost:3000
 npm run worker:voice               # voice-job queue consumer (separate shell)
 ```
 
-Chatterbox runs as its own Python service — see
-`workers/chatterbox/README.md` for setup and hardware notes.
+SeedVC runs as its own Python service — see
+`workers/seedvc/README.md` for setup and hardware notes.
 
 ## Pointers
 

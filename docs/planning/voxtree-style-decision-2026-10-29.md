@@ -23,7 +23,7 @@
 ## Pipeline implications for pilot test videos
 
 1. Character generation: optimize for stylized likeness from parent/grandparent photos — identity capture -> Pixar-style character, not photoreal avatar models (e.g. HeyGen/Hedra photoreal paths are fallback/comparison only).
-2. Voice: Chatterbox clone, trained/checked for authentic timbre — voice QA is the pass/fail gate, not visual photorealism.
+2. Voice: SeedVC voice conversion (corrected Nov 2, 2026 — SeedVC, not the earlier engine), checked for authentic timbre — voice QA is the pass/fail gate, not visual photorealism. SeedVC converts a source/master performance into the adult's voice; it is not text-to-speech.
 3. Test-video acceptance check:
    - Does a family member instantly recognize the character as that person?
    - Does the voice sound like them at normal listening, no cartoon effect?

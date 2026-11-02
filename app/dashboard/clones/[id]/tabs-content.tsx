@@ -94,7 +94,7 @@ export function CloneDetailsTabs({ voice, cloneColor, userId }: CloneDetailsTabs
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (data.simulated) {
-          alert("Simulation Mode: Testing voice requires the Chatterbox voice service to be running. (Audio disabled, speaking simulated for 3 seconds)");
+          alert("Simulation Mode: Testing voice requires the SeedVC voice service to be running and a source recording to convert. (Audio disabled, speaking simulated for 3 seconds)");
           setAudioLoading(false);
           setIsTalking(true);
           setTimeout(() => setIsTalking(false), 3000);

@@ -53,9 +53,9 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(1).optional(),
 
-  // Voice — self-hosted Chatterbox service (workers/chatterbox).
-  // Optional: lib/chatterbox.ts defaults to http://localhost:8001.
-  CHATTERBOX_SERVICE_URL: z.string().url().optional(),
+  // Voice — self-hosted SeedVC service (workers/seedvc).
+  // Optional: lib/seedvc.ts defaults to http://localhost:8001.
+  SEEDVC_SERVICE_URL: z.string().url().optional(),
 
   // Replicate
   REPLICATE_API_TOKEN: z.string().min(1),

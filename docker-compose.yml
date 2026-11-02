@@ -39,7 +39,7 @@ services:
         condition: service_healthy
 
   # Voice-job queue worker (same image, worker entrypoint). Needs
-  # CHATTERBOX_SERVICE_URL + the same database/GCS env as the app.
+  # SEEDVC_SERVICE_URL + the same database/GCS env as the app.
   worker:
     build: .
     container_name: voxtree-worker

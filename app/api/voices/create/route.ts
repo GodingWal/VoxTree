@@ -174,9 +174,12 @@ export async function POST(request: Request) {
       // later inline in /api/voices/process, so a worker can lease this
       // job before provider_voice_id exists. lib/voice-worker treats
       // "not cloned yet" as retryable, and with only 3 attempts a slow
-      // clone could exhaust them and permanently fail the dub. 10
-      // attempts give the clone time to land; exhausting them still
-      // fails the job honestly.
+      // clone could exhaust them. NOTE (SeedVC, Nov 2, 2026): this
+      // payload carries text but no source performance, and SeedVC
+      // converts recorded audio — it cannot speak text. Once the clone
+      // lands, the worker fails this job PERMANENTLY with
+      // `seedvc_requires_source_audio` instead of faking a dub, until a
+      // master source performance is attached to the payload.
       try {
         await enqueueJob({
           userId: user.id,

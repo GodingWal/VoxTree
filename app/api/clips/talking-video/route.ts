@@ -9,7 +9,7 @@ import { familyVoices, generatedClips } from "@/lib/db/schema";
 import { requireActiveConsent } from "@/lib/consent";
 import { logger } from "@/lib/logger";
 import { localMediaPath } from "@/lib/uploads";
-import { generateSpeech } from "@/lib/voice-provider";
+import { convertSpeech } from "@/lib/voice-provider";
 import {
   createTalkingVideo,
   isHedraConfigured,
@@ -21,15 +21,21 @@ import { z } from "zod";
 
 const schema = z.object({
   voiceId: z.string().uuid(),
+  // Kept for caption/script bookkeeping; SeedVC does not speak text —
+  // the audio comes from converting `sourceAudioBase64`, a recording of
+  // the source performance of this script.
   text: z.string().min(2).max(1000),
+  sourceAudioBase64: z.string().min(1).optional(),
   aspectRatio: z.enum(["1:1", "16:9", "9:16"]).optional(),
   resolution: z.enum(["540p", "720p"]).optional(),
 });
 
 /**
  * Generate a talking-head video of a family member's Pixar clone speaking the
- * given text. Chatterbox renders the audio with the cloned voice; Hedra
- * Character-3 then drives the Pixar still with that audio.
+ * given text. SeedVC converts a recorded source performance of the text
+ * into the cloned voice; Hedra Character-3 then drives the Pixar still
+ * with that audio. Without source audio the request fails honestly with
+ * `seedvc_requires_source_audio` — there is no text-to-speech path.
  *
  * The endpoint returns a Hedra generation ID immediately; the client polls
  * GET /api/clips/talking-video/status until the video URL is ready.
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const { voiceId, text, aspectRatio, resolution } = parsed.data;
+  const { voiceId, text, sourceAudioBase64, aspectRatio, resolution } = parsed.data;
 
   const [voice] = await db
     .select({
@@ -77,6 +83,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Pixar avatar is required before generating a talking video." },
       { status: 409 }
+    );
+  }
+
+  if (!sourceAudioBase64) {
+    return NextResponse.json(
+      {
+        error:
+          "seedvc_requires_source_audio: SeedVC converts a source performance; supply sourceAudioBase64 (a recording of the script being read)",
+        code: "seedvc_requires_source_audio",
+      },
+      { status: 422 }
     );
   }
 
@@ -110,8 +127,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // 1) Render the speech audio with the cloned voice.
-    const audio = await generateSpeech(voice.providerVoiceId, text);
+    // 1) Convert the source performance into the cloned voice.
+    const audio = await convertSpeech(
+      voice.providerVoiceId,
+      Buffer.from(sourceAudioBase64, "base64")
+    );
     if (audio.length === 0) {
       // The voice service returned no audio — surface a useful error
       // instead of sending an empty buffer to Hedra (which would 400).
@@ -122,7 +142,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Voice service returned no audio. Check that the Chatterbox voice service is running (CHATTERBOX_SERVICE_URL).",
+            "Voice service returned no audio. Check that the SeedVC voice service is running (SEEDVC_SERVICE_URL).",
           simulated: true,
         },
         { status: 503 }
@@ -173,6 +193,7 @@ export async function POST(request: NextRequest) {
       clipId: clip.id,
       generationId: generation.generationId,
       status: "processing",
+      scriptChars: text.length,
     });
   } catch (error: any) {
     logger.error("talking_video_generation_failed", {

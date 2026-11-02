@@ -13,10 +13,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   lookup (early "ready" return) → cost cap (429, up front) →
  *   stuck-clip cleanup → insert clip row → fire-and-forget
  *   background processing.
- * The voice provider (generateSpeech) is only reached inside that
+ * The voice provider (convertSpeech) is only reached inside that
  * background job, and even there the cost cap (checkCostCap) is
- * re-checked BEFORE generateSpeech for TTS content — usage can
- * change between queueing and processing.
+ * re-checked BEFORE convertSpeech for TTS content — usage can
+ * change between queueing and processing. TTS content also needs a
+ * source performance (SeedVC converts recorded audio, it does not
+ * speak text): content without isolatedVocalsUrl is rejected up front
+ * with 422 seedvc_requires_source_audio, before queueing.
  *
  * Every collaborator is mocked; an `order` log records each mock's
  * invocation so tests assert relative order / non-invocation, not
@@ -36,7 +39,7 @@ const userRateLimit = vi.fn();
 const checkLimitMock = vi.fn();
 const checkAbuseMock = vi.fn();
 const getCachedAudioMock = vi.fn();
-const generateSpeechMock = vi.fn();
+const convertSpeechMock = vi.fn();
 const checkCostCapMock = vi.fn();
 const recordUsageMock = vi.fn();
 const sendAlert = vi.fn();
@@ -104,9 +107,9 @@ vi.mock("@/lib/cache", () => ({
 }));
 
 vi.mock("@/lib/voice-provider", () => ({
-  generateSpeech: async (...a: unknown[]) => {
-    track("generateSpeech");
-    return generateSpeechMock(...a);
+  convertSpeech: async (...a: unknown[]) => {
+    track("convertSpeech");
+    return convertSpeechMock(...a);
   },
   cloneVoice: vi.fn(),
   deleteVoice: vi.fn(),
@@ -221,7 +224,7 @@ beforeEach(() => {
   state.contentRow = {
     textScript: "Once upon a time, a small seed grew.",
     contentMode: "tts",
-    isolatedVocalsUrl: null,
+    isolatedVocalsUrl: "https://source.example/master-reading.wav",
     instrumentalUrl: "https://bg.example/track.mp3",
     originalVideoUrl: null,
   };
@@ -243,7 +246,7 @@ beforeEach(() => {
   checkLimitMock.mockResolvedValue({ allowed: true });
   checkAbuseMock.mockReturnValue({ blocked: false });
   getCachedAudioMock.mockResolvedValue(null);
-  generateSpeechMock.mockResolvedValue(Buffer.alloc(0));
+  convertSpeechMock.mockResolvedValue(Buffer.alloc(0));
   checkCostCapMock.mockResolvedValue({ allowed: true });
   recordUsageMock.mockResolvedValue(undefined);
   sendAlert.mockResolvedValue(undefined);
@@ -253,7 +256,7 @@ beforeEach(() => {
   // through global fetch — stub it so no network is ever touched.
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({ arrayBuffer: async () => new ArrayBuffer(8) })),
+    vi.fn(async () => ({ ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(8) })),
   );
 });
 
@@ -271,7 +274,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(res.status).toBe(429);
     expect(order).toEqual(["enforcePaidRateLimit"]);
     expect(hasConsent).not.toHaveBeenCalled();
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("401 when unauthenticated — consent is never even checked", async () => {
@@ -282,7 +285,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(hasConsent).not.toHaveBeenCalled();
     expect(checkLimitMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("403 consentRequired when consent is not active — before limits, cache, insert, or provider", async () => {
@@ -296,7 +299,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(checkAbuseMock).not.toHaveBeenCalled();
     expect(getCachedAudioMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
     expect(checkCostCapMock).not.toHaveBeenCalled();
   });
 
@@ -307,7 +310,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(userRateLimit).not.toHaveBeenCalled();
     expect(checkLimitMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("400 on malformed JSON — after consent, before limits", async () => {
@@ -316,7 +319,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     );
     expect(res.status).toBe(400);
     expect(checkLimitMock).not.toHaveBeenCalled();
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("per-user rate limit rejects before the plan limit check and any generation work", async () => {
@@ -332,7 +335,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     );
     expect(checkLimitMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("plan limit denial (403, upgradeRequired) rejects before abuse checks, cache, insert, or provider", async () => {
@@ -351,7 +354,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(checkAbuseMock).not.toHaveBeenCalled();
     expect(getCachedAudioMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
     expect(checkCostCapMock).not.toHaveBeenCalled();
   });
 
@@ -363,7 +366,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expectOrder("checkLimit", "checkAbuse");
     expect(getCachedAudioMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("404 when the content does not exist — no insert, no provider call", async () => {
@@ -372,7 +375,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(res.status).toBe(404);
     expect(getCachedAudioMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("400 when a TTS story has no text script", async () => {
@@ -380,7 +383,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     const res = await POST(req(validBody) as never);
     expect(res.status).toBe(400);
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("400 when the story is missing its background music track", async () => {
@@ -389,7 +392,17 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     expect(res.status).toBe(400);
     expect(getCachedAudioMock).not.toHaveBeenCalled();
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
+  });
+
+  it("422 seedvc_requires_source_audio when a TTS story has no source performance to convert — no insert, no provider call", async () => {
+    state.contentRow = { ...state.contentRow, isolatedVocalsUrl: null };
+    const res = await POST(req(validBody) as never);
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.code).toBe("seedvc_requires_source_audio");
+    expect(state.insertCalls).toHaveLength(0);
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 
   it("500 when the clip record cannot be created — provider never called synchronously", async () => {
@@ -397,7 +410,7 @@ describe("POST /api/clips/generate — rejection ordering", () => {
     const res = await POST(req(validBody) as never);
     expect(res.status).toBe(500);
     expect(state.insertCalls).toHaveLength(1);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
   });
 });
 
@@ -410,7 +423,7 @@ describe("POST /api/clips/generate — happy paths", () => {
     expect(body).toEqual({ status: "ready", videoUrl: "https://cdn.example/cached.mp3", cached: true });
     expectOrder("checkLimit", "checkAbuse", "getCachedAudio");
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
     // A cached clip costs nothing, so the cost cap is never consulted.
     expect(checkCostCapMock).not.toHaveBeenCalled();
   });
@@ -444,14 +457,14 @@ describe("POST /api/clips/generate — happy paths", () => {
 
     // Generation is fire-and-forget; wait for the background job to
     // reach the provider instead of asserting on the sync response.
-    await vi.waitFor(() => expect(generateSpeechMock).toHaveBeenCalled(), { timeout: 10_000 });
+    await vi.waitFor(() => expect(convertSpeechMock).toHaveBeenCalled(), { timeout: 10_000 });
     expect(checkCostCapMock).toHaveBeenCalledWith(
       "u1",
       expect.objectContaining({ kind: "tts_chars" }),
     );
-    expectOrder("checkCostCap", "generateSpeech");
-    expect(generateSpeechMock).toHaveBeenCalledWith("pv-1", "Once upon a time, a small seed grew.");
-    expectOrder("generateSpeech", "recordUsage");
+    expectOrder("checkCostCap", "convertSpeech");
+    expect(convertSpeechMock).toHaveBeenCalledWith("pv-1", expect.any(Buffer));
+    expectOrder("convertSpeech", "recordUsage");
     // Let the background job drain (upload + ready update) before teardown.
     await vi.waitFor(() => expect(state.updateCalls).toBeGreaterThanOrEqual(2), { timeout: 10_000 });
   });
@@ -468,7 +481,7 @@ describe("POST /api/clips/generate — happy paths", () => {
     );
     expectOrder("getCachedAudio", "checkCostCap");
     expect(state.insertCalls).toHaveLength(0);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
     expect(recordUsageMock).not.toHaveBeenCalled();
   });
 
@@ -483,7 +496,7 @@ describe("POST /api/clips/generate — happy paths", () => {
 
     await vi.waitFor(() => expect(sendAlert).toHaveBeenCalled(), { timeout: 10_000 });
     expect(checkCostCapMock.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(generateSpeechMock).not.toHaveBeenCalled();
+    expect(convertSpeechMock).not.toHaveBeenCalled();
     expect(recordUsageMock).not.toHaveBeenCalled();
   });
 });

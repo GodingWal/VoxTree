@@ -68,7 +68,7 @@ vi.mock("@/lib/api-helpers", async (orig) => ({
   enforceUserRateLimit: async () => null,
 }));
 vi.mock("@/lib/replicate", () => ({ replicate: null, trainCharacterLora: vi.fn(), trainSingingModel: vi.fn(), runPixarLoraInference: vi.fn() }));
-vi.mock("@/lib/voice-provider", () => ({ generateSpeech: vi.fn(), cloneVoice: vi.fn(), deleteVoice: vi.fn() }));
+vi.mock("@/lib/voice-provider", () => ({ convertSpeech: vi.fn(), cloneVoice: vi.fn(), deleteVoice: vi.fn() }));
 vi.mock("@/lib/hedra", () => ({ createTalkingVideo: vi.fn(), isHedraConfigured: () => true, uploadAsset: vi.fn() }));
 vi.mock("@/lib/gcp", () => ({ getPresignedDownloadUrl: vi.fn() }));
 vi.mock("@/lib/cost-tracking", () => ({ checkCostCap: async () => ({ allowed: true }), recordUsage: vi.fn() }));

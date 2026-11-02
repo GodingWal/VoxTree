@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { contentLibrary, familyVoices, generatedClips } from "@/lib/db/schema";
 import { checkLimit } from "@/lib/limits";
 import { getCachedAudio } from "@/lib/cache";
-import { generateSpeech } from "@/lib/voice-provider";
+import { convertSpeech } from "@/lib/voice-provider";
 import { getPresignedUploadUrl, GCP_PATHS } from "@/lib/gcp";
 import { checkAbuse } from "@/lib/abuse-detection";
 import { applyWatermark } from "@/lib/watermark";
@@ -210,6 +210,22 @@ export async function POST(request: Request) {
     }
   }
 
+  // SeedVC converts a source performance (the master reading stored as
+  // the content's isolated vocals track); it cannot synthesize a TTS
+  // story from its text script alone. Reject up front — like the cost
+  // cap above — instead of queueing a clip that can only fail in the
+  // background.
+  if (content.contentMode === "tts" && !content.isolatedVocalsUrl) {
+    return NextResponse.json(
+      {
+        error:
+          "seedvc_requires_source_audio: SeedVC converts a source performance; this story has no source audio track to convert",
+        code: "seedvc_requires_source_audio",
+      },
+      { status: 422 }
+    );
+  }
+
   // Auto-cleanup any stuck clips for this user (created > 15 mins ago and still processing/queued)
   try {
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
@@ -284,8 +300,20 @@ export async function POST(request: Request) {
         if (!costCheck.allowed) {
           throw new Error(costCheck.reason ?? "Cost cap reached");
         }
-        logger.info(`Generating speech via Chatterbox for clip ${clip.id}`);
-        rawVocalsBuffer = await generateSpeech(voice.providerVoiceId, textScript);
+        if (!content.isolatedVocalsUrl) {
+          // Re-checked here (the row could change between queueing and
+          // processing): no source performance, nothing to convert.
+          throw new Error(
+            "seedvc_requires_source_audio: SeedVC converts a source performance; this story has no source audio track to convert"
+          );
+        }
+        logger.info(`Converting source performance via SeedVC for clip ${clip.id}`);
+        const sourceRes = await fetch(content.isolatedVocalsUrl);
+        if (!sourceRes.ok) {
+          throw new Error(`Failed to fetch source audio (${sourceRes.status})`);
+        }
+        const sourceAudio = Buffer.from(await sourceRes.arrayBuffer());
+        rawVocalsBuffer = await convertSpeech(voice.providerVoiceId, sourceAudio);
         await recordUsage(user.id, { kind: "tts_chars", chars: charCount });
       } else if (content.contentMode === "v2v") {
         if (!voice.rvcModelId) throw new Error("V2V singing voice not set up");

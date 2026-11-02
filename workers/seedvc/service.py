@@ -1,9 +1,14 @@
-"""Core logic for the VoxTree Chatterbox voice service.
+"""Core logic for the VoxTree SeedVC voice service.
 
-Chatterbox (Resemble AI, MIT) does voice cloning from a reference recording:
-there is no training step. "Cloning" a voice here means storing the consented
-reference audio under a generated voice id; synthesis passes that file back to
-the model as ``audio_prompt_path`` on every request. Deleting a voice deletes
+Seed-VC (Plachtaa/seed-vc, GPL-3.0) does zero-shot voice *conversion*: it
+takes an existing source performance (someone reading/singing the lesson)
+plus a short target reference recording (1-30 s) and returns the source
+performance re-voiced in the target's timbre. It is NOT text-to-speech —
+there is no way to make it speak text that nobody recorded.
+
+"Cloning" a voice here therefore means storing the consented target
+reference audio under a generated voice id; conversion passes that file
+back to the model as the target on every request. Deleting a voice deletes
 the stored reference, which is what backs consent revocation.
 
 The model is loaded lazily through an injectable loader so unit tests (and
@@ -14,6 +19,7 @@ import os
 import re
 import shutil
 import struct
+import tempfile
 import threading
 import time
 import uuid
@@ -22,7 +28,13 @@ from io import BytesIO
 from pathlib import Path
 
 VOICE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
-DEFAULT_LANGUAGE = "en"
+
+# Verified from Plachtaa/seed-vc seed_vc_wrapper.py (main @ 51383ef):
+# SeedVCWrapper.convert_voice picks sr = 22050 when f0_condition is False
+# and 44100 when it is True (the F0/singing model).
+OUTPUT_SAMPLE_RATE = 22050
+OUTPUT_SAMPLE_RATE_F0 = 44100
+DEFAULT_DIFFUSION_STEPS = 25
 
 
 class ServiceError(Exception):
@@ -35,9 +47,9 @@ class ServiceError(Exception):
 
 
 def resolve_device():
-    """Pick the inference device: CHATTERBOX_DEVICE wins, else CUDA if a
+    """Pick the inference device: SEEDVC_DEVICE wins, else CUDA if a
     torch build with a live GPU is importable, else CPU."""
-    override = os.environ.get("CHATTERBOX_DEVICE")
+    override = os.environ.get("SEEDVC_DEVICE")
     if override:
         return override
     try:
@@ -51,17 +63,23 @@ def resolve_device():
 
 
 def load_default_model(device):
-    """Import and load the real Chatterbox model. Kept behind this function
-    so importing this module never requires chatterbox-tts or torch.
+    """Import and load the real Seed-VC model wrapper. Kept behind this
+    function so importing this module never requires the seed-vc code or
+    torch.
 
-    Verified against chatterbox-tts 0.1.7 (package ``chatterbox``):
-    ``ChatterboxMultilingualTTS.from_pretrained(device=...)`` and
-    ``generate(text, language_id, audio_prompt_path=...) -> tensor`` with
-    the output sample rate on ``model.sr``.
+    Verified against Plachtaa/seed-vc (main @ 51383ef,
+    seed_vc_wrapper.py): ``SeedVCWrapper(device=...)`` loads the base
+    (non-F0, 22050 Hz) and F0 (44100 Hz) DiT models from the
+    ``Plachta/Seed-VC`` HuggingFace repo, and
+    ``convert_voice(source, target, diffusion_steps=..., length_adjust=...,
+    inference_cfg_rate=..., f0_condition=..., auto_f0_adjust=...,
+    pitch_shift=..., stream_output=False)`` returns the converted audio
+    as a numpy array at the model's sample rate. The seed-vc source tree
+    must be on sys.path (it is not published on PyPI) — see README.md.
     """
-    from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+    from seed_vc_wrapper import SeedVCWrapper
 
-    return ChatterboxMultilingualTTS.from_pretrained(device=device)
+    return SeedVCWrapper(device=device)
 
 
 def _flatten_samples(samples):
@@ -119,7 +137,7 @@ class VoiceStore:
     def create(self, name, audio_bytes, filename="reference.wav"):
         if not audio_bytes:
             raise ServiceError(400, "Reference audio is empty")
-        voice_id = "cb_" + uuid.uuid4().hex
+        voice_id = "sv_" + uuid.uuid4().hex
         voice_dir = self._voice_dir(voice_id)
         voice_dir.mkdir(parents=True)
         suffix = Path(filename or "reference.wav").suffix or ".wav"
@@ -158,7 +176,7 @@ class VoiceStore:
         return sum(1 for p in self.root.iterdir() if p.is_dir())
 
 
-class ChatterboxService:
+class SeedVCService:
     """Voice operations over a VoiceStore plus a lazily loaded model."""
 
     def __init__(self, store, model_loader=load_default_model, device=None):
@@ -167,7 +185,7 @@ class ChatterboxService:
         self._device = device if device is not None else resolve_device()
         self._model = None
         self._model_lock = threading.Lock()
-        self._generate_lock = threading.Lock()
+        self._convert_lock = threading.Lock()
 
     @property
     def device(self):
@@ -185,25 +203,62 @@ class ChatterboxService:
         return self._model
 
     def clone_voice(self, name, audio_bytes, filename="reference.wav"):
+        """Register a target voice: store its reference recording."""
         return self.store.create(name, audio_bytes, filename)
 
     def clone_voice_from_path(self, name, source_path):
         return self.store.create_from_path(name, source_path)
 
-    def synthesize(self, voice_id, text, language_id=DEFAULT_LANGUAGE):
-        """Returns (wav_bytes, character_count)."""
-        if not text or not text.strip():
-            raise ServiceError(400, "Text is required")
+    def convert(
+        self,
+        voice_id,
+        source_bytes,
+        source_filename="source.wav",
+        diffusion_steps=DEFAULT_DIFFUSION_STEPS,
+        length_adjust=1.0,
+        inference_cfg_rate=0.7,
+        f0_condition=False,
+        auto_f0_adjust=True,
+        pitch_shift=0,
+    ):
+        """Convert a source performance into the stored target voice.
+
+        Returns (wav_bytes, source_byte_count). The model API works on
+        file paths, so the uploaded source audio is staged in a temp file
+        that is always removed afterwards.
+        """
+        if not source_bytes:
+            raise ServiceError(
+                400,
+                "seedvc_requires_source_audio: SeedVC converts a source "
+                "performance; the request carried no source audio",
+            )
         reference = self.store.reference_path(voice_id)
         model = self._model_instance()
-        # The model is not thread-safe; serialize synthesis.
-        with self._generate_lock:
-            wav = model.generate(
-                text,
-                language_id or DEFAULT_LANGUAGE,
-                audio_prompt_path=str(reference),
-            )
-        return encode_wav(wav, model.sr), len(text)
+        suffix = Path(source_filename or "source.wav").suffix or ".wav"
+        tmp = tempfile.NamedTemporaryFile(
+            prefix="seedvc-source-", suffix=suffix, delete=False
+        )
+        try:
+            tmp.write(source_bytes)
+            tmp.close()
+            # The model is not thread-safe; serialize conversion.
+            with self._convert_lock:
+                converted = model.convert_voice(
+                    source=tmp.name,
+                    target=str(reference),
+                    diffusion_steps=int(diffusion_steps),
+                    length_adjust=float(length_adjust),
+                    inference_cfg_rate=float(inference_cfg_rate),
+                    f0_condition=bool(f0_condition),
+                    auto_f0_adjust=bool(auto_f0_adjust),
+                    pitch_shift=int(pitch_shift),
+                    stream_output=False,
+                )
+        finally:
+            Path(tmp.name).unlink(missing_ok=True)
+        sample_rate = OUTPUT_SAMPLE_RATE_F0 if f0_condition else OUTPUT_SAMPLE_RATE
+        return encode_wav(converted, sample_rate), len(source_bytes)
 
     def delete_voice(self, voice_id):
         self.store.delete(voice_id)
@@ -211,7 +266,9 @@ class ChatterboxService:
     def health(self):
         return {
             "status": "ok",
+            "engine": "seed-vc",
             "model_loaded": self.model_loaded,
             "device": self._device,
             "voices": self.store.count(),
+            "output_sample_rate": OUTPUT_SAMPLE_RATE,
         }

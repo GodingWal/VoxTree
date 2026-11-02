@@ -1,18 +1,26 @@
-"""HTTP entrypoint for the VoxTree Chatterbox voice service.
+"""HTTP entrypoint for the VoxTree SeedVC voice service.
 
 Stdlib-only HTTP layer (matching workers/avatar_pipeline conventions); all
 logic lives in service.py. Run:
 
-    python3 workers/chatterbox/server.py            # 127.0.0.1:8001
-    CHATTERBOX_PORT=8001 python3 workers/chatterbox/server.py
+    python3 workers/seedvc/server.py            # 127.0.0.1:8001
+    SEEDVC_PORT=8001 python3 workers/seedvc/server.py
 
 Endpoints:
-    GET    /health           -> {status, model_loaded, device, voices}
+    GET    /health           -> {status, engine, model_loaded, device, voices}
     POST   /voices/clone     -> multipart (name + file), JSON
                                 {name, audio_base64 | audio_path}, or a raw
-                                audio body (?name=...); returns {voice_id}
-    POST   /tts              -> JSON {voice_id, text, language_id?}; returns
-                                audio/wav with X-Character-Count header
+                                audio body (?name=...); registers the target
+                                voice's reference recording; returns {voice_id}
+    POST   /convert          -> multipart (voice_id + source file + optional
+                                conversion options) or JSON {voice_id,
+                                source_audio_base64, diffusion_steps?,
+                                length_adjust?, inference_cfg_rate?,
+                                f0_condition?}; converts the source
+                                performance into the stored voice; returns
+                                audio/wav with X-Source-Bytes / X-Sample-Rate
+                                headers. There is no text-to-speech endpoint:
+                                SeedVC converts recorded audio, not text.
     DELETE /voices/<id>      -> removes the stored reference audio (404 when
                                 already gone; callers treat that as success)
 """
@@ -26,7 +34,7 @@ import sys
 from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from service import ChatterboxService, ServiceError, VoiceStore
+from service import SeedVCService, ServiceError, VoiceStore
 
 MAX_BODY_BYTES = 64 * 1024 * 1024
 
@@ -75,6 +83,26 @@ def parse_multipart(body, content_type):
     return fields, files
 
 
+
+def _coerce_options(raw):
+    """Multipart fields arrive as strings; the service layer also accepts
+    JSON natives. Coerce the known SeedVC convert options."""
+    options = {}
+    if raw.get("diffusion_steps") not in (None, ""):
+        options["diffusion_steps"] = int(raw["diffusion_steps"])
+    if raw.get("length_adjust") not in (None, ""):
+        options["length_adjust"] = float(raw["length_adjust"])
+    if raw.get("inference_cfg_rate") not in (None, ""):
+        options["inference_cfg_rate"] = float(raw["inference_cfg_rate"])
+    if raw.get("pitch_shift") not in (None, ""):
+        options["pitch_shift"] = int(raw["pitch_shift"])
+    for key in ("f0_condition", "auto_f0_adjust"):
+        value = raw.get(key)
+        if value is not None and value != "":
+            options[key] = value if isinstance(value, bool) else str(value).lower() in ("1", "true", "yes")
+    return options
+
+
 def make_handler(service):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -116,8 +144,8 @@ def make_handler(service):
                 path = urlparse(self.path).path
                 if path == "/voices/clone":
                     self._handle_clone()
-                elif path == "/tts":
-                    self._handle_tts()
+                elif path == "/convert":
+                    self._handle_convert()
                 else:
                     self._send_json(404, {"error": "Not found"})
             except Exception as err:  # noqa: BLE001
@@ -162,19 +190,65 @@ def make_handler(service):
                 meta = service.clone_voice(name, body, filename)
             self._send_json(201, {"voice_id": meta["voice_id"], "name": meta["name"]})
 
-        def _handle_tts(self):
-            payload = json.loads(self._read_body() or b"{}")
-            voice_id = payload.get("voice_id")
-            text = payload.get("text")
+        def _handle_convert(self):
+            content_type = self.headers.get("Content-Type") or ""
+            body = self._read_body()
+            options = {}
+            if content_type.startswith("multipart/form-data"):
+                fields, files = parse_multipart(body, content_type)
+                upload = files.get("source") or files.get("file")
+                if upload is None:
+                    raise ServiceError(
+                        400,
+                        "seedvc_requires_source_audio: multipart body must "
+                        "include a source audio file field",
+                    )
+                filename, source_audio = upload
+                voice_id = fields.get("voice_id", "")
+                for key in (
+                    "diffusion_steps",
+                    "length_adjust",
+                    "inference_cfg_rate",
+                    "f0_condition",
+                    "auto_f0_adjust",
+                    "pitch_shift",
+                ):
+                    if fields.get(key) not in (None, ""):
+                        options[key] = fields[key]
+            elif content_type.startswith("application/json"):
+                payload = json.loads(body or b"{}")
+                voice_id = payload.get("voice_id", "")
+                if payload.get("source_audio_base64"):
+                    source_audio = base64.b64decode(payload["source_audio_base64"])
+                    filename = payload.get("source_filename", "source.wav")
+                else:
+                    raise ServiceError(
+                        400,
+                        "seedvc_requires_source_audio: JSON convert requires "
+                        "source_audio_base64 (SeedVC converts a source "
+                        "performance; it cannot synthesize speech from text)",
+                    )
+                for key in (
+                    "diffusion_steps",
+                    "length_adjust",
+                    "inference_cfg_rate",
+                    "f0_condition",
+                    "auto_f0_adjust",
+                    "pitch_shift",
+                ):
+                    if payload.get(key) is not None:
+                        options[key] = payload[key]
+            else:
+                raise ServiceError(400, "Convert requires multipart or JSON body")
             if not voice_id:
                 raise ServiceError(400, "voice_id is required")
-            wav_bytes, char_count = service.synthesize(
-                voice_id, text or "", payload.get("language_id")
+            wav_bytes, source_bytes = service.convert(
+                voice_id, source_audio, filename, **_coerce_options(options)
             )
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
             self.send_header("Content-Length", str(len(wav_bytes)))
-            self.send_header("X-Character-Count", str(char_count))
+            self.send_header("X-Source-Bytes", str(source_bytes))
             self.end_headers()
             self.wfile.write(wav_bytes)
 
@@ -182,19 +256,19 @@ def make_handler(service):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="VoxTree Chatterbox voice service")
-    parser.add_argument("--host", default=os.environ.get("CHATTERBOX_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("CHATTERBOX_PORT", "8001")))
+    parser = argparse.ArgumentParser(description="VoxTree SeedVC voice service")
+    parser.add_argument("--host", default=os.environ.get("SEEDVC_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("SEEDVC_PORT", "8001")))
     parser.add_argument(
         "--data-dir",
         default=os.environ.get(
-            "CHATTERBOX_DATA_DIR", str(Path(__file__).resolve().parent / "data" / "voices")
+            "SEEDVC_DATA_DIR", str(Path(__file__).resolve().parent / "data" / "voices")
         ),
     )
     args = parser.parse_args(argv)
-    service = ChatterboxService(VoiceStore(args.data_dir))
+    service = SeedVCService(VoiceStore(args.data_dir))
     server = ThreadingHTTPServer((args.host, args.port), make_handler(service))
-    print(f"chatterbox voice service listening on http://{args.host}:{args.port} "
+    print(f"seedvc voice service listening on http://{args.host}:{args.port} "
           f"(device={service.device}, data={args.data_dir})")
     try:
         server.serve_forever()
